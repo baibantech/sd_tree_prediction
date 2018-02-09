@@ -344,9 +344,11 @@ int main(int argc,char *argv[])
 #endif
 
 	g_thrd_id = 0;
-//	test_insert_thread(0);
+	test_insert_thread(0);
 	sleep(10);    
-for(i = 0;  i  < data_set_config_insert_thread_num ; i++)
+
+#if 0
+	for(i = 0;  i  < data_set_config_insert_thread_num ; i++)
     {
         err = pthread_create(&ntid, NULL, test_insert_thread, (void *)i);
         if (err != 0)
@@ -360,17 +362,7 @@ for(i = 0;  i  < data_set_config_insert_thread_num ; i++)
         if (err != 0)
             printf("can't create thread: %s\n", strerror(err));
     }
-
-	#if 0
-	test_insert_proc(NULL);
-	sleep(10);
-	test_insert_proc(NULL);
-//	sleep(10);
-//	test_delete_proc(NULL);
-	sleep(10);
-//	test_delete_proc(NULL);
-	#endif
-
+#endif
 
 	while(1)
 	{
@@ -380,133 +372,25 @@ for(i = 0;  i  < data_set_config_insert_thread_num ; i++)
 
 }
 
-void* test_insert_data(char *pdata)
+void *test_insert_data(char *pdata)
 {
-	return insert_data(pgclst,pdata);
+	return insert_data(pgclst, pdata);
 }
-int test_delete_data(char *pdata)
+void *test_delete_data(char *pdata)
 {
-	return delete_data(pgclst,pdata);
+	return delete_data(pgclst, pdata);
 }
-#if 0
-extern cluster_head_t *pbclst;
-extern int dbg_switch;
-int opnum = 0;
-int main1()
-{
-    FILE *f_data, *f_op;
-    char *pdata, op, *ret_data;
-    int ret;
-    int thread_num = 1;
-    g_data_size = 4096;
-    
-	pgclst = spt_cluster_init(0,DATA_BIT_MAX, thread_num, 
-                              tree_get_key_from_data,
-                              tree_free_key,
-                              tree_free_data,
-                              tree_construct_data_from_key);
-    if(pgclst == NULL)
-    {
-        spt_debug("cluster_init err\r\n");
-        return 1;
-    }
 
-    g_thrd_h = spt_thread_init(thread_num);
-    if(g_thrd_h == NULL)
-    {
-        spt_debug("spt_thread_init err\r\n");
-        return 1;
-	}
-    g_thrd_id = 0;
-
-    if((f_data=fopen("pagefile","r"))==NULL)
-    {
-        fprintf(stderr,"Can not open output file.\n");
-        return 0;
-    }
-    if((f_op=fopen("opfile","r"))==NULL)
-    {
-        fprintf(stderr,"Can not open output file.\n");
-        return 0;
-    }
-    fseek(f_op,0,SEEK_SET);
-    fseek(f_data,0,SEEK_SET);
-    while(!feof(f_op))
-    {
-        fread(&op,1,1,f_op);
-        pdata = malloc(4096);
-        if(pdata == NULL)
-            printf("ERR,%s\t%d\r\n", __FILE__, __LINE__);
-        fread(pdata,4096,1,f_data);
-        spt_thread_start(g_thrd_id);
-        if(op == 1)
-        {
-			if(NULL ==(ret_data =  test_insert_data(pdata)))
-            {
-                ret = spt_get_errno();
-                if(ret == SPT_MASKED)
-                {
-                    printf("ERR,%s\t%d\r\n", __FILE__, __LINE__);
-                }
-                else if(ret == SPT_WAIT_AMT)
-                {
-                    printf("ERR,%s\t%d\r\n", __FILE__, __LINE__);
-                }
-                else if(ret == SPT_NOMEM)
-                {
-                    printf("ERR,%s\t%d\r\n", __FILE__, __LINE__);
-                }
-                else
-                {
-                    printf("ERR[%d],%s\t%d\r\n", ret, __FILE__, __LINE__);
-                }
-			}
-            debug_cluster_travl_test(pbclst);
-        }
-        else if(op == 2)
-        {
-			if((ret = test_delete_data(pdata)) < 0)
-            {
-                if(-10000 == ret)
-				{
-					printf("ERR,%s\t%d\r\n", __FILE__, __LINE__);
-				}
-				else
-				{
-					ret = spt_get_errno();
-					if(ret == SPT_MASKED)
-					{
-                        printf("ERR,%s\t%d\r\n", __FILE__, __LINE__);
-					}
-					else if(ret == SPT_WAIT_AMT)
-					{
-                        printf("ERR,%s\t%d\r\n", __FILE__, __LINE__);
-					}
-					else if(ret == SPT_NOMEM)
-					{
-                        printf("ERR,%s\t%d\r\n", __FILE__, __LINE__);
-					}
-					else
-					{
-                        printf("ERR[%d],%s\t%d\r\n", ret, __FILE__, __LINE__);
-					}
-				}
-            } 
-            debug_cluster_travl_test(pbclst);
-        }
-        else
-        {
-            printf("ERR,%s\t%d", __FILE__, __LINE__);
-        }
-        spt_thread_exit(g_thrd_id);
-        if(dbg_switch == 5)
-        {
-            while(1);
-        }
-        opnum++;
-    }
+void *test_find_data(char *pdata)
+{
+	return query_data(pgclst, pdata);
 }
-#endif
+
+int test_find_data_prediction(char *pdata)
+{
+	return query_data_prediction(pgclst, pdata);
+}
+
 int test_stop = 1;
 void* test_insert_thread(void *arg)
 {

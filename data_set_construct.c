@@ -28,7 +28,7 @@ unsigned long long spt_merge_num = 0;
 long long  data_set_config_instance_len = DEFAULT_INS_LEN;
 long long  data_set_config_instance_num = DEFAULT_INS_NUM;
 
-long long  data_set_config_random = 0;
+long long  data_set_config_random = DEFAULT_RANDOM_WAY;
 long long  data_set_config_file_len = DEFAULT_FILE_LEN;
 
 long long  data_set_config_cache_unit_len = 40*1024*1024;
@@ -448,7 +448,7 @@ u64 g_insert_ok = 0;
 u64 g_delete_ok = 0;
 extern 	int test_stop;
 extern void* test_insert_data(char *pdata);
-extern int test_delete_data(char *pdata);
+extern void* test_delete_data(char *pdata);
 
 void data_pre_process()
 {
@@ -635,6 +635,7 @@ void test_delete_proc(void *args)
 	struct data_set_cache *next = NULL;
 	void *data = NULL;
     int ret;
+	void *ret_data;
 	int delete_cnt = 0;
 	unsigned long long per_cache_time_begin = 0;	
 	unsigned long long per_cache_time_end = 0;	
@@ -661,38 +662,32 @@ void test_delete_proc(void *args)
 try_again:
             PERF_STAT_START(whole_delete);
 			hash = xxh32(data, data_set_config_instance_len, 0);
-			if((ret = test_delete_data(data)) < 0)
+			if(NULL == (ret_data = test_delete_data(data)))
             {
-                if(-10000 == ret)
-				{
+				ret = spt_get_errno();
+				if (ret == SPT_NOT_FOUND) {
 					atomic64_add(1,(atomic64_t*)&spt_no_found_num);
-//					test_stop=1;
+					break;
+				} else if(ret == SPT_MASKED) {
+					spt_thread_exit(g_thrd_id);
+					spt_thread_start(g_thrd_id);
+					goto try_again;
+				}
+				else if(ret == SPT_WAIT_AMT)
+				{
+					spt_thread_exit(g_thrd_id);
+					spt_thread_start(g_thrd_id);
+					goto try_again;
+				}
+				else if(ret == SPT_NOMEM)
+				{
+					printf("OOM,%d\t%s\r\n", __LINE__, __FUNCTION__);
+					break;
 				}
 				else
 				{
-					ret = spt_get_errno();
-					if(ret == SPT_MASKED)
-					{
-						spt_thread_exit(g_thrd_id);
-						spt_thread_start(g_thrd_id);
-						goto try_again;
-					}
-					else if(ret == SPT_WAIT_AMT)
-					{
-						spt_thread_exit(g_thrd_id);
-						spt_thread_start(g_thrd_id);
-						goto try_again;
-					}
-					else if(ret == SPT_NOMEM)
-					{
-						printf("OOM,%d\t%s\r\n", __LINE__, __FUNCTION__);
-						break;
-					}
-					else
-					{
-						printf("DELETE ERROR[%d],%d\t%s\r\n", ret,__LINE__, __FUNCTION__);
-						break;
-					}
+					printf("DELETE ERROR[%d],%d\t%s\r\n", ret,__LINE__, __FUNCTION__);
+					break;
 				}
             } 
             else
@@ -713,6 +708,45 @@ try_again:
 	}while(cur);
 	
 	printf("delete over\r\n");
+}
+void test_find_proc(void *args)
+{
+	struct data_set_cache *cur = NULL;
+	struct data_set_cache *next = NULL;
+	void *data = NULL;
+	void *ret_data = NULL;
+
+	int find_cnt = 0;
+	do {
+		next = get_next_data_set_cache(cur);		
+		if(NULL == next)
+		{
+			break;
+		}
+        spt_thread_start(g_thrd_id);
+		while(data = get_next_data(next))
+		{
+			find_cnt++;
+            if(find_cnt%100 == 0)
+            {
+                spt_thread_exit(g_thrd_id);
+				break;
+			}
+			test_find_data_prediction(data);
+			if((ret_data= test_find_data(data)) == NULL)
+				printf("test_find data ret no found\r\n");		
+		}
+		spt_thread_exit(g_thrd_id);
+		
+		if(cur)
+		{
+			free(cur);
+		}
+		cur = next;
+		sleep(0);
+	}while(cur);
+	
+	printf("find data over\r\n");
 }
 
 char *construct_virt_board(int instance_size)

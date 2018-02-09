@@ -254,6 +254,16 @@ struct query_info_t {
 	spt_cb_end_key get_key_end;
 };
 
+struct prediction_info_t {
+	struct spt_vec *pstart_vec;
+	char *data;                 /* data to be queried */
+	u64 originbit;				/* first bit compare begin*/
+	u64 endbit;                 /* data end bit */
+	u32 startid;                /* start vector id */
+	u32 ret_vec_id;             
+	spt_cb_get_key get_key;
+	spt_cb_end_key get_key_end;
+};
 
 struct insert_info_t {
 //spt_insert_info

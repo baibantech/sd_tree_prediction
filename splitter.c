@@ -2655,6 +2655,74 @@ char *delete_data(struct cluster_head_t *pclst, char *pdata)
 	spt_set_errno(ret);
 	return NULL;
 }
+char *query_data(struct cluster_head_t *pclst, char *pdata)
+{
+	struct cluster_head_t *pnext_clst;
+	struct query_info_t qinfo = {0};
+	struct spt_dh *pdh;
+	int ret = 0;
+	/*
+	 *first look up in the top cluster.
+	 *which next level cluster do the data belong.
+	 */
+	pnext_clst = find_next_cluster(pclst, pdata);
+	if (pnext_clst == NULL) {
+		spt_set_errno(SPT_MASKED);
+		return NULL;
+	}
+
+	qinfo.op = SPT_OP_FIND;
+	qinfo.signpost = 0;
+	qinfo.pstart_vec = pnext_clst->pstart;
+	qinfo.startid = pnext_clst->vec_head;
+	qinfo.endbit = pnext_clst->endbit;
+	qinfo.data = pdata;
+	/*
+	 *find data into the final cluster
+	 */
+	ret = find_data(pnext_clst, &qinfo);
+	if (ret == 0) { /*delete ok*/
+		pdh = (struct spt_dh *)db_id_2_ptr(pnext_clst,
+				qinfo.db_id);
+		if (!pdh->pdata)
+			spt_assert(0);
+		return pdh->pdata;
+	}
+	spt_set_errno(ret);
+	return NULL;
+}
+int query_data_prediction(struct cluster_head_t *pclst, char *pdata)
+{
+	struct cluster_head_t *pnext_clst;
+	struct prediction_info_t qinfo = {0};
+	struct spt_dh *pdh;
+	int ret = 0;
+	/*
+	 *first look up in the top cluster.
+	 *which next level cluster do the data belong.
+	 */
+	pnext_clst = find_next_cluster(pclst, pdata);
+	if (pnext_clst == NULL) {
+		spt_set_errno(SPT_MASKED);
+		return NULL;
+	}
+
+	qinfo.pstart_vec = pnext_clst->pstart;
+	qinfo.startid = pnext_clst->vec_head;
+	qinfo.endbit = pnext_clst->endbit;
+	qinfo.data = pdata;
+	/*
+	 *find data into the final cluster
+	 */
+	ret = find_data_prediction(pnext_clst, &qinfo);
+	if (ret == 0) { /*delete ok*/
+		
+	}
+	printf("prediction err\r\n");
+	spt_set_errno(ret);
+	return -1;
+}
+
 /**
  * spt_cluster_init - init sd tree
  * @startbit: the effective bit of data start in the tree
@@ -3129,19 +3197,19 @@ u64 find_fs(char *a, u64 start, u64 len)
 				ret += 8;
 				lenbyte--;
 			}
-			return ret;
-		}
-		while (align >= 1) {
-			uca = *acstart; acstart++;
-			if (uca != 0) {
-				fs = ucfind_firt_set(uca);
-				ret += fs;
-				return ret;
+		} else {
+			while (align >= 1) {
+				uca = *acstart; acstart++;
+				if (uca != 0) {
+					fs = ucfind_firt_set(uca);
+					ret += fs;
+					return ret;
+				}
+				ret += 8;
+				align--;
 			}
-			ret += 8;
-			align--;
+			lenbyte -= align;
 		}
-		lenbyte -= align;
 
 	}
 
@@ -3511,20 +3579,19 @@ u64 find_fs(char *a, u64 start, u64 len)
 				ret += 8;
 				lenbyte--;
 			}
-			return ret;
-		}
-
-		lenbyte -= align;
-		while (align >= 1) {
-			uca = *acstart;
-			acstart++;
-			if (uca != 0) {
-				fs = ucfind_firt_set(uca);
-				ret += fs;
-				return ret;
+		}else {
+			lenbyte -= align;
+			while (align >= 1) {
+				uca = *acstart;
+				acstart++;
+				if (uca != 0) {
+					fs = ucfind_firt_set(uca);
+					ret += fs;
+					return ret;
+				}
+				ret += 8;
+				align--;
 			}
-			ret += 8;
-			align--;
 		}
 	}
 
