@@ -462,13 +462,14 @@ refind_forward:
 					smp_mb();/* ^^^ */
 					pcur_data = pclst->get_key_in_tree(pdh->pdata);
 
-					printf("find change bit line %d\r\n",__LINE__);
+					//printf("find change bit line %d\r\n",__LINE__);
 					first_chbit = get_first_change_bit(prdata,
 							pcur_data,
 							pqinfo->originbit,
 							startbit);
 					if (first_chbit == -1) {	
 						pqinfo->ret_vec_id = cur_vecid; 
+						pqinfo->ret_vec = pcur; 
 						return SPT_PREDICTION_OK;
 					}
 					goto prediction_check;
@@ -584,6 +585,7 @@ refind_forward:
 							startbit);
 					if(first_chbit == -1) {
 						pqinfo->ret_vec_id = cur_vecid;
+						pqinfo->ret_vec = pcur; 
 						return SPT_PREDICTION_OK;
 					}
 					goto prediction_check;
@@ -674,6 +676,7 @@ refind_forward:
 								startbit);
 					if (first_chbit == -1) {
 						pqinfo->ret_vec_id = cur_vecid;
+						pqinfo->ret_vec = pcur; 
 						return SPT_PREDICTION_OK;
 					}
 					goto prediction_check;
@@ -720,6 +723,7 @@ prediction_check:
 	}
 	if(startbit == endbit) {
 		pqinfo->ret_vec_id = cur_vecid;
+		pqinfo->ret_vec = pcur; 
 		return SPT_PREDICTION_OK;
 	}
 
@@ -752,6 +756,7 @@ prediction_check:
 				len = next_vec.pos + signpost - startbit + 1;
 				if(startbit + len >= endbit) {
 					pqinfo->ret_vec_id = cur_vecid;
+					pqinfo->ret_vec = pcur; 
 					return SPT_PREDICTION_OK;
 				}
 				startbit += len;
@@ -787,6 +792,7 @@ prediction_check:
 				if (!test_bit_zero(prdata, startbit, len) 
 						|| (startbit + len >= endbit)) {
 					pqinfo->ret_vec_id = cur_vecid;
+					pqinfo->ret_vec = pcur; 
 					return SPT_PREDICTION_OK;
 				}
 

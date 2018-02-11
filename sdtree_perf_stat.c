@@ -8,6 +8,8 @@ PERF_STAT_DEFINE(get_data_id);
 PERF_STAT_DEFINE(jhash2_random);
 PERF_STAT_DEFINE(spt_get_hash_tag);
 PERF_STAT_DEFINE(find_data);
+PERF_STAT_DEFINE(find_data_prediction);
+PERF_STAT_DEFINE(find_data_test);
 
 
 
@@ -20,6 +22,8 @@ sd_perf_stat *sd_perf_stat_array[] =
     PERF_STAT_PTR(jhash2_random),
     PERF_STAT_PTR(spt_get_hash_tag),
     PERF_STAT_PTR(find_data),
+    PERF_STAT_PTR(find_data_prediction),
+    PERF_STAT_PTR(find_data_test),
 };
 
 void sd_perf_stat_init()

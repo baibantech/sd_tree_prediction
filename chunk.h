@@ -261,6 +261,7 @@ struct prediction_info_t {
 	u64 endbit;                 /* data end bit */
 	u32 startid;                /* start vector id */
 	u32 ret_vec_id;             
+	struct spt_vec *ret_vec;
 	spt_cb_get_key get_key;
 	spt_cb_end_key get_key_end;
 };

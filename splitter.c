@@ -2694,7 +2694,8 @@ char *query_data(struct cluster_head_t *pclst, char *pdata)
 int query_data_prediction(struct cluster_head_t *pclst, char *pdata)
 {
 	struct cluster_head_t *pnext_clst;
-	struct prediction_info_t qinfo = {0};
+	struct prediction_info_t pre_qinfo = {0};
+	struct query_info_t qinfo = {0};
 	struct spt_dh *pdh;
 	int ret = 0;
 	/*
@@ -2707,16 +2708,33 @@ int query_data_prediction(struct cluster_head_t *pclst, char *pdata)
 		return NULL;
 	}
 
-	qinfo.pstart_vec = pnext_clst->pstart;
-	qinfo.startid = pnext_clst->vec_head;
-	qinfo.endbit = pnext_clst->endbit;
-	qinfo.data = pdata;
+	pre_qinfo.pstart_vec = pnext_clst->pstart;
+	pre_qinfo.startid = pnext_clst->vec_head;
+	pre_qinfo.endbit = pnext_clst->endbit;
+	pre_qinfo.data = pdata;
 	/*
 	 *find data into the final cluster
 	 */
-	ret = find_data_prediction(pnext_clst, &qinfo);
+	ret = find_data_prediction(pnext_clst, &pre_qinfo);
 	if (ret == 0) { /*delete ok*/
-		return 0;	
+		qinfo.op = SPT_OP_FIND;
+		qinfo.signpost = 0;
+		qinfo.pstart_vec = pre_qinfo.ret_vec;
+		qinfo.startid = pre_qinfo.ret_vec_id;
+		qinfo.endbit = pnext_clst->endbit;
+		qinfo.data = pdata;
+		/*
+		 *find data into the final cluster
+		 */
+		ret = find_data(pnext_clst, &qinfo);
+		if (ret == 0) { /*delete ok*/
+			pdh = (struct spt_dh *)db_id_2_ptr(pnext_clst,
+					qinfo.db_id);
+			if (!pdh->pdata)
+				spt_assert(0);
+			return pdh->pdata;
+		}
+		printf("find data prediction err\r\n");
 	}
 	printf("prediction err\r\n");
 	spt_set_errno(ret);

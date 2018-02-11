@@ -54,6 +54,8 @@ PERF_STAT_DEC(get_data_id);
 PERF_STAT_DEC(jhash2_random);
 PERF_STAT_DEC(spt_get_hash_tag);
 PERF_STAT_DEC(find_data);
+PERF_STAT_DEC(find_data_prediction);
+PERF_STAT_DEC(find_data_test);
 
 
 

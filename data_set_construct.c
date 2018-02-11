@@ -28,8 +28,8 @@ unsigned long long spt_merge_num = 0;
 long long  data_set_config_instance_len = DEFAULT_INS_LEN;
 long long  data_set_config_instance_num = DEFAULT_INS_NUM;
 
-//long long  data_set_config_random = DEFAULT_RANDOM_WAY;
-long long  data_set_config_random = 0;
+long long  data_set_config_random = DEFAULT_RANDOM_WAY;
+//long long  data_set_config_random = 0;
 long long  data_set_config_file_len = DEFAULT_FILE_LEN;
 
 long long  data_set_config_cache_unit_len = 40*1024*1024;
@@ -731,10 +731,17 @@ void test_find_proc(void *args)
             if(find_cnt%100 == 0)
             {
                 spt_thread_exit(g_thrd_id);
-				break;
+				spt_thread_start(g_thrd_id);
 			}
+
+            PERF_STAT_START(find_data_prediction);
 			test_find_data_prediction(data);
-			if((ret_data= test_find_data(data)) == NULL)
+            PERF_STAT_END(find_data_prediction);
+			
+            PERF_STAT_START(find_data_test);
+			ret_data= test_find_data(data);
+            PERF_STAT_END(find_data_test);
+			if(!ret_data)	
 				printf("test_find data ret no found\r\n");		
 		}
 		spt_thread_exit(g_thrd_id);
