@@ -446,7 +446,6 @@ refind_forward:
 	while (startbit < endbit) {
 		/*first bit is 1｣ｬcompare with pcur_vec->right*/
 		if (test_bit_set(prdata, startbit)) {
-			
 			if (cur_vec.type == SPT_VEC_DATA) {
 				len = endbit - startbit;
 				if (cur_data != SPT_INVALID) {
@@ -462,6 +461,8 @@ refind_forward:
 						cur_data);
 					smp_mb();/* ^^^ */
 					pcur_data = pclst->get_key_in_tree(pdh->pdata);
+
+					printf("find change bit line %d\r\n",__LINE__);
 					first_chbit = get_first_change_bit(prdata,
 							pcur_data,
 							pqinfo->originbit,
@@ -472,9 +473,12 @@ refind_forward:
 					}
 					goto prediction_check;
 
-				} else if (cur_data == SPT_NULL)
+				} else if (cur_data == SPT_NULL) {
+					printf("return err line %d\r\n",__LINE__);
 					return SPT_PREDICTION_ERR; 
+				}
 				else {
+					printf("return err line %d\r\n",__LINE__);
 					return SPT_PREDICTION_ERR;
 					spt_assert(0);
 				}
@@ -546,7 +550,9 @@ refind_forward:
 					continue;
 				}
 				len = next_vec.pos + signpost - startbit + 1;
+
 				if(startbit + len >= endbit) {
+					printf("find change bit line %d\r\n",__LINE__);
 					first_chbit = get_first_change_bit(
 							prdata,
 							pcur_data,
@@ -625,8 +631,21 @@ refind_forward:
 
 				len = next_vec.pos + signpost - startbit + 1;
 
+
+
 				if (!test_bit_zero(prdata, startbit, len) 
 						|| (startbit + len >= endbit)) {
+					cur_data = get_data_id(pclst, pnext);
+					if (cur_data >= 0 && cur_data < SPT_INVALID) {
+						pdh = (struct spt_dh *)db_id_2_ptr(pclst,
+							cur_data);
+						smp_mb();/* ^^^ */
+						pcur_data = pclst->get_key_in_tree(pdh->pdata);
+					
+					} else
+						return SPT_PREDICTION_ERR;
+
+					printf("find change bit line %d\r\n",__LINE__); 
 					first_chbit = get_first_change_bit(prdata,
 								pcur_data,
 								pqinfo->originbit,
@@ -644,8 +663,10 @@ refind_forward:
 				pre_vecid = cur_vecid;
 				cur_vecid = next_vecid;
 				cur_vec.val = next_vec.val;
-			 } else
-				 return SPT_PREDICTION_ERR;
+			 } else {
+				printf("return err line %d\r\n",__LINE__);
+				return SPT_PREDICTION_ERR;
+			 }
 		}
 	}
 
@@ -666,11 +687,13 @@ prediction_check:
 		smp_mb();/* ^^^ */
 		cur_vec.val = pcur->val;
 		if (cur_vec.status == SPT_VEC_RAW) {
+			printf("return err line %d\r\n",__LINE__);
 			return SPT_PREDICTION_ERR;
 		}
 	}
 	if (cur_vec.status == SPT_VEC_INVALID
 		|| cur_vec.type == SPT_VEC_SIGNPOST) {
+			printf("return err line %d\r\n",__LINE__);
 			return SPT_PREDICTION_ERR;
 	}
 	if(startbit == endbit) {
@@ -682,21 +705,26 @@ prediction_check:
 		/*first bit is 1｣ｬcompare with pcur_vec->right*/
 		if (test_bit_set(prdata, startbit)) {
 			
-			if (cur_vec.type == SPT_VEC_DATA)
+			if (cur_vec.type == SPT_VEC_DATA) {
+				printf("return err line %d\r\n",__LINE__);
 				return SPT_PREDICTION_ERR;
+			}
 			else {
 				pnext = (struct spt_vec *)vec_id_2_ptr(pclst,
 					cur_vec.rd);
 				next_vec.val = pnext->val;
 				next_vecid = cur_vec.rd;
 				if (next_vec.status == SPT_VEC_RAW) {
+					printf("return err line %d\r\n",__LINE__);
 					return SPT_PREDICTION_ERR;
 				}
 				if (next_vec.status == SPT_VEC_INVALID) {
+					printf("return err line %d\r\n",__LINE__);
 					return SPT_PREDICTION_ERR;
 				}
 
 				if (next_vec.down == SPT_NULL) {
+					printf("return err line %d\r\n",__LINE__);
 					return SPT_PREDICTION_ERR;
 				}
 				len = next_vec.pos + signpost - startbit + 1;
@@ -721,10 +749,13 @@ prediction_check:
 				if (next_vec.status == SPT_VEC_RAW) {
 					smp_mb();/* ^^^ */
 					next_vec.val = pnext->val;
-					if (next_vec.status == SPT_VEC_RAW)
+					if (next_vec.status == SPT_VEC_RAW) {
+						printf("return err line %d\r\n",__LINE__);
 						return SPT_PREDICTION_ERR;
+					}
 				}
 				if (next_vec.status == SPT_VEC_INVALID) {
+					printf("return err line %d\r\n",__LINE__);
 					return SPT_PREDICTION_ERR;
 				}
 
@@ -743,8 +774,10 @@ prediction_check:
 				pre_vecid = cur_vecid;
 				cur_vecid = next_vecid;
 				cur_vec.val = next_vec.val;
-			 } else
+			 } else {
+				printf("return err line %d\r\n",__LINE__);
 				 return SPT_PREDICTION_ERR;
+			 }
 		}
 	}
 	return SPT_PREDICTION_ERR;

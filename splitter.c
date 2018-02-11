@@ -2716,7 +2716,7 @@ int query_data_prediction(struct cluster_head_t *pclst, char *pdata)
 	 */
 	ret = find_data_prediction(pnext_clst, &qinfo);
 	if (ret == 0) { /*delete ok*/
-		
+		return 0;	
 	}
 	printf("prediction err\r\n");
 	spt_set_errno(ret);
