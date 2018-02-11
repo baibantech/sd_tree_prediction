@@ -60,7 +60,7 @@ int test_bit_set(char *pdata, u64 test_bit)
 	u64 byte_offset = test_bit/8;
 	u8  bit_offset = test_bit % 8;
 	char* byte_start = pdata + byte_offset;
-	if(*byte_start & (1 << bit_offset))
+	if(*byte_start & (1 << (8 - bit_offset  - 1)))
 		return 1;
 	return 0;
 }
@@ -474,7 +474,21 @@ refind_forward:
 					goto prediction_check;
 
 				} else if (cur_data == SPT_NULL) {
-					printf("return err line %d\r\n",__LINE__);
+					if(ppre == NULL) {
+						printf("return err line %d\r\n",__LINE__); 
+						return SPT_PREDICTION_ERR;
+					}
+					cur_data = get_data_id(pclst, ppre);
+					if (cur_data >= 0 && cur_data < SPT_INVALID) {
+						pdh = (struct spt_dh *)db_id_2_ptr(pclst,
+							cur_data);
+						smp_mb();/* ^^^ */
+						pcur_data = pclst->get_key_in_tree(pdh->pdata);
+					
+					} else
+						return SPT_PREDICTION_ERR;
+
+					printf("return err line %d\r\n",__LINE__); 
 					return SPT_PREDICTION_ERR; 
 				}
 				else {
@@ -552,6 +566,16 @@ refind_forward:
 				len = next_vec.pos + signpost - startbit + 1;
 
 				if(startbit + len >= endbit) {
+					cur_data = get_data_id(pclst, pnext);
+					if (cur_data >= 0 && cur_data < SPT_INVALID) {
+						pdh = (struct spt_dh *)db_id_2_ptr(pclst,
+							cur_data);
+						smp_mb();/* ^^^ */
+						pcur_data = pclst->get_key_in_tree(pdh->pdata);
+					
+					} else
+						return SPT_PREDICTION_ERR;
+
 					printf("find change bit line %d\r\n",__LINE__);
 					first_chbit = get_first_change_bit(
 							prdata,
@@ -630,8 +654,6 @@ refind_forward:
 				}
 
 				len = next_vec.pos + signpost - startbit + 1;
-
-
 
 				if (!test_bit_zero(prdata, startbit, len) 
 						|| (startbit + len >= endbit)) {
