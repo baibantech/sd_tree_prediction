@@ -371,10 +371,11 @@ int main(int argc,char *argv[])
 	return 0;
 
 }
-
+extern int total_data_num;
 void *test_insert_data(char *pdata)
 {
-	return insert_data(pgclst, pdata);
+	total_data_num++;
+	return insert_data_prediction(pgclst, pdata);
 }
 void *test_delete_data(char *pdata)
 {

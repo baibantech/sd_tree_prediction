@@ -2712,9 +2712,6 @@ int query_data_prediction(struct cluster_head_t *pclst, char *pdata)
 	pre_qinfo.startid = pnext_clst->vec_head;
 	pre_qinfo.endbit = pnext_clst->endbit;
 	pre_qinfo.data = pdata;
-	/*
-	 *find data into the final cluster
-	 */
 	ret = find_data_prediction(pnext_clst, &pre_qinfo);
 	if (ret == 0) { /*delete ok*/
 		qinfo.op = SPT_OP_FIND;
@@ -2739,6 +2736,66 @@ int query_data_prediction(struct cluster_head_t *pclst, char *pdata)
 	printf("prediction err\r\n");
 	spt_set_errno(ret);
 	return -1;
+}
+char *insert_data_prediction(struct cluster_head_t *pclst, char *pdata)
+{
+	struct cluster_head_t *pnext_clst;
+	struct query_info_t qinfo = {0};
+	struct prediction_info_t pre_qinfo = {0};
+	struct spt_dh *pdh;
+	int ret = 0;
+
+	/*
+	 *first look up in the top cluster.
+	 *which next level cluster do the data belong.
+	 */
+	pnext_clst = find_next_cluster(pclst, pdata);
+	if (pnext_clst == NULL) {
+		spt_set_errno(SPT_MASKED);
+		return 0;
+	}
+	if (pnext_clst->data_total >= SPT_DATA_HIGH_WATER_MARK
+		|| pnext_clst->ins_mask == 1) {
+		spt_set_errno(SPT_MASKED);
+		return 0;
+	}
+	
+	pre_qinfo.pstart_vec = pnext_clst->pstart;
+	pre_qinfo.startid = pnext_clst->vec_head;
+	pre_qinfo.endbit = pnext_clst->endbit;
+	pre_qinfo.data = pdata;
+
+	ret = find_data_prediction(pnext_clst, &pre_qinfo);
+
+	qinfo.op = SPT_OP_INSERT;
+	qinfo.signpost = 0;
+	qinfo.data = pdata;
+	qinfo.multiple = 1;
+	
+	if (ret == 0) {
+		qinfo.pstart_vec = pre_qinfo.ret_vec;
+		qinfo.startid = pre_qinfo.ret_vec_id;
+		qinfo.endbit = pnext_clst->endbit;
+		ret = find_data(pnext_clst, &qinfo);
+		if (ret >= 0) {
+			pdh = (struct spt_dh *)db_id_2_ptr(pnext_clst, qinfo.db_id);
+			return pdh->pdata;
+		}
+	}
+
+	qinfo.pstart_vec = pnext_clst->pstart;
+	qinfo.startid = pnext_clst->vec_head;
+	qinfo.endbit = pnext_clst->endbit;
+	/*
+	 *insert data into the final cluster
+	 */
+	ret = find_data(pnext_clst, &qinfo);
+	if (ret >= 0) {
+		pdh = (struct spt_dh *)db_id_2_ptr(pnext_clst, qinfo.db_id);
+		return pdh->pdata;
+	}
+	spt_set_errno(ret);
+	return NULL;
 }
 
 /**
@@ -2832,7 +2889,7 @@ struct cluster_head_t *spt_cluster_init(u64 startbit,
 	/*
 	 * The sample space is divided into several parts on average
 	 */
-	for (i = 1; i < 256; i++) {
+	for (i = 1; i < 1; i++) {
 		plower_clst = cluster_init(1, startbit,
 				endbit, thread_num, pf, pf2,
 							pf_free, pf_con);

@@ -54,7 +54,7 @@
 
 #define SPT_PREDICTION_ERR -1
 #define SPT_PREDICTION_OK  0
-
+int total_data_num = 0;
 int test_bit_set(char *pdata, u64 test_bit)
 {
 	u64 byte_offset = test_bit/8;
@@ -378,7 +378,8 @@ int find_data_prediction(struct cluster_head_t *pclst, struct prediction_info_t 
 	spt_cb_end_key finish_key_cb;
 	int refind_cnt;
 	u64 first_chbit;
-
+	int loop_cnt = 0;
+	printf("cluster head ptr is %p\r\n", pclst);
 	if (pclst->status == SPT_WAIT_AMT) {
 		cnt = rsv_list_fill_cnt(pclst, g_thrd_id);
 		ret = fill_in_rsv_list(pclst, cnt, g_thrd_id);
@@ -444,6 +445,7 @@ refind_forward:
 	}
 
 	while (startbit < endbit) {
+		loop_cnt++;
 		/*first bit is 1｣ｬcompare with pcur_vec->right*/
 		if (test_bit_set(prdata, startbit)) {
 			if (cur_vec.type == SPT_VEC_DATA) {
@@ -462,7 +464,7 @@ refind_forward:
 					smp_mb();/* ^^^ */
 					pcur_data = pclst->get_key_in_tree(pdh->pdata);
 
-					//printf("find change bit line %d\r\n",__LINE__);
+					printf("find change bit line %d\r\n",__LINE__);
 					first_chbit = get_first_change_bit(prdata,
 							pcur_data,
 							pqinfo->originbit,
@@ -476,7 +478,9 @@ refind_forward:
 
 				} else if (cur_data == SPT_NULL) {
 					if(ppre == NULL) {
-						printf("return err line %d\r\n",__LINE__); 
+						printf("start bit is %d\r\n", startbit);
+						printf("pcur is %p\r\n",pcur);
+						printf("return err line %d,loop_cnt %d,data_num %d\r\n",__LINE__, loop_cnt, total_data_num); 
 						return SPT_PREDICTION_ERR;
 					}
 					cur_data = get_data_id(pclst, ppre);
@@ -485,12 +489,22 @@ refind_forward:
 							cur_data);
 						smp_mb();/* ^^^ */
 						pcur_data = pclst->get_key_in_tree(pdh->pdata);
+						printf("find change bit line %d\r\n",__LINE__);
+						first_chbit = get_first_change_bit(prdata,
+								pcur_data,
+								pqinfo->originbit,
+								startbit);
+						if (first_chbit == -1) {	
+							pqinfo->ret_vec_id = cur_vecid; 
+							pqinfo->ret_vec = pcur; 
+							return SPT_PREDICTION_OK;
+						}
+						goto prediction_check;
 					
-					} else
+					} else {
+						printf("return err line %d,loop_cnt %d,data_num %d\r\n",__LINE__, loop_cnt, total_data_num); 
 						return SPT_PREDICTION_ERR;
-
-					printf("return err line %d\r\n",__LINE__); 
-					return SPT_PREDICTION_ERR; 
+					}
 				}
 				else {
 					printf("return err line %d\r\n",__LINE__);
@@ -689,8 +703,33 @@ refind_forward:
 				cur_vecid = next_vecid;
 				cur_vec.val = next_vec.val;
 			 } else {
-				printf("return err line %d\r\n",__LINE__);
-				return SPT_PREDICTION_ERR;
+				if(ppre == NULL) {
+					printf("return err line %d,loop_cnt %d,data_num %d\r\n",__LINE__, loop_cnt, total_data_num); 
+					return SPT_PREDICTION_ERR;
+				}
+				cur_data = get_data_id(pclst, ppre);
+				if (cur_data >= 0 && cur_data < SPT_INVALID) {
+					pdh = (struct spt_dh *)db_id_2_ptr(pclst,
+						cur_data);
+					smp_mb();/* ^^^ */
+					pcur_data = pclst->get_key_in_tree(pdh->pdata);
+					printf("find change bit line %d\r\n",__LINE__);
+					first_chbit = get_first_change_bit(prdata,
+							pcur_data,
+							pqinfo->originbit,
+							startbit);
+					if (first_chbit == -1) {	
+						pqinfo->ret_vec_id = cur_vecid; 
+						pqinfo->ret_vec = pcur; 
+						return SPT_PREDICTION_OK;
+					}
+					goto prediction_check;
+				
+				} else {
+					printf("return err line %d,loop_cnt %d,data_num %d\r\n",__LINE__, loop_cnt, total_data_num); 
+					return SPT_PREDICTION_ERR;
+				
+				}
 			 }
 		}
 	}
