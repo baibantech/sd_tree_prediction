@@ -556,9 +556,6 @@ void test_insert_proc(void *args)
 try_again:
             
             PERF_STAT_START(whole_insert);
-			PERF_STAT_START(jhash2_random);
-			hash = xxh32(data, data_set_config_instance_len, 0);
-			PERF_STAT_END(jhash2_random);
 			if(NULL ==(ret_data =  test_insert_data(data)))
             {
                 ret = spt_get_errno();
@@ -589,19 +586,6 @@ try_again:
 			}
 		else
 		{
-#if 0		
-		    end = rdtsc();
-            idx = pstat[g_thrd_id]->insert.idx%8192;
-            pstat[g_thrd_id]->insert.perf[idx] = end-start;
-            pstat[g_thrd_id]->insert.total += end-start;
-            pstat[g_thrd_id]->insert.idx++;
-            if(idx == 8191)
-            {
-                printf("\r\n insert average cycle:%lld\r\n",
-                            pstat[g_thrd_id]->insert.total/8192);
-                pstat[g_thrd_id]->insert.total = 0;
-            }
-#endif      
             PERF_STAT_END(whole_insert);
             atomic64_add(1,(atomic64_t*)&g_insert_ok);
 			if(ret_data != data)
@@ -662,7 +646,6 @@ void test_delete_proc(void *args)
 
 try_again:
             PERF_STAT_START(whole_delete);
-			hash = xxh32(data, data_set_config_instance_len, 0);
 			if(NULL == (ret_data = test_delete_data(data)))
             {
 				ret = spt_get_errno();
@@ -692,7 +675,7 @@ try_again:
 				}
             } 
             else
-                atomic64_add(1,(atomic64_t*)&g_delete_ok);
+			atomic64_add(1,(atomic64_t*)&g_delete_ok);
             PERF_STAT_END(whole_delete);  
 		}
 		spt_thread_exit(g_thrd_id);
