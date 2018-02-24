@@ -337,7 +337,7 @@ int main(int argc,char *argv[])
         spt_debug("spt_thread_init err\r\n");
         return 1;
 	}
-#if 0
+#if 1
 	err = pthread_create(&ntid, NULL, test_divid_thread, (void *)thread_num-1);
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));

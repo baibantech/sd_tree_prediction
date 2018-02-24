@@ -2821,7 +2821,7 @@ struct cluster_head_t *spt_cluster_init(u64 startbit,
 	}
 	pdh_ext->data = (char *)(pdh_ext+1);
 	pdh_ext->plower_clst = plower_clst;
-	pdata = pdh_ext->data + 4094;
+	pdata = pdh_ext->data + DATA_SIZE - 2;
 	*pdata = 32;
 
 	do_insert_data(pclst, (char *)pdh_ext,
@@ -2832,7 +2832,7 @@ struct cluster_head_t *spt_cluster_init(u64 startbit,
 	/*
 	 * The sample space is divided into several parts on average
 	 */
-	for (i = 1; i < 256; i++) {
+	for (i = 1; i < 1; i++) {
 		plower_clst = cluster_init(1, startbit,
 				endbit, thread_num, pf, pf2,
 							pf_free, pf_con);

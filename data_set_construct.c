@@ -28,8 +28,8 @@ unsigned long long spt_merge_num = 0;
 long long  data_set_config_instance_len = DEFAULT_INS_LEN;
 long long  data_set_config_instance_num = DEFAULT_INS_NUM;
 
-long long  data_set_config_random = DEFAULT_RANDOM_WAY;
-//long long  data_set_config_random = 0;
+//long long  data_set_config_random = DEFAULT_RANDOM_WAY;
+long long  data_set_config_random = 0;
 long long  data_set_config_file_len = DEFAULT_FILE_LEN;
 
 long long  data_set_config_cache_unit_len = 40*1024*1024;
@@ -710,6 +710,55 @@ try_again:
 	
 	printf("delete over\r\n");
 }
+void test_find_proc_prediction(void *args)
+{
+	struct data_set_cache *cur = NULL;
+	struct data_set_cache *next = NULL;
+	void *data = NULL;
+	void *ret_data = NULL;
+
+	int find_cnt = 0;
+	do {
+		next = get_next_data_set_cache(cur);		
+		if(NULL == next)
+		{
+			break;
+		}
+        spt_thread_start(g_thrd_id);
+		while(data = get_next_data(next))
+		{
+			find_cnt++;
+            if(find_cnt%100 == 0)
+            {
+                spt_thread_exit(g_thrd_id);
+				spt_thread_start(g_thrd_id);
+			}
+#if 1
+            PERF_STAT_START(find_data_prediction);
+			ret_data = test_find_data_prediction(data);
+            PERF_STAT_END(find_data_prediction);
+#endif
+#if 0	
+            PERF_STAT_START(find_data_test);
+			ret_data= test_find_data(data);
+            PERF_STAT_END(find_data_test);
+#endif
+			if(!ret_data)	
+				printf("test_find data ret no found\r\n");		
+		}
+		spt_thread_exit(g_thrd_id);
+		
+		if(cur)
+		{
+			free(cur);
+		}
+		cur = next;
+		sleep(0);
+	}while(cur);
+	
+	printf("find data over\r\n");
+}
+
 void test_find_proc(void *args)
 {
 	struct data_set_cache *cur = NULL;
@@ -733,14 +782,16 @@ void test_find_proc(void *args)
                 spt_thread_exit(g_thrd_id);
 				spt_thread_start(g_thrd_id);
 			}
-
+#if 0
             PERF_STAT_START(find_data_prediction);
-			test_find_data_prediction(data);
+			ret_data = test_find_data_prediction(data);
             PERF_STAT_END(find_data_prediction);
-			
+#endif
+#if 1	
             PERF_STAT_START(find_data_test);
 			ret_data= test_find_data(data);
             PERF_STAT_END(find_data_test);
+#endif
 			if(!ret_data)	
 				printf("test_find data ret no found\r\n");		
 		}
