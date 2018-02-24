@@ -1605,6 +1605,7 @@ refind_forward:
 		if (cur_vec.status == SPT_VEC_RAW) {
 			if (pcur == pqinfo->pstart_vec) {
 				finish_key_cb(prdata);
+				printf("return do agin line %d\r\n",__LINE__);
 				return SPT_DO_AGAIN;
 			}
 			goto refind_start;
@@ -1625,7 +1626,6 @@ refind_forward:
 	}
 
 	fs_pos = find_fs(prdata, startbit, endbit);
-
 	while (startbit < endbit) {
 		/*first bit is 1£¬compare with pcur_vec->right*/
 		if (fs_pos != startbit)
@@ -2340,6 +2340,9 @@ down_continue:
 				//pcur = ppre;
 				cur_data = SPT_INVALID;
 				pqinfo->ref_cnt = 0;
+				/*from clst startvec delete this vec*/
+				pqinfo->pstart_vec = pclst->pstart;
+				pqinfo->startid = pclst->vec_head;
 				//goto refind_forward;
 				goto refind_start;
 			} else {
@@ -2640,7 +2643,7 @@ char *delete_data(struct cluster_head_t *pclst, char *pdata)
 	qinfo.data = pdata;
 	qinfo.multiple = 1;
 	qinfo.ref_cnt = 0;
-	qinfo.free_flag = 1;
+	qinfo.free_flag = 0;
 	/*
 	 *insert data into the final cluster
 	 */
@@ -2771,11 +2774,12 @@ char *insert_data_prediction(struct cluster_head_t *pclst, char *pdata)
 	qinfo.signpost = 0;
 	qinfo.data = pdata;
 	qinfo.multiple = 1;
+	qinfo.endbit = pnext_clst->endbit;
 	
 	if (ret == 0) {
 		qinfo.pstart_vec = pre_qinfo.ret_vec;
 		qinfo.startid = pre_qinfo.ret_vec_id;
-		qinfo.endbit = pnext_clst->endbit;
+		
 		ret = find_data(pnext_clst, &qinfo);
 		if (ret >= 0) {
 			pdh = (struct spt_dh *)db_id_2_ptr(pnext_clst, qinfo.db_id);
@@ -2785,13 +2789,71 @@ char *insert_data_prediction(struct cluster_head_t *pclst, char *pdata)
 
 	qinfo.pstart_vec = pnext_clst->pstart;
 	qinfo.startid = pnext_clst->vec_head;
-	qinfo.endbit = pnext_clst->endbit;
 	/*
 	 *insert data into the final cluster
 	 */
 	ret = find_data(pnext_clst, &qinfo);
 	if (ret >= 0) {
 		pdh = (struct spt_dh *)db_id_2_ptr(pnext_clst, qinfo.db_id);
+		return pdh->pdata;
+	}
+	spt_set_errno(ret);
+	return NULL;
+}
+
+
+char *delete_data_prediction(struct cluster_head_t *pclst, char *pdata)
+{
+	struct cluster_head_t *pnext_clst;
+	struct query_info_t qinfo = {0};
+	struct prediction_info_t pre_qinfo = {0};
+	struct spt_dh *pdh;
+	int ret = 0;
+	/*
+	 *first look up in the top cluster.
+	 *which next level cluster do the data belong.
+	 */
+	pnext_clst = find_next_cluster(pclst, pdata);
+	if (pnext_clst == NULL) {
+		spt_set_errno(SPT_MASKED);
+		return NULL;
+	}
+	pre_qinfo.pstart_vec = pnext_clst->pstart;
+	pre_qinfo.startid = pnext_clst->vec_head;
+	pre_qinfo.endbit = pnext_clst->endbit;
+	pre_qinfo.data = pdata;
+
+	ret = find_data_prediction(pnext_clst, &pre_qinfo);
+	
+	qinfo.op = SPT_OP_DELETE;
+	qinfo.signpost = 0;
+	qinfo.data = pdata;
+	qinfo.multiple = 1;
+	qinfo.ref_cnt = 0;
+	qinfo.free_flag = 0;
+	qinfo.endbit = pnext_clst->endbit;
+	if (ret == 0) {
+		qinfo.pstart_vec = pre_qinfo.ret_vec;
+		qinfo.startid = pre_qinfo.ret_vec_id;
+		
+		ret = find_data(pnext_clst, &qinfo);
+		if (ret == 0) {
+			pdh = (struct spt_dh *)db_id_2_ptr(pnext_clst, qinfo.db_id);
+			if (!pdh->pdata)
+				spt_assert(0);
+			return pdh->pdata;
+		}
+	}
+
+	qinfo.pstart_vec = pnext_clst->pstart;
+	qinfo.startid = pnext_clst->vec_head;
+	
+	ret = find_data(pnext_clst, &qinfo);
+	if (ret == 0) { /*delete ok*/
+		pdh = (struct spt_dh *)db_id_2_ptr(pnext_clst,
+				qinfo.db_id);
+		if (!pdh->pdata)
+			spt_assert(0);
 		return pdh->pdata;
 	}
 	spt_set_errno(ret);

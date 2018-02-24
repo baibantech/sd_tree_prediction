@@ -379,7 +379,7 @@ void *test_insert_data(char *pdata)
 }
 void *test_delete_data(char *pdata)
 {
-	return delete_data(pgclst, pdata);
+	return delete_data_prediction(pgclst, pdata);
 }
 
 void *test_find_data(char *pdata)
