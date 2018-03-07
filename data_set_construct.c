@@ -28,8 +28,8 @@ unsigned long long spt_merge_num = 0;
 long long  data_set_config_instance_len = DEFAULT_INS_LEN;
 long long  data_set_config_instance_num = DEFAULT_INS_NUM;
 
-//long long  data_set_config_random = DEFAULT_RANDOM_WAY;
-long long  data_set_config_random = 0;
+long long  data_set_config_random = DEFAULT_RANDOM_WAY;
+//long long  data_set_config_random = 0;
 long long  data_set_config_file_len = DEFAULT_FILE_LEN;
 
 long long  data_set_config_cache_unit_len = 40*1024*1024;
@@ -38,7 +38,7 @@ long data_set_config_map_address = 0;
 long long data_set_config_map_read_start = -1;
 long long data_set_config_map_read_len = -1;
 
-int data_set_config_insert_thread_num = 2;
+int data_set_config_insert_thread_num = 3;
 int data_set_config_delete_thread_num = 2;
 
 void set_31bit_zero(char *data)
@@ -494,6 +494,7 @@ void test_insert_proc(void *args)
 	u32 hash;
 	u64 hash64;
     int idx;
+	int cnt = g_thrd_id;
 	
 	do {
 		next = get_next_data_set_cache(cur);		
@@ -501,6 +502,11 @@ void test_insert_proc(void *args)
 		{
 			break;
 		}
+		if(cnt != 0) {
+			cnt--;
+			goto next_loop;
+		}
+
 		insert_cnt =0;
 		per_cache_time_begin = rdtsc();
 		spt_thread_start(g_thrd_id);
@@ -603,7 +609,7 @@ try_again:
 		//printf("thread id %d ,per cache insert cost: %lld,insert_cnt is %d,merge_cnt is %lld,average cost is %d\r\n",g_thrd_id, total_time,insert_cnt,merge_cnt,total_time/insert_cnt);
 #endif
         //show_sd_perf_stat_thread(g_thrd_id);
-
+next_loop:
         if(cur)
 		{
 			free(cur);

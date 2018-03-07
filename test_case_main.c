@@ -338,16 +338,15 @@ int main(int argc,char *argv[])
         return 1;
 	}
 #if 1
-	err = pthread_create(&ntid, NULL, test_divid_thread, (void *)thread_num-1);
+	err = pthread_create(&ntid, NULL, test_divid_thread, 3);
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));
 #endif
 
 	g_thrd_id = 0;
-	test_insert_thread(0);
+	//test_insert_thread(0);
 	sleep(10);    
 
-#if 0
 	for(i = 0;  i  < data_set_config_insert_thread_num ; i++)
     {
         err = pthread_create(&ntid, NULL, test_insert_thread, (void *)i);
@@ -355,7 +354,7 @@ int main(int argc,char *argv[])
             printf("can't create thread: %s\n", strerror(err));
     }
 
-	
+#if 0	
     for(i = 0;  i  < data_set_config_delete_thread_num ; i++)
     {
         err = pthread_create(&ntid, NULL, test_delete_thread, (void *)(data_set_config_insert_thread_num+i));
@@ -375,7 +374,7 @@ extern int total_data_num;
 void *test_insert_data(char *pdata)
 {
 	total_data_num++;
-	return insert_data(pgclst, pdata);
+	return insert_data_prediction(pgclst, pdata);
 }
 void *test_delete_data(char *pdata)
 {
