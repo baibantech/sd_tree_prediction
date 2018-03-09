@@ -1572,7 +1572,7 @@ int find_data(struct cluster_head_t *pclst, struct query_info_t *pqinfo)
 	int ret;
 	int retb;
 	struct vec_cmpret_t cmpres;
-	struct insert_info_t st_insert_info;
+	struct insert_info_t st_insert_info = {0};
 	char *pdata, *prdata;
 	struct spt_dh *pdh;
 //	spt_cb_get_key get_key;
@@ -2993,7 +2993,7 @@ struct cluster_head_t *spt_cluster_init(u64 startbit,
 	/*
 	 * The sample space is divided into several parts on average
 	 */
-	for (i = 1; i < 256; i++) {
+	for (i = 1; i < 1; i++) {
 		plower_clst = cluster_init(1, startbit,
 				endbit, thread_num, pf, pf2,
 							pf_free, pf_con);
