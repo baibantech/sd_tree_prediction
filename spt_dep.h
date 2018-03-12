@@ -57,7 +57,6 @@ info-linux <info@baibantech.com.cn>
 #include <assert.h>
 #include <pthread.h>
 #include <arpa/inet.h>
-#include "sdtree_perf_stat.h"
 
 #define spt_assert(expr) \
             if(!(expr)) \
