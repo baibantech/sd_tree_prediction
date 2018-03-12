@@ -461,7 +461,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 
 	if ((pinsert->cmp_pos-1)-signpost
 		> SPT_VEC_SIGNPOST_MASK) {
-		vecid_s = vec_alloc_combo(pclst, g_thrd_id, &pvec_s);
+		vecid_s = vec_alloc_from_grp(pclst, 0, &pvec_s);
 		if (pvec_s == 0) {
 			spt_print("\r\n%d\t%s", __LINE__, __func__);
 			spt_set_data_not_free(pdh);
@@ -502,7 +502,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 		pvec_b->down = SPT_NULL;
 		tmp_vec.type = SPT_VEC_RIGHT;
 		if ((pinsert->fs-1)-signpost > SPT_VEC_SIGNPOST_MASK) {
-			vecid_s2 = vec_alloc_combo(pclst, g_thrd_id, &pvec_s2);
+			vecid_s2 = vec_alloc_from_grp(pclst, 0, &pvec_s2);
 			if (pvec_s2 == 0) {
 				spt_set_data_not_free(pdh);
                 db_free(pclst, dataid);
@@ -538,27 +538,26 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 		return dataid;
 	}
 	spt_set_data_not_free(pdh);
-        db_free(pclst, dataid);
-        vec_free(pclst, vecid_a);
+	db_free(pclst, dataid);
+	vec_free(pclst, vecid_a);
 	cnt = 2;
 	if (pvec_b != 0) {
     	vec_free(pclst, vecid_b);
 		cnt++;
 	}
-        //vec_free(*ppclst, vecid_b);
-    #if 0
 	if (pvec_s != 0) {
-		vec_free_to_buf_simple(pclst, vecid_s, g_thrd_id);
+		vec_free(pclst, vecid_s);
 		cnt++;
 	}
 	if (pvec_s2 != 0) {
-		vec_free_to_buf_simple(pclst, vecid_s2, g_thrd_id);
+		vec_free(pclst, vecid_s2);
 		cnt++;
 	}
+	#if 0
 	ret = fill_in_rsv_list(pclst, cnt, g_thrd_id);
 	if (ret == SPT_OK)
 		return SPT_DO_AGAIN;
-		#endif
+	#endif
 	return ret;
 }
 /**
@@ -631,7 +630,7 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 
 	if ((pinsert->cmp_pos-1)-signpost
 		> SPT_VEC_SIGNPOST_MASK) {
-		vecid_s = vec_alloc_combo(pclst, g_thrd_id, &pvec_s);
+		vecid_s = vec_alloc_from_grp(pclst, 0, &pvec_s);
 		if (pvec_s == 0) {
 			spt_print("\r\n%d\t%s", __LINE__, __func__);
 			spt_set_data_not_free(pdh);
@@ -650,7 +649,7 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 
 	} else if ((pinsert->fs-1)-signpost
 		> SPT_VEC_SIGNPOST_MASK) {
-		vecid_s = vec_alloc_combo(pclst, g_thrd_id, &pvec_s);
+		vecid_s = vec_alloc_from_grp(pclst, 0, &pvec_s);
 		if (pvec_s == 0) {
 			spt_print("\r\n%d\t%s", __LINE__, __func__);
 			spt_set_data_not_free(pdh);
@@ -689,12 +688,13 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
     db_free(pclst, dataid);
     vec_free(pclst, vecid_a);
     vec_free(pclst, vecid_b);
-	#if 0
+	
 	cnt = 3;
 	if (pvec_s != 0) {
-		vec_free_to_buf_simple(pclst, vecid_s, g_thrd_id);
+		vec_free(pclst, vecid_s);
 		cnt++;
 	}
+	#if 0
 	ret = fill_in_rsv_list(pclst, cnt, g_thrd_id);
 	if (ret == SPT_OK)
 		return SPT_DO_AGAIN;
@@ -748,7 +748,7 @@ int do_insert_last_down(struct cluster_head_t *pclst,
 
 	if ((pinsert->fs-1)-signpost
 		> SPT_VEC_SIGNPOST_MASK) {
-		vecid_s = vec_alloc_combo(pclst, g_thrd_id, &pvec_s);
+		vecid_s = vec_alloc_from_grp(pclst, 0, &pvec_s);
 		if (pvec_s == 0) {
 			spt_print("\r\n%d\t%s", __LINE__, __func__);
 			spt_set_data_not_free(pdh);
@@ -776,12 +776,12 @@ int do_insert_last_down(struct cluster_head_t *pclst,
 	spt_set_data_not_free(pdh);
     db_free(pclst, dataid);
     vec_free(pclst, vecid_a);
-	#if 0
 	cnt = 2;
 	if (pvec_s != 0) {
-		vec_free_to_buf_simple(pclst, vecid_s, g_thrd_id);
+		vec_free(pclst, vecid_s);
 		cnt++;
 	}
+	#if 0
 	ret = fill_in_rsv_list(pclst, cnt, g_thrd_id);
 	if (ret == SPT_OK)
 		return SPT_DO_AGAIN;
@@ -833,7 +833,7 @@ int do_insert_up_via_d(struct cluster_head_t *pclst,
 	pvec_a->rd = dataid;
 
 	if ((pinsert->fs-1)-signpost > SPT_VEC_SIGNPOST_MASK) {
-		vecid_s = vec_alloc_combo(pclst, g_thrd_id, &pvec_s);
+		vecid_s = vec_alloc_from_grp(pclst, 0, &pvec_s);
 		if (pvec_s == 0) {
 			spt_print("\r\n%d\t%s", __LINE__, __func__);
 			spt_set_data_not_free(pdh);
@@ -877,12 +877,12 @@ int do_insert_up_via_d(struct cluster_head_t *pclst,
 	spt_set_data_not_free(pdh);
     db_free(pclst, dataid);
     vec_free(pclst, vecid_a);
-	#if 0
 	cnt = 2;
 	if (pvec_s != 0) {
-		vec_free_to_buf_simple(pclst, vecid_s, g_thrd_id);
+		vec_free(pclst, vecid_s);
 		cnt++;
 	}
+#if 0
 	ret = fill_in_rsv_list(pclst, cnt, g_thrd_id);
 	if (ret == SPT_OK)
 		return SPT_DO_AGAIN;
@@ -982,8 +982,8 @@ find_lowest_start:
 					(atomic64_t *)pcur,
 					cur_vec.val,
 					tmp_vec.val))//delete succ
-					vec_free_to_buf(pclst,
-					vecid, g_thrd_id);
+					vec_free(pclst,
+					vecid);
 
 				cur_vec.val = pcur->val;
 				if (cur_vec.status != SPT_VEC_VALID)
@@ -1579,8 +1579,8 @@ int find_data(struct cluster_head_t *pclst, struct query_info_t *pqinfo)
 	spt_cb_end_key finish_key_cb;
 
 	if (pclst->status == SPT_WAIT_AMT) {
-		cnt = rsv_list_fill_cnt(pclst, g_thrd_id);
-		ret = fill_in_rsv_list(pclst, cnt, g_thrd_id);
+		//cnt = rsv_list_fill_cnt(pclst, g_thrd_id);
+		//ret = fill_in_rsv_list(pclst, cnt, g_thrd_id);
 		if (ret == SPT_OK)
 			pclst->status = SPT_OK;
 		else
@@ -4703,8 +4703,8 @@ void debug_buf_free(struct cluster_head_t *pclst)
 							pcur_data)->plower_clst;
 					thrd_num = plower_clst->thrd_total;
 					for (i = 0; i < thrd_num; i++) {
-						vec_buf_free(plower_clst, i);
-						db_buf_free(plower_clst, i);
+						vec_free(plower_clst, i);
+						db_free(plower_clst, i);
 					}
 					plower_clst->status = SPT_OK;
 				}
@@ -4784,8 +4784,8 @@ void clean_lower_cluster_cache(void)
 		pclst = list_entry(list_itr, struct cluster_head_t, c_list);
 		spt_thread_wait(1000, 60);
 		for (j = 0; j < pclst->thrd_total; j++) {
-			vec_buf_free(pclst, j);
-			db_buf_free(pclst, j);
+			vec_free(pclst, j);
+			db_free(pclst, j);
 		}
 	}
 }

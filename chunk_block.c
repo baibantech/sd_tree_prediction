@@ -421,6 +421,7 @@ struct cluster_head_t *cluster_init(int is_bottom,
 
 	return phead;
 }
+#if 0
 /**
  * blk_alloc - alloc block
  * @pcluster: pointer of sd tree cluster head
@@ -530,7 +531,6 @@ int vec_add_blk(struct cluster_head_t *pclst)
 
 	return SPT_OK;
 }
-
 /**
  * db_alloc - alloc data block from freelist
  * @pclst: pointer of sd tree cluster head
@@ -571,7 +571,6 @@ unsigned int db_alloc(struct cluster_head_t *pclst, struct spt_dh **db)
 	(*db)->pdata = NULL;
 	return db_id;
 }
-#if 0
 /**
  * db_free - free data block to freelist
  * @pcluster: pointer of sd tree cluster head
@@ -602,6 +601,7 @@ void db_free(struct cluster_head_t *pcluster, int id)
  *
  * return vector id
  */
+#if 0
 unsigned int vec_alloc(struct cluster_head_t *pclst, struct spt_vec **vec)
 {
 	u32 vec_id;
@@ -631,7 +631,6 @@ unsigned int vec_alloc(struct cluster_head_t *pclst, struct spt_vec **vec)
 
 	return vec_id;
 }
-#if 0
 /**
  * vec_free - free data block to freelist
  * @pcluster: pointer of sd tree cluster head
@@ -960,7 +959,7 @@ void vec_free(struct cluster_head_t *pclst, int id)
 	
 	return;
 }
-
+#if 0
 /**
  * db_alloc_from_buf - alloc data block from thread buffer list
  * @pclst: pointer of sd tree cluster head
@@ -1412,7 +1411,7 @@ unsigned int data_alloc_combo(struct cluster_head_t *pclst, int thread_id,
 	atomic_add(1, (atomic_t *)&pclst->data_total);
 	return ret;
 }
-
+#endif
 int test_add_page(struct cluster_head_t *pclst)
 {
     char *page, **indir_page, ***dindir_page;
@@ -1514,7 +1513,7 @@ void test_vec_alloc_n_times(struct cluster_head_t *pclst)
     
     for(i=0; ; i++)
     {
-        vec_a = vec_alloc(pclst, &pvec_a);
+        vec_a = vec_alloc_from_grp(pclst, 0,  &pvec_a);
         if(pvec_a == 0)
         {
             //printf("\r\n%d\t%s\ti:%d", __LINE__, __FUNCTION__, i);

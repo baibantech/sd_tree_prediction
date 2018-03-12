@@ -379,14 +379,6 @@ int find_data_prediction(struct cluster_head_t *pclst, struct prediction_info_t 
 	int refind_cnt;
 	u64 first_chbit;
 	int loop_cnt = 0;
-	if (pclst->status == SPT_WAIT_AMT) {
-		cnt = rsv_list_fill_cnt(pclst, g_thrd_id);
-		ret = fill_in_rsv_list(pclst, cnt, g_thrd_id);
-		if (ret == SPT_OK)
-			pclst->status = SPT_OK;
-		else
-			return SPT_PREDICTION_ERR;
-	}
 	
 	pdata = pqinfo->data;
 
@@ -540,9 +532,9 @@ refind_forward:
 							(atomic64_t *)pcur,
 							cur_vec.val,
 							tmp_vec.val)) {
-						retb = vec_free_to_buf(pclst,
-								vecid,
-								g_thrd_id);
+						vec_free(pclst,
+								vecid);
+						retb = SPT_OK;
 						if (retb != SPT_OK
 							&& cur_data != SPT_INVALID)
 							pclst->get_key_in_tree_end(
@@ -650,8 +642,9 @@ refind_forward:
 								cur_vec.val,
 								tmp_vec.val)) {
 						//delete_succ
-						retb = vec_free_to_buf(pclst,
-								vecid, g_thrd_id);
+						vec_free(pclst,
+								vecid);
+						retb = SPT_OK;
 						if (retb != SPT_OK) {
 							finish_key_cb(prdata);
 							return SPT_PREDICTION_ERR;
