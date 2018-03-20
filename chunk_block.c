@@ -51,18 +51,15 @@
 
 int g_data_size;
 
-void grp_init(struct cluster_head_t *pclst)
+void grp_init_per_page(char *page)
 {
-	int grps, grp_id;
+	int i;
 	struct spt_grp *pgrp;
-	grps = pclst->pg_num_max*GRPS_PER_PG;
-	for(grp_id=0; grp_id < grps; grp_id++)
-	{
-		pgrp = (struct spt_grp *)grp_id_2_ptr(pclst, grp_id);
+	for (i = 0 ; i < GRPS_PER_PG; i++) {
+		pgrp = (page + GRP_SIZE*i);
 		pgrp->val = 0;
 		pgrp->allocmap = 0x3FFFFFFFull;
 	}
-	return;
 }
 
 int calBitNum(int num)  
@@ -78,7 +75,8 @@ int calBitNum(int num)
     }  
     return numOnes;  
   
-} 
+}
+
 u32 grp_alloc_map(struct cluster_head_t *pclst)
 {
 	int grps, grp_id;
@@ -93,6 +91,7 @@ u32 grp_alloc_map(struct cluster_head_t *pclst)
 	}
 	return total;
 }
+
 u64 debug_alloc_map()
 {
     struct list_head *list_itr;
@@ -157,29 +156,88 @@ void debug_free_all()
 	return;
 }
 
+char* vec_id_2_ptr(struct cluster_head_t * pclst,unsigned int id)
+{
+	return (char*)grp_id_2_ptr(pclst, id/VEC_PER_GRP) + 8 + id%VEC_PER_GRP*VBLK_SIZE;
+}
+
+char* db_id_2_ptr(struct cluster_head_t * pclst,unsigned int id)
+{
+	return (char*)grp_id_2_ptr(pclst, id/VEC_PER_GRP) + 8 + id%VEC_PER_GRP*VBLK_SIZE;
+}
+
 
 
 /**
- * blk_id_2_ptr - called by db_id_2_ptr & vec_id_2_ptr
+ * get_pg_head - called by db_id_2_ptr & vec_id_2_ptr
  * @pclst: pointer of sd tree cluster head
- * @id: block id in this cluster
- * return the address of the block
- * a block consist of data block or vector
+ * @id: page id in this cluster
+ * return the address of page head
  */
-char *blk_id_2_ptr111(struct cluster_head_t *pclst, unsigned int id)
+struct spt_pg_h  *get_pg_head(struct cluster_head_t *pclst, unsigned int id)
 {
 	int ptrs_bit = pclst->pg_ptr_bits;
 	int ptrs = (1 << ptrs_bit);
 	u64 direct_pgs = CLST_NDIR_PGS;
 	u64 indirect_pgs = 1<<ptrs_bit;
 	u64 double_pgs = 1<<(ptrs_bit*2);
-	int pg_id = id >> pclst->blk_per_pg_bits;
+	int pg_id = id ;
+	int offset;
+	int get_cnt= 0;
+	char *page, **indir_page, ***dindir_page;
+get_page_id:
+	get_cnt++;
+	if (id < direct_pgs) {
+		page = (char *)pclst->pglist[id];
+		if (page)
+			goto ret_id;
+
+	} else if ((id - direct_pgs) < indirect_pgs) {
+		pg_id = id - direct_pgs;
+		indir_page = (char **)pclst->pglist[CLST_IND_PG];
+		if (indir_page != NULL) {
+			offset = pg_id;
+			page = indir_page[offset];
+			if (page)
+				goto ret_id;
+		}
+	} else if ((id - direct_pgs -  indirect_pgs) < double_pgs) {
+		pg_id = id - direct_pgs -  indirect_pgs;
+		dindir_page = (char ***)pclst->pglist[CLST_DIND_PG];
+		if (dindir_page != NULL) {
+			offset = pg_id >> ptrs_bit;
+			indir_page = dindir_page[offset];
+			if (indir_page != 0) {
+				offset = pg_id & (ptrs-1);
+				page = indir_page[offset];
+				if (page)
+					goto ret_id;
+			}
+		}
+	} else {
+		spt_debug("warning: id is too big\r\n");
+		return NULL;
+	}
+	cluster_add_page(pclst);
+	goto get_page_id;
+ret_id:
+	return page + PG_HEAD_OFFSET;
+}
+char  *grp_id_2_ptr(struct cluster_head_t *pclst, unsigned int grp_id)
+{
+	int ptrs_bit = pclst->pg_ptr_bits;
+	int ptrs = (1 << ptrs_bit);
+	u64 direct_pgs = CLST_NDIR_PGS;
+	u64 indirect_pgs = 1<<ptrs_bit;
+	u64 double_pgs = 1<<(ptrs_bit*2);
+	int pg_id = grp_id/GRPS_PER_PG;
 	int offset;
 	char *page, **indir_page, ***dindir_page;
 
 	if (pg_id < direct_pgs) {
 		page = (char *)pclst->pglist[pg_id];
 		while (page == 0) {
+			//printf("loop page id %d,line  %d\r\n", pg_id, __LINE__);
 			smp_mb();/* ^^^ */
 			page = (char *)atomic64_read(
 				(atomic64_t *)&pclst->pglist[pg_id]);
@@ -188,6 +246,7 @@ char *blk_id_2_ptr111(struct cluster_head_t *pclst, unsigned int id)
 		pg_id -= direct_pgs;
 		indir_page = (char **)pclst->pglist[CLST_IND_PG];
 		while (indir_page == NULL) {
+			//printf("loop page id %d,line  %d\r\n", pg_id, __LINE__);
 			smp_mb();/* ^^^ */
 			indir_page = (char **)atomic64_read(
 				(atomic64_t *)&pclst->pglist[CLST_IND_PG]);
@@ -195,6 +254,7 @@ char *blk_id_2_ptr111(struct cluster_head_t *pclst, unsigned int id)
 		offset = pg_id;
 		page = indir_page[offset];
 		while (page == 0) {
+			//printf("loop page id %d,line  %d\r\n", pg_id, __LINE__);
 			smp_mb();/* ^^^ */
 			page = (char *)atomic64_read(
 				(atomic64_t *)&indir_page[offset]);
@@ -203,6 +263,7 @@ char *blk_id_2_ptr111(struct cluster_head_t *pclst, unsigned int id)
 		pg_id = pg_id - direct_pgs -  indirect_pgs;
 		dindir_page = (char ***)pclst->pglist[CLST_DIND_PG];
 		while (dindir_page == NULL) {
+			//printf("loop page id %d,line  %d\r\n", pg_id, __LINE__);
 			smp_mb();/* ^^^ */
 			dindir_page = (char ***)atomic64_read(
 				(atomic64_t *)&pclst->pglist[CLST_DIND_PG]);
@@ -210,6 +271,7 @@ char *blk_id_2_ptr111(struct cluster_head_t *pclst, unsigned int id)
 		offset = pg_id >> ptrs_bit;
 		indir_page = dindir_page[offset];
 		while (indir_page == 0) {
+			//printf("loop page id %d,line  %d\r\n", pg_id, __LINE__);
 			smp_mb();/* ^^^ */
 			indir_page = (char **)atomic64_read(
 				(atomic64_t *)&dindir_page[offset]);
@@ -217,6 +279,7 @@ char *blk_id_2_ptr111(struct cluster_head_t *pclst, unsigned int id)
 		offset = pg_id & (ptrs-1);
 		page = indir_page[offset];
 		while (page == 0) {
+			//printf("loop page id %d,line  %d\r\n", pg_id, __LINE__);
 			smp_mb();/* ^^^ */
 			page = (char *)atomic64_read(
 			(atomic64_t *)&indir_page[offset]);
@@ -225,25 +288,97 @@ char *blk_id_2_ptr111(struct cluster_head_t *pclst, unsigned int id)
 		spt_debug("warning: id is too big\r\n");
 		return 0;
 	}
-
-	offset = id & (pclst->blk_per_pg-1);
-	return page + (offset << BLK_BITS);
-
+	offset = (grp_id%GRPS_PER_PG) * GRP_SIZE;
+	return page + offset;
 }
-#if 0
-/* data block ptr = block ptr + db offset in the block */
-char *db_id_2_ptr(struct cluster_head_t *pclst, unsigned int id)
+struct spt_grp *get_grp_from_page_head(char *page_head, unsigned int grp_id)
 {
-	return blk_id_2_ptr(pclst, id/pclst->db_per_blk)
-		+ id%pclst->db_per_blk * DBLK_SIZE;
+	return (page_head - PG_HEAD_OFFSET)+ (grp_id%GRPS_PER_PG) * GRP_SIZE;
 }
-/* vector ptr = block ptr + vector offset in the block */
-char *vec_id_2_ptr(struct cluster_head_t *pclst, unsigned int id)
+
+int cluster_add_page(struct cluster_head_t *pclst)	
 {
-	return blk_id_2_ptr(pclst, id/pclst->vec_per_blk)
-		+ id%pclst->vec_per_blk * VBLK_SIZE;
+	char *page, **indir_page, ***dindir_page;
+	u32 old_head;
+	int i, total, id, pg_id, offset, offset2;
+	struct block_head_t *blk;
+	int ptrs_bit = pclst->pg_ptr_bits;
+	int ptrs = (1 << ptrs_bit);
+	u64 direct_pgs = CLST_NDIR_PGS;
+	u64 indirect_pgs = 1<<ptrs_bit;
+	u64 double_pgs = 1<<(ptrs_bit*2);
+
+	pg_id = atomic_add_return(1, (atomic_t *)&pclst->pg_cursor);
+	if (pclst->pg_num_max <= pg_id) {
+		atomic_sub(1, (atomic_t *)&pclst->pg_cursor);
+		return CLT_FULL;
+	}
+
+	page = spt_alloc_zero_page();
+	if (page == NULL)
+		return CLT_NOMEM;
+
+	pg_id--;
+	grp_init_per_page(page);
+	//printf("add page id %d,page ptr %p\r\n",pg_id, page);
+	id = pg_id;
+	if (id < direct_pgs) {
+		pclst->pglist[id] = page;
+		smp_mb();/* ^^^ */
+	} else if ((id - direct_pgs) < indirect_pgs) {
+		id -= direct_pgs;
+		offset = id;
+		if (offset == 0) {
+			indir_page = (char **)spt_alloc_zero_page();
+
+			if (indir_page == NULL)
+				return CLT_NOMEM;
+			pclst->pglist[CLST_IND_PG] = (char *)indir_page;
+		} else {
+			while (atomic64_read(
+			(atomic64_t *)&pclst->pglist[CLST_IND_PG]) == 0)
+				smp_mb();/* ^^^ */
+		}
+		indir_page = (char **)pclst->pglist[CLST_IND_PG];
+		//printf("indir_page %p, offset %d\r\n", indir_page,offset);
+		indir_page[offset] = page;
+		smp_mb();/* ^^^ */
+	} else if ((id - direct_pgs - indirect_pgs) < double_pgs) {
+		id = id - direct_pgs - indirect_pgs;
+		offset = id >> ptrs_bit;
+		offset2 = id & (ptrs-1);
+		if (id == 0) {
+			dindir_page = (char ***)spt_alloc_zero_page();
+			if (dindir_page == NULL)
+				return CLT_NOMEM;
+			pclst->pglist[CLST_DIND_PG] = (char *)dindir_page;
+		} else {
+			while (atomic64_read(
+			(atomic64_t *)&pclst->pglist[CLST_DIND_PG]) == 0)
+				smp_mb();/* ^^^ */
+
+		}
+		dindir_page = (char ***)pclst->pglist[CLST_DIND_PG];
+
+		if (offset2 == 0) {
+			indir_page = (char **)spt_alloc_zero_page();
+			if (indir_page == NULL)
+				return CLT_NOMEM;
+			dindir_page[offset] = indir_page;
+		} else {
+			while (atomic64_read(
+			(atomic64_t *)&dindir_page[offset]) == 0)
+				smp_mb();/* ^^^ */
+		}
+		indir_page = dindir_page[offset];
+		indir_page[offset2] = page;
+		smp_mb();/* ^^^ */
+	} else {
+		spt_debug("warning: id is too big");
+		return CLT_ERR;
+	}
+	return SPT_OK;
 }
-#endif
 void set_data_size(int size)
 {
 	g_data_size = size;
@@ -268,58 +403,6 @@ char *upper_get_key(char *pdata)
 
 	ext_head = (struct spt_dh_ext *)pdata;
 	return ext_head->data;
-}
-/**
- * cluster_add_page - cluster alloc one page ,and cut it into block
- * @pclst: pointer of sd tree cluster head
- *
- *a cluster use a page as the smallest unit to alloc for memory
- * a cluster maximum memory overhead is 64M
- */
-int cluster_add_page(struct cluster_head_t *pclst)
-{
-	char *page, **indir_page, ***dindir_page;
-	u32 old_head;
-	int i, total, id, pg_id, offset, offset2;
-	struct block_head_t *blk;
-	int ptrs_bit = pclst->pg_ptr_bits;
-	int ptrs = (1 << ptrs_bit);
-	u64 direct_pgs = CLST_NDIR_PGS;
-	u64 indirect_pgs = 1<<ptrs_bit;
-	u64 double_pgs = 1<<(ptrs_bit*2);
-
-	pg_id = atomic_add_return(1, (atomic_t *)&pclst->pg_cursor);
-	if (pclst->pg_num_max <= pg_id) {
-		atomic_sub(1, (atomic_t *)&pclst->pg_cursor);
-		return CLT_FULL;
-	}
-
-    pg_id--;
-	page = (char *)pclst->base_addr + pg_id*4096;
-	memset(page, 0, PG_SIZE);
-   // id = pg_id;
-
-    
-    id = (pg_id<< pclst->blk_per_pg_bits);
-//    pclst->pg_cursor++;
-	total = pclst->blk_per_pg;
-	blk = (struct block_head_t *)page;
-
-	for (i = 1; i < total; i++) {
-		blk->magic = 0xdeadbeef;
-		blk->next = id + i;
-		blk = (struct block_head_t *)(page + (i << BLK_BITS));
-	}
-	blk->magic = 0xdeadbeef;
-	do {
-		old_head = atomic_read((atomic_t *)&pclst->blk_free_head);
-		blk->next = old_head;
-//        pclst->blk_free_head = id;
-	} while (old_head != atomic_cmpxchg(
-	(atomic_t *)&pclst->blk_free_head, old_head, id));
-
-	atomic_add(total, (atomic_t *)&pclst->free_blk_cnt);
-	return SPT_OK;
 }
 
 void cluster_destroy(struct cluster_head_t *pclst)
@@ -370,7 +453,6 @@ struct cluster_head_t *cluster_init(int is_bottom,
 	phead->thrd_total = thread_num;
 	phead->freedata = pf_free;
 	phead->construct_data = pf_con;
-	phead->base_addr = malloc(CLST_PG_NUM_MAX*4096); 
 	if (is_bottom) {
 		phead->get_key = pf;
 		phead->get_key_in_tree = pf;
@@ -383,29 +465,7 @@ struct cluster_head_t *cluster_init(int is_bottom,
 		phead->get_key_in_tree_end = default_end_get_key;
 	}
 
-	phead->thrd_data = (struct spt_thrd_data *)spt_malloc(
-		sizeof(struct spt_thrd_data)*thread_num);
-	if (phead->thrd_data == NULL) {
-		cluster_destroy(phead);
-		return NULL;
-	}
-	for (i = 0; i < thread_num; i++) {
-		phead->thrd_data[i].thrd_id = i;
-		phead->thrd_data[i].vec_cnt = 0;
-		phead->thrd_data[i].vec_list_cnt = 0;
-		phead->thrd_data[i].data_cnt = 0;
-		phead->thrd_data[i].data_list_cnt = 0;
-		phead->thrd_data[i].vec_free_in = SPT_NULL;
-		phead->thrd_data[i].vec_alloc_out = SPT_NULL;
-		phead->thrd_data[i].data_free_in = SPT_NULL;
-		phead->thrd_data[i].data_alloc_out = SPT_NULL;
-		phead->thrd_data[i].rsv_cnt = 0;
-		phead->thrd_data[i].rsv_list = SPT_NULL;
-        //fill_in_rsv_list_simple(phead, SPT_PER_THRD_RSV_CNT, i);
-	}
-    //test_add_N_page(phead, phead->pg_num_max);
-	grp_init(phead);
-    vec = vec_alloc_from_grp(phead, 0, &pvec);
+    vec = vec_alloc_from_grp(phead, 0, &pvec,__LINE__);
 	if (pvec == 0) {
 		cluster_destroy(phead);
 		return NULL;
@@ -421,239 +481,11 @@ struct cluster_head_t *cluster_init(int is_bottom,
 
 	return phead;
 }
-#if 0
-/**
- * blk_alloc - alloc block
- * @pcluster: pointer of sd tree cluster head
- * @blk: return value, store the addr of the block
- *
- * return block id
- */
-int blk_alloc(struct cluster_head_t *pcluster, char **blk)
-{
-	u32 blk_id, new_head;
-	struct block_head_t *pblk;
-	int try_cnts = 0;
-
-	do {
-		while ((blk_id = atomic_read(
-			(atomic_t *)&pcluster->blk_free_head)) == -1) {
-			if (cluster_add_page(pcluster) != SPT_OK) {
-				if (try_cnts != 0) {
-					*blk = NULL;
-					return -1;
-				}
-				try_cnts++;
-				continue;
-			}
-		}
-		pblk = (struct block_head_t *)blk_id_2_ptr(pcluster, blk_id);
-		new_head = pblk->next;
-	} while (blk_id != atomic_cmpxchg(
-	(atomic_t *)&pcluster->blk_free_head, blk_id, new_head));
-
-	atomic_sub(1, (atomic_t *)&pcluster->free_blk_cnt);
-	*blk = (char *)pblk;
-
-	return blk_id;
-}
-/**
- * db_add_blk - alloc a block and cut it into data block
- * @pclst: pointer of sd tree cluster head
- */
-int db_add_blk(struct cluster_head_t *pclst)
-{
-	char *pblk;
-	int i, total;
-	u32 id, blkid, old_head;
-	struct db_head_t *db;
-
-	blkid = blk_alloc(pclst, &pblk);
-	if (pblk == NULL)
-		return CLT_NOMEM;
-
-	total = pclst->db_per_blk;
-	id = (blkid*total);
-	db = (struct db_head_t *)pblk;
-
-	for (i = 1; i < total; i++) {
-		db->magic = 0xdeadbeef;
-		db->next = id + i;
-		db = (struct db_head_t *)(pblk + (i * DBLK_SIZE));
-	}
-	db->magic = 0xdeadbeef;
-
-	do {
-		old_head = atomic_read((atomic_t *)&pclst->dblk_free_head);
-		db->next = old_head;
-	} while (old_head != atomic_cmpxchg(
-	(atomic_t *)&pclst->dblk_free_head, old_head, id));
-
-	atomic_add(total, (atomic_t *)&pclst->free_dblk_cnt);
-
-	return SPT_OK;
-}
-/**
- * vec_add_blk - alloc a block and cut it into vectors
- * @pclst: pointer of sd tree cluster head
- */
-int vec_add_blk(struct cluster_head_t *pclst)
-{
-	char *pblk;
-	int i, total;
-	u32 id, blkid, old_head;
-	struct vec_head_t *vec;
-
-	blkid = blk_alloc(pclst, &pblk);
-	if (pblk == NULL)
-		return CLT_NOMEM;
-
-	total = pclst->vec_per_blk;
-	id = (blkid*total);
-	vec = (struct vec_head_t *)pblk;
-
-	for (i = 1; i < total; i++) {
-		vec->magic = 0xdeadbeef;
-		vec->next = id + i;
-		vec = (struct vec_head_t *)(pblk + (i << VBLK_BITS));
-	}
-
-	vec->magic = 0xdeadbeef;
-
-	do {
-		old_head = atomic_read((atomic_t *)&pclst->vec_free_head);
-		vec->next = old_head;
-		smp_mb();/* ^^^ */
-	} while (old_head != atomic_cmpxchg(
-	(atomic_t *)&pclst->vec_free_head, old_head, id));
-
-	atomic_add(total, (atomic_t *)&pclst->free_vec_cnt);
-
-	return SPT_OK;
-}
-/**
- * db_alloc - alloc data block from freelist
- * @pclst: pointer of sd tree cluster head
- * @db: return value, store the addr of the data block
- *
- * return data block id
- */
-unsigned int db_alloc(struct cluster_head_t *pclst, struct spt_dh **db)
-{
-	u32 db_id;
-	struct db_head_t *pdb;
-	u32 try_cnts, new_head;
-
-	try_cnts = 0;
-
-	do {
-		while ((db_id = atomic_read(
-		(atomic_t *)&pclst->dblk_free_head)) == -1) {
-			if (db_add_blk(pclst) != SPT_OK) {
-				if (try_cnts != 0) {
-					*db = NULL;
-					return -1;
-				}
-				try_cnts++;
-				continue;
-			}
-		}
-		pdb = (struct db_head_t *)db_id_2_ptr(pclst, db_id);
-		smp_mb();/* ^^^ */
-		new_head = pdb->next;
-	} while (db_id != atomic_cmpxchg(
-	(atomic_t *)&pclst->dblk_free_head, db_id, new_head));
-
-	atomic_sub(1, (atomic_t *)&pclst->free_dblk_cnt);
-	atomic_add(1, (atomic_t *)&pclst->used_dblk_cnt);
-	*db = (struct spt_dh *)pdb;
-	(*db)->rsv = 0;
-	(*db)->pdata = NULL;
-	return db_id;
-}
-/**
- * db_free - free data block to freelist
- * @pcluster: pointer of sd tree cluster head
- * @id: data block id
- */
-void db_free(struct cluster_head_t *pcluster, int id)
-{
-	struct db_head_t *pdb;
-	u32 old_head;
-
-	pdb = (struct db_head_t *)db_id_2_ptr(pcluster, id);
-	do {
-		old_head = atomic_read(
-			(atomic_t *)&pcluster->dblk_free_head);
-		pdb->next = old_head;
-		smp_mb();/* ^^^ */
-	} while (old_head != atomic_cmpxchg(
-	(atomic_t *)&pcluster->dblk_free_head, old_head, id));
-
-	atomic_add(1, (atomic_t *)&pcluster->free_dblk_cnt);
-	atomic_sub(1, (atomic_t *)&pcluster->used_dblk_cnt);
-}
-#endif
-/**
- * vec_alloc - alloc vector from freelist
- * @pclst: pointer of sd tree cluster head
- * @vec: return value, store the addr of the vector
- *
- * return vector id
- */
-#if 0
-unsigned int vec_alloc(struct cluster_head_t *pclst, struct spt_vec **vec)
-{
-	u32 vec_id;
-	struct vec_head_t *pvec;
-	u32 try_cnts, new_head;
-
-	do {
-		while ((vec_id = atomic_read(
-		(atomic_t *)&pclst->vec_free_head)) == -1) {
-			if (vec_add_blk(pclst) != SPT_OK) {
-				try_cnts++;
-				if (try_cnts != 0) {
-					*vec = NULL;
-					return -1;
-				}
-			}
-		}
-		pvec = (struct vec_head_t *)vec_id_2_ptr(pclst, vec_id);
-		smp_mb();/* ^^^ */
-		new_head = pvec->next;
-	} while (vec_id != atomic_cmpxchg(
-	(atomic_t *)&pclst->vec_free_head, vec_id, new_head));
-
-	atomic_sub(1, (atomic_t *)&pclst->free_vec_cnt);
-	atomic_add(1, (atomic_t *)&pclst->used_vec_cnt);
-	*vec = (struct spt_vec *)pvec;
-
-	return vec_id;
-}
-/**
- * vec_free - free data block to freelist
- * @pcluster: pointer of sd tree cluster head
- * @id: vector id
- */
-void vec_free(struct cluster_head_t *pcluster, int id)
-{
-	struct vec_head_t *pvec;
-	u32 old_head;
-
-	pvec = (struct vec_head_t *)vec_id_2_ptr(pcluster, id);
-	do {
-		old_head = atomic_read((atomic_t *)&pcluster->vec_free_head);
-		pvec->next = old_head;
-		smp_mb();/* ^^^ */
-	} while (old_head != atomic_cmpxchg(
-	(atomic_t *)&pcluster->vec_free_head, old_head, id));
-
-	atomic_add(1, (atomic_t *)&pcluster->free_vec_cnt);
-	atomic_sub(1, (atomic_t *)&pcluster->used_vec_cnt);
-}
-#endif
 u64 g_spill_vec = 0;
+void test_break(void)
+{
+	printf("test_break\r\n");
+}
 int vec_alloc_from_spill(struct cluster_head_t *pclst, struct spt_vec **vec)
 {
 	char *grp;
@@ -672,7 +504,7 @@ int vec_alloc_from_spill(struct cluster_head_t *pclst, struct spt_vec **vec)
 			gid = pgid*GRPS_PER_PG;
 			for(i=0;i<GRPS_PER_PG;i++)
 			{
-				grp  = grp_id_2_ptr(pclst, gid);
+				grp  = get_grp_from_page_head(spt_pg, gid);
 				while(1)
 				{
 					va_old = *(u64 *)grp;
@@ -693,13 +525,15 @@ int vec_alloc_from_spill(struct cluster_head_t *pclst, struct spt_vec **vec)
 						atomic_add(1, (atomic_t *)&pclst->used_vec_cnt);
 						atomic_add(1, (atomic_t *)&spt_pg->bit_used);
 						*vec = (struct spt_vec *)(grp + 8 + fs*sizeof(struct spt_vec));
+						//printf("cluster %p, vec alloc spill id %d\r\n",pclst, gid*VEC_PER_GRP +fs);
 						return gid*VEC_PER_GRP + fs;
 					}
 				}
 				gid++;
 			}	
 		}
-		pgid = atomic_add_return(1, (atomic_t *)&pclst->pg_cursor);
+		//pgid = atomic_add_return(1, (atomic_t *)&pclst->pg_cursor);
+		pgid++;
 		if(pclst->pg_num_max <= pgid)
 		{
 			atomic_sub(1, (atomic_t *)&pclst->pg_cursor);
@@ -727,7 +561,7 @@ int db_alloc_from_spill(struct cluster_head_t *pclst, struct spt_dh **db)
 			gid = pgid*GRPS_PER_PG;
 			for(i=0;i<GRPS_PER_PG;i++)
 			{
-				grp  = grp_id_2_ptr(pclst, gid);
+				grp  = get_grp_from_page_head(spt_pg, gid);
 				while(1)
 				{
 					va_old = atomic64_read((atomic64_t *)grp);
@@ -749,6 +583,7 @@ int db_alloc_from_spill(struct cluster_head_t *pclst, struct spt_dh **db)
 								atomic_add(2, (atomic_t *)&spt_pg->bit_used);
 								(*db)->rsv = 0;
 								(*db)->pdata = NULL;
+								//printf("cluster %p, db alloc spill id %d\r\n",pclst, gid*VEC_PER_GRP +fs);
 								return gid*VEC_PER_GRP + fs;
 							} else {
 								retry = 1;
@@ -765,7 +600,8 @@ int db_alloc_from_spill(struct cluster_head_t *pclst, struct spt_dh **db)
 				gid++;
 			}	
 		}
-		pgid = atomic_add_return(1, (atomic_t *)&pclst->pg_cursor);
+		//pgid = atomic_add_return(1, (atomic_t *)&pclst->pg_cursor);
+		pgid++;
 		if(pclst->pg_num_max <= pgid)
 		{
 			atomic_sub(1, (atomic_t *)&pclst->pg_cursor);
@@ -774,7 +610,7 @@ int db_alloc_from_spill(struct cluster_head_t *pclst, struct spt_dh **db)
 		}
 	}
 }
-int vec_alloc_from_grp(struct cluster_head_t *pclst, int id, struct spt_vec **vec)
+int vec_alloc_from_grp(struct cluster_head_t *pclst, int id, struct spt_vec **vec, int line)
 {
 	char *grp;
 	u64 va_old, va_new;
@@ -783,16 +619,16 @@ int vec_alloc_from_grp(struct cluster_head_t *pclst, int id, struct spt_vec **ve
 	
 	gid = gid_t = id/VEC_PER_GRP;
 	offset = id%VEC_PER_GRP;
-		
+	//printf("alloc line %d\r\n",line);
 re_alloc:
-	spt_pg = get_pg_head(pclst, gid/GRPS_PER_PG);
-	grp  = grp_id_2_ptr(pclst, gid);
+	spt_pg = get_pg_head(pclst, gid/GRPS_PER_PG); /*get page head ,if page null alloc page*/
+	grp  = get_grp_from_page_head(spt_pg, gid);
     while(1)
     {
         va_old = *(u64 *)grp;
 		if((va_old & GRP_ALLOCMAP_MASK) == 0)
 		{
-			if(gid-gid_t >= 1)//GRPS_PER_PG)
+			if(gid-gid_t >= GRPS_PER_PG)
 			{
 				return vec_alloc_from_spill(pclst, vec);
 			}
@@ -803,7 +639,7 @@ re_alloc:
 		fs = find_next_bit(grp, 30, offset);
 		if(fs >=30 )
 		{
-			if(gid-gid_t >= 1)//GRPS_PER_PG)
+			if(gid-gid_t >= GRPS_PER_PG)
 			{
 				return vec_alloc_from_spill(pclst, vec);
 			}
@@ -820,6 +656,7 @@ re_alloc:
     atomic_add(1, (atomic_t *)&pclst->used_vec_cnt);
 	atomic_add(1, (atomic_t *)&spt_pg->bit_used);
 	*vec = (struct spt_vec *)(grp + 8 + fs*sizeof(struct spt_vec));
+	//printf("cluster %p,vec alloc id %d\r\n",pclst, gid*VEC_PER_GRP +fs);
 	return gid*VEC_PER_GRP + fs;
 }
 
@@ -835,13 +672,13 @@ int db_alloc_from_grp(struct cluster_head_t *pclst, int id, struct spt_dh **db)
 	
 re_alloc:
 	spt_pg = get_pg_head(pclst, gid/GRPS_PER_PG);
-	grp  = grp_id_2_ptr(pclst, gid);
+	grp  = get_grp_from_page_head(spt_pg, gid);
 	while(1)
 	{
 		va_old = atomic64_read((atomic64_t *)grp);
 		if((va_old & GRP_ALLOCMAP_MASK) == 0)
 		{
-			if(gid-gid_t >= 1)
+			if(gid-gid_t >= GRPS_PER_PG)
 			{
 				return db_alloc_from_spill(pclst, db);
 			}
@@ -854,7 +691,7 @@ re_alloc:
 		{
 			if(fs >=29 )
 			{
-				if(gid-gid_t >= 1)
+				if(gid-gid_t >= GRPS_PER_PG)
 				{
 					return db_alloc_from_spill(pclst, db);
 				}
@@ -877,6 +714,7 @@ re_alloc:
 	*db = (struct spt_dh *)(grp + 8 + fs*sizeof(struct spt_vec));
     (*db)->rsv = 0;
     (*db)->pdata = NULL;
+	//printf("cluster %p,db alloc id %d\r\n",pclst, gid*VEC_PER_GRP +fs);
 	
 	return gid*VEC_PER_GRP + fs;
 }
@@ -892,9 +730,10 @@ void db_free(struct cluster_head_t *pclst, int id)
 	struct spt_grp st_grp ;
 	struct spt_pg_h *spt_pg;
 
-	grp  = grp_id_2_ptr(pclst, id/VEC_PER_GRP);
-	offset = id%VEC_PER_GRP;
+	//printf("db free id %d\r\n",id);
 	spt_pg = get_pg_head(pclst, id/VEC_PER_GRP/GRPS_PER_PG);
+	grp  = get_grp_from_page_head(spt_pg, id/VEC_PER_GRP);
+	offset = id%VEC_PER_GRP;
 
 	while(1)
 	{
@@ -929,10 +768,10 @@ void vec_free(struct cluster_head_t *pclst, int id)
 	u32 tick;
 	struct spt_grp st_grp ;
 	struct spt_pg_h *spt_pg;
-
-	grp  = grp_id_2_ptr(pclst, id/VEC_PER_GRP);
-	offset = id%VEC_PER_GRP;
+	//printf("vec free id %d\r\n",id);
 	spt_pg = get_pg_head(pclst, id/VEC_PER_GRP/GRPS_PER_PG);
+	grp  = get_grp_from_page_head(spt_pg, id/VEC_PER_GRP);
+	offset = id%VEC_PER_GRP;
 
 	while(1)
 	{
@@ -959,459 +798,6 @@ void vec_free(struct cluster_head_t *pclst, int id)
 	
 	return;
 }
-#if 0
-/**
- * db_alloc_from_buf - alloc data block from thread buffer list
- * @pclst: pointer of sd tree cluster head
- * @thread_id: thread id
- * @db: return value, store the addr of the data block
- *
- * return data block id
- */
-unsigned int db_alloc_from_buf(struct cluster_head_t *pclst,
-	int thread_id,
-	struct spt_dh **db)
-{
-	struct spt_thrd_data *pthrd_data = &pclst->thrd_data[thread_id];
-	u32 list_vec_id, ret_id;
-	unsigned int tick;
-	struct spt_buf_list *pnode;
-
-	pnode = 0;
-	list_vec_id = pthrd_data->data_alloc_out;
-
-	if (list_vec_id == SPT_NULL) {
-		*db = NULL;
-		return -1;
-	}
-	pnode = (struct spt_buf_list *)vec_id_2_ptr(pclst, list_vec_id);
-	tick = atomic_add_return(0, (atomic_t *)&g_thrd_h->tick)
-		& SPT_BUF_TICK_MASK;
-	if (tick <  pnode->tick)
-		tick = tick | (1<<SPT_BUF_TICK_BITS);
-	if (tick-pnode->tick < 2) {
-		*db = NULL;
-		return -1;
-	}
-	ret_id = pnode->id;
-	*db = (struct spt_dh *)db_id_2_ptr(pclst, ret_id);
-	if ((*db)->pdata != NULL) {
-		if (spt_data_free_flag(*db))
-			pclst->freedata((*db)->pdata);
-	}
-	(*db)->rsv = 0;
-	pnode->id = SPT_NULL;
-	if (pthrd_data->data_alloc_out
-		== pthrd_data->data_free_in) {
-		pthrd_data->data_alloc_out
-		= pthrd_data->data_free_in
-		= SPT_NULL;
-	} else {
-		pthrd_data->data_alloc_out = pnode->next;
-	}
-	pthrd_data->data_cnt--;
-	pthrd_data->data_list_cnt--;
-	vec_free(pclst, list_vec_id);
-	pthrd_data->vec_cnt--;
-	return ret_id;
-}
-/**
- * vec_alloc_from_buf - alloc vector from thread buffer list
- * @pclst: pointer of sd tree cluster head
- * @thread_id: thread id
- * @vec: return value, store the addr of the vector
- *
- * return vector id
- */
-unsigned int vec_alloc_from_buf(struct cluster_head_t *pclst,
-						int thread_id,
-						struct spt_vec **vec)
-{
-	struct spt_thrd_data *pthrd_data = &pclst->thrd_data[thread_id];
-	u32 list_vec_id, ret_id;
-	u32 tick;
-	struct spt_buf_list *pnode;
-
-	pnode = 0;
-	list_vec_id = pthrd_data->vec_alloc_out;
-
-	if (list_vec_id == SPT_NULL) {
-		*vec = NULL;
-		return -1;
-	}
-	pnode = (struct spt_buf_list *)vec_id_2_ptr(
-		pclst, list_vec_id);
-	if (pnode->id == SPT_NULL) {
-		if (pthrd_data->vec_alloc_out
-			== pthrd_data->vec_free_in) {
-			pthrd_data->vec_alloc_out
-				= pthrd_data->vec_free_in
-				= SPT_NULL;
-		} else {
-			pthrd_data->vec_alloc_out = pnode->next;
-		}
-		ret_id = list_vec_id;
-		*vec = (struct spt_vec *)pnode;
-		pthrd_data->vec_cnt--;
-		pthrd_data->vec_list_cnt--;
-		return ret_id;
-	}
-
-	tick = atomic_add_return(0,
-		(atomic_t *)&g_thrd_h->tick) & SPT_BUF_TICK_MASK;
-	if (tick <  pnode->tick)
-		tick = tick | (1<<SPT_BUF_TICK_BITS);
-	if (tick-pnode->tick < 2) {
-		*vec = NULL;
-		return -1;
-	}
-	ret_id = pnode->id;
-	*vec = (struct spt_vec *)vec_id_2_ptr(pclst, ret_id);
-	pnode->id = SPT_NULL;
-	pthrd_data->vec_cnt--;
-	return ret_id;
-}
-/**
- * in some scenes ,vector alloc must succeed.
- * every thread reserve several vector for
- * data block and vector recycling.
- */
-int rsv_list_fill_cnt(struct cluster_head_t *pclst, int thread_id)
-{
-	return SPT_PER_THRD_RSV_CNT - pclst->thrd_data[thread_id].rsv_cnt;
-}
-/**
- * alloc can not fail
- */
-unsigned int vec_alloc_from_rsvlist(struct cluster_head_t *pclst,
-	int thread_id,
-	struct spt_vec **vec)
-{
-	struct spt_thrd_data *pthrd_data = &pclst->thrd_data[thread_id];
-	u32 vec_id;
-	struct vec_head_t *pvec;
-
-	vec_id = pthrd_data->rsv_list;
-	pvec = (struct vec_head_t *)vec_id_2_ptr(pclst, vec_id);
-
-	pthrd_data->rsv_list = pvec->next;
-	pthrd_data->rsv_cnt--;
-	*vec = (struct spt_vec *)pvec;
-	return vec_id;
-}
-/* add vector into reserved list
- * if buffer list exceed water mark, free the vector&db that can be freed
- */
-int fill_in_rsv_list(struct cluster_head_t *pclst, int nr, int thread_id)
-{
-	struct spt_thrd_data *pthrd_data = &pclst->thrd_data[thread_id];
-
-	if (pthrd_data->vec_list_cnt
-		> SPT_BUF_VEC_WATERMARK) {
-		vec_buf_free(pclst, thread_id);
-	}
-	if (pthrd_data->data_list_cnt
-		> SPT_BUF_DATA_WATERMARK) {
-		db_buf_free(pclst, thread_id);
-	}
-/* if buffer list still exceed water mark, return SPT_WAIT_AMT
- * when tick refresh twice, the buffer list can be freed
- */
-	if (atomic_read((atomic_t *)&pthrd_data->vec_list_cnt)
-		> SPT_BUF_VEC_WATERMARK
-		|| (atomic_read((atomic_t *)&pthrd_data->data_list_cnt)
-		> SPT_BUF_DATA_WATERMARK)) {
-		fill_in_rsv_list_simple(pclst, nr, thread_id);
-		pclst->status = SPT_WAIT_AMT;
-		return SPT_WAIT_AMT;
-	} else {
-		return fill_in_rsv_list_simple(pclst, nr, thread_id);
-	}
-}
-
-/* add vector into reserved list */
-int fill_in_rsv_list_simple(struct cluster_head_t *pclst, int nr, int thread_id)
-{
-	struct spt_thrd_data *pthrd_data = &pclst->thrd_data[thread_id];
-	u32 vec_id;
-	struct vec_head_t *pvec;
-
-	while (nr > 0) {
-		vec_id = vec_alloc_from_buf(
-			pclst, thread_id, (struct spt_vec **)&pvec);
-		if (pvec == NULL) {
-			vec_id = vec_alloc(pclst, (struct spt_vec **)&pvec);
-			if (pvec == NULL)
-				return SPT_NOMEM;
-		}
-		pvec->next = pthrd_data->rsv_list;
-		pthrd_data->rsv_list = vec_id;
-		pthrd_data->rsv_cnt++;
-		nr--;
-	}
-	return SPT_OK;
-}
-/**
- * free the vector in the buffer list into free list
- * the vector can be freed only if it is freed to buffer list 2 tick ago
- */
-void vec_buf_free(struct cluster_head_t *pclst, int thread_id)
-{
-	struct spt_thrd_data *pthrd_data = &pclst->thrd_data[thread_id];
-	u32 list_vec_id, tmp_id;
-	u32 tick;
-	struct spt_buf_list *pnode;
-
-	tick = atomic_add_return(0, (atomic_t *)&g_thrd_h->tick)
-		& SPT_BUF_TICK_MASK;
-	list_vec_id = pthrd_data->vec_alloc_out;
-
-	while (list_vec_id != pthrd_data->vec_free_in) {
-		pnode = (struct spt_buf_list *)vec_id_2_ptr(
-			pclst, list_vec_id);
-		if (tick <  pnode->tick)
-			tick = tick | (1<<SPT_BUF_TICK_BITS);
-		if (tick - pnode->tick < 2) {
-			pthrd_data->vec_alloc_out = list_vec_id;
-			return;
-		}
-		if (pnode->id != SPT_NULL) {
-			vec_free(pclst, pnode->id);
-			pthrd_data->vec_cnt--;
-		}
-		tmp_id = list_vec_id;
-		list_vec_id = pnode->next;
-		vec_free(pclst, tmp_id);
-		pthrd_data->vec_list_cnt--;
-		pthrd_data->vec_cnt--;
-	}
-	pthrd_data->vec_alloc_out = list_vec_id;
-}
-/* free vector into buffer list
- * if buffer list exceed water mark, free the vector that can be freed
- * supplement vector into reserved list
- */
-int vec_free_to_buf(struct cluster_head_t *pclst, int id, int thread_id)
-{
-	struct spt_thrd_data *pthrd_data = &pclst->thrd_data[thread_id];
-	u32 list_vec_id;
-	u32 tick;
-	struct spt_buf_list *pnode;
-	struct spt_vec *pvec;
-
-	pvec = (struct spt_vec *)vec_id_2_ptr(pclst, id);
-	pvec->status = SPT_VEC_RAW;
-	list_vec_id = vec_alloc_from_rsvlist(
-		pclst, thread_id, (struct spt_vec **)&pnode);
-	tick = atomic_add_return(0, (atomic_t *)&g_thrd_h->tick)
-		& SPT_BUF_TICK_MASK;
-	pnode->tick = tick;
-	pnode->id = id;
-	pnode->next = SPT_NULL;
-	if (pthrd_data->vec_free_in == SPT_NULL) {
-		pthrd_data->vec_free_in
-			= pthrd_data->vec_alloc_out
-			= list_vec_id;
-	} else {
-		pnode = (struct spt_buf_list *)vec_id_2_ptr(
-			pclst, pthrd_data->vec_free_in);
-		pnode->next = list_vec_id;
-		pthrd_data->vec_free_in = list_vec_id;
-	}
-	pthrd_data->vec_list_cnt++;
-	pthrd_data->vec_cnt += 2;
-
-	if (pthrd_data->vec_list_cnt > SPT_BUF_VEC_WATERMARK)
-		vec_buf_free(pclst, thread_id);
-	if (atomic_read((atomic_t *)&pthrd_data->vec_list_cnt)
-		> SPT_BUF_VEC_WATERMARK) {
-		fill_in_rsv_list_simple(pclst, 1, thread_id);
-		pclst->status = SPT_WAIT_AMT;
-		return SPT_WAIT_AMT;
-	} else
-		return fill_in_rsv_list_simple(pclst, 1, thread_id);
-}
-/**
- * free the db in the buffer list into free list
- * the db can be freed only if it is freed to buffer list 2 tick ago
- */
-void db_buf_free(struct cluster_head_t *pclst, int thread_id)
-{
-	struct spt_thrd_data *pthrd_data = &pclst->thrd_data[thread_id];
-	u32 list_vec_id, tmp_id;
-	u32 tick;
-	struct spt_buf_list *pnode;
-	struct spt_dh *pdh;
-
-	tick = atomic_add_return(0, (atomic_t *)&g_thrd_h->tick)
-		& SPT_BUF_TICK_MASK;
-	list_vec_id = pthrd_data->data_alloc_out;
-
-	while (list_vec_id != pthrd_data->data_free_in) {
-		pnode = (struct spt_buf_list *)vec_id_2_ptr(pclst, list_vec_id);
-		if (tick <  pnode->tick)
-			tick = tick | (1<<SPT_BUF_TICK_BITS);
-		if (tick - pnode->tick < 2) {
-			pthrd_data->data_alloc_out = list_vec_id;
-			return;
-		}
-		pdh = (struct spt_dh *)db_id_2_ptr(pclst, pnode->id);
-		if (pdh->pdata != NULL) {
-			if (spt_data_free_flag(pdh))
-				pclst->freedata(pdh->pdata);
-		}
-
-		db_free(pclst, pnode->id);
-		tmp_id = list_vec_id;
-		list_vec_id = pnode->next;
-		vec_free(pclst, tmp_id);
-		pthrd_data->vec_cnt--;
-		pthrd_data->data_list_cnt--;
-		pthrd_data->data_cnt--;
-	}
-	pthrd_data->data_alloc_out = list_vec_id;
-}
-/* free vector into buffer list */
-void vec_free_to_buf_simple(struct cluster_head_t *pclst, int id, int thread_id)
-{
-	struct spt_thrd_data *pthrd_data = &pclst->thrd_data[thread_id];
-	u32 list_vec_id;
-	u32 tick;
-	struct spt_buf_list *pnode;
-	struct spt_vec *pvec;
-
-	pvec = (struct spt_vec *)vec_id_2_ptr(pclst, id);
-	pvec->status = SPT_VEC_RAW;
-	list_vec_id = vec_alloc_from_rsvlist(pclst, thread_id,
-		(struct spt_vec **)&pnode);
-	tick = atomic_add_return(0, (atomic_t *)&g_thrd_h->tick)
-		& SPT_BUF_TICK_MASK;
-	pnode->tick = tick;
-	pnode->id = id;
-	pnode->next = SPT_NULL;
-	if (pthrd_data->vec_free_in == SPT_NULL) {
-		pthrd_data->vec_free_in
-			= pthrd_data->vec_alloc_out
-			= list_vec_id;
-	} else {
-		pnode = (struct spt_buf_list *)vec_id_2_ptr(
-			pclst, pthrd_data->vec_free_in);
-		pnode->next = list_vec_id;
-		pthrd_data->vec_free_in = list_vec_id;
-	}
-	pthrd_data->vec_list_cnt++;
-	pthrd_data->vec_cnt += 2;
-}
-
-/* free db into buffer list */
-void db_free_to_buf_simple(struct cluster_head_t *pclst, int id, int thread_id)
-{
-	struct spt_thrd_data *pthrd_data = &pclst->thrd_data[thread_id];
-	u32 list_vec_id;
-	u32 tick;
-	struct spt_buf_list *pnode;
-
-	list_vec_id = vec_alloc_from_rsvlist(pclst,
-		thread_id, (struct spt_vec **)&pnode);
-	tick = atomic_add_return(0, (atomic_t *)&g_thrd_h->tick)
-		& SPT_BUF_TICK_MASK;
-	pnode->tick = tick;
-	pnode->id = id;
-	pnode->next = SPT_NULL;
-	if (pthrd_data->data_free_in == SPT_NULL) {
-		pthrd_data->data_free_in
-			= pthrd_data->data_alloc_out
-			= list_vec_id;
-	} else {
-		pnode = (struct spt_buf_list *)vec_id_2_ptr(
-			pclst, pthrd_data->data_free_in);
-		pnode->next = list_vec_id;
-		pthrd_data->data_free_in = list_vec_id;
-	}
-	pthrd_data->data_list_cnt++;
-	pthrd_data->data_cnt++;
-	pthrd_data->vec_cnt++;
-	atomic_sub(1, (atomic_t *)&pclst->data_total);
-}
-
-/* free db into buffer list
- * if buffer list exceed water mark, free the db that can be freed
- * supplement vector into reserved list
- */
-int db_free_to_buf(struct cluster_head_t *pclst, int id, int thread_id)
-{
-	struct spt_thrd_data *pthrd_data = &pclst->thrd_data[thread_id];
-	u32 list_vec_id;
-	u32 tick;
-	struct spt_buf_list *pnode;
-
-	list_vec_id = vec_alloc_from_rsvlist(pclst,
-		thread_id, (struct spt_vec **)&pnode);
-	tick = atomic_add_return(0, (atomic_t *)&g_thrd_h->tick)
-		& SPT_BUF_TICK_MASK;
-	pnode->tick = tick;
-	pnode->id = id;
-	pnode->next = SPT_NULL;
-	if (pthrd_data->data_free_in == SPT_NULL) {
-		pthrd_data->data_free_in
-			= pthrd_data->data_alloc_out
-			= list_vec_id;
-	} else {
-		pnode = (struct spt_buf_list *)vec_id_2_ptr(pclst,
-			pthrd_data->data_free_in);
-		pnode->next = list_vec_id;
-		pthrd_data->data_free_in = list_vec_id;
-	}
-	pthrd_data->data_list_cnt++;
-	pthrd_data->data_cnt++;
-	pthrd_data->vec_cnt++;
-	atomic_sub(1, (atomic_t *)&pclst->data_total);
-
-	if (pthrd_data->data_list_cnt
-		> SPT_BUF_DATA_WATERMARK) {
-		db_buf_free(pclst, thread_id);
-	}
-	if (atomic_read((atomic_t *)&pthrd_data->data_list_cnt)
-		> SPT_BUF_DATA_WATERMARK) {
-		fill_in_rsv_list_simple(pclst, 1, thread_id);
-		pclst->status = SPT_WAIT_AMT;
-		return SPT_WAIT_AMT;
-	} else {
-		return fill_in_rsv_list_simple(pclst, 1, thread_id);
-	}
-}
-/* alloc vector from buffer list first
- * if return NULL, then alloc from free list
- */
-unsigned int vec_alloc_combo(struct cluster_head_t *pclst,
-	int thread_id,
-	struct spt_vec **vec)
-{
-	u32 ret;
-
-	ret = vec_alloc_from_buf(pclst, thread_id, vec);
-	if (ret == -1)
-		ret = vec_alloc(pclst, vec);
-	return ret;
-}
-/* alloc db from buffer list first
- * if return NULL, then alloc from free list
- */
-unsigned int data_alloc_combo(struct cluster_head_t *pclst, int thread_id,
-		struct spt_dh **db)
-{
-	u32 ret;
-
-	ret = db_alloc_from_buf(pclst, thread_id, db);
-	if (ret == -1) {
-		ret = db_alloc(pclst, db);
-		if (ret == -1)
-			return -1;
-	}
-	atomic_add(1, (atomic_t *)&pclst->data_total);
-	return ret;
-}
-#endif
 int test_add_page(struct cluster_head_t *pclst)
 {
     char *page, **indir_page, ***dindir_page;
@@ -1513,7 +899,7 @@ void test_vec_alloc_n_times(struct cluster_head_t *pclst)
     
     for(i=0; ; i++)
     {
-        vec_a = vec_alloc_from_grp(pclst, 0,  &pvec_a);
+        vec_a = vec_alloc_from_grp(pclst, 0,  &pvec_a,__LINE__);
         if(pvec_a == 0)
         {
             //printf("\r\n%d\t%s\ti:%d", __LINE__, __FUNCTION__, i);

@@ -447,7 +447,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 	signpost = pinsert->signpost;
 	tmp_rd = tmp_vec.rd;
 
-    vecid_a = vec_alloc_from_grp(pclst, id, &pvec_a);
+    vecid_a = vec_alloc_from_grp(pclst, id, &pvec_a, __LINE__);
 	if (pvec_a == 0) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		spt_set_data_not_free(pdh);
@@ -461,7 +461,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 
 	if ((pinsert->cmp_pos-1)-signpost
 		> SPT_VEC_SIGNPOST_MASK) {
-		vecid_s = vec_alloc_from_grp(pclst, 0, &pvec_s);
+		vecid_s = vec_alloc_from_grp(pclst, 0, &pvec_s, __LINE__);
 		if (pvec_s == 0) {
 			spt_print("\r\n%d\t%s", __LINE__, __func__);
 			spt_set_data_not_free(pdh);
@@ -485,7 +485,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 
 	if (tmp_vec.type == SPT_VEC_DATA
 		|| pinsert->endbit > pinsert->fs) {
-        vecid_b = vec_alloc_from_grp(pclst, id, &pvec_b);
+        vecid_b = vec_alloc_from_grp(pclst, id, &pvec_b,__LINE__);
 		if (pvec_b == 0) {
 			spt_print("\r\n%d\t%s", __LINE__, __func__);
 			spt_set_data_not_free(pdh);
@@ -502,7 +502,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 		pvec_b->down = SPT_NULL;
 		tmp_vec.type = SPT_VEC_RIGHT;
 		if ((pinsert->fs-1)-signpost > SPT_VEC_SIGNPOST_MASK) {
-			vecid_s2 = vec_alloc_from_grp(pclst, 0, &pvec_s2);
+			vecid_s2 = vec_alloc_from_grp(pclst, 0, &pvec_s2, __LINE__);
 			if (pvec_s2 == 0) {
 				spt_set_data_not_free(pdh);
                 db_free(pclst, dataid);
@@ -592,7 +592,7 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 	tmp_vec.val = pinsert->key_val;
 	signpost = pinsert->signpost;
 
-    vecid_b = vec_alloc_from_grp(pclst, id, &pvec_b);
+    vecid_b = vec_alloc_from_grp(pclst, id, &pvec_b, __LINE__);
 	if (!pvec_b) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		spt_set_data_not_free(pdh);
@@ -605,7 +605,7 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 	pvec_b->rd = dataid;
 	pvec_b->down = SPT_NULL;
 
-    vecid_a = vec_alloc_from_grp(pclst, id, &pvec_a);
+    vecid_a = vec_alloc_from_grp(pclst, id, &pvec_a,__LINE__);
 	if (!pvec_a) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		spt_set_data_not_free(pdh);
@@ -630,7 +630,7 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 
 	if ((pinsert->cmp_pos-1)-signpost
 		> SPT_VEC_SIGNPOST_MASK) {
-		vecid_s = vec_alloc_from_grp(pclst, 0, &pvec_s);
+		vecid_s = vec_alloc_from_grp(pclst, 0, &pvec_s,__LINE__);
 		if (pvec_s == 0) {
 			spt_print("\r\n%d\t%s", __LINE__, __func__);
 			spt_set_data_not_free(pdh);
@@ -649,7 +649,7 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 
 	} else if ((pinsert->fs-1)-signpost
 		> SPT_VEC_SIGNPOST_MASK) {
-		vecid_s = vec_alloc_from_grp(pclst, 0, &pvec_s);
+		vecid_s = vec_alloc_from_grp(pclst, 0, &pvec_s, __LINE__);
 		if (pvec_s == 0) {
 			spt_print("\r\n%d\t%s", __LINE__, __func__);
 			spt_set_data_not_free(pdh);
@@ -733,7 +733,7 @@ int do_insert_last_down(struct cluster_head_t *pclst,
 	tmp_vec.val = pinsert->key_val;
 	signpost = pinsert->signpost;
 
-    vecid_a = vec_alloc_from_grp(pclst, id, &pvec_a);
+    vecid_a = vec_alloc_from_grp(pclst, id, &pvec_a, __LINE__);
 	if (pvec_a == 0) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		spt_set_data_not_free(pdh);
@@ -748,7 +748,7 @@ int do_insert_last_down(struct cluster_head_t *pclst,
 
 	if ((pinsert->fs-1)-signpost
 		> SPT_VEC_SIGNPOST_MASK) {
-		vecid_s = vec_alloc_from_grp(pclst, 0, &pvec_s);
+		vecid_s = vec_alloc_from_grp(pclst, 0, &pvec_s, __LINE__);
 		if (pvec_s == 0) {
 			spt_print("\r\n%d\t%s", __LINE__, __func__);
 			spt_set_data_not_free(pdh);
@@ -820,7 +820,7 @@ int do_insert_up_via_d(struct cluster_head_t *pclst,
 	tmp_vec.val = pinsert->key_val;
 	signpost = pinsert->signpost;
 
-    vecid_a = vec_alloc_from_grp(pclst, id, &pvec_a);
+    vecid_a = vec_alloc_from_grp(pclst, id, &pvec_a, __LINE__);
 	if (pvec_a == 0) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		spt_set_data_not_free(pdh);
@@ -833,7 +833,7 @@ int do_insert_up_via_d(struct cluster_head_t *pclst,
 	pvec_a->rd = dataid;
 
 	if ((pinsert->fs-1)-signpost > SPT_VEC_SIGNPOST_MASK) {
-		vecid_s = vec_alloc_from_grp(pclst, 0, &pvec_s);
+		vecid_s = vec_alloc_from_grp(pclst, 0, &pvec_s, __LINE__);
 		if (pvec_s == 0) {
 			spt_print("\r\n%d\t%s", __LINE__, __func__);
 			spt_set_data_not_free(pdh);
@@ -1664,7 +1664,7 @@ refind_forward:
 		if (fs_pos != startbit)
 			goto go_down;
 go_right:
-		if (cur_vec.type == SPT_VEC_DATA) {
+		if (cur_vec.type == SPT_VEC_DATA) { 
 			len = endbit - startbit;
 			if (cur_data != SPT_INVALID) {
 				pclst->get_key_in_tree_end(pcur_data);
