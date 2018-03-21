@@ -377,10 +377,7 @@ int do_insert_first_set(struct cluster_head_t *pclst,
 	int ret;
 	int id;
 
-	if(pinsert->alloc_type == SPT_TOP_INSERT)
-		id = pclst->last_alloc_id;
-	else
-		id = pinsert->key_id;
+	id = pinsert->key_id;
     dataid = db_alloc_from_grp(pclst, id, &pdh);
 	if (!pdh) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
@@ -428,10 +425,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 	int ret;
 	int id;
 
-	if(pinsert->alloc_type == SPT_TOP_INSERT)
-		id = pclst->last_alloc_id;
-	else
-		id = pinsert->key_id;
+	id = pinsert->key_id;
 	pvec_b = 0;
 	pvec_s = 0;
 	pvec_s2 = 0;
@@ -576,10 +570,7 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 	int ret;
 	int id;
 
-	if(pinsert->alloc_type == SPT_TOP_INSERT)
-		id = pclst->last_alloc_id;
-	else
-		id = pinsert->key_id;
+	id = pinsert->key_id;
 	pvec_s = 0;
     dataid = db_alloc_from_grp(pclst, id, &pdh);
 	if (!pdh) {
@@ -717,10 +708,7 @@ int do_insert_last_down(struct cluster_head_t *pclst,
 	int ret;
 	int id;
 
-	if(pinsert->alloc_type == SPT_TOP_INSERT)
-		id = pclst->last_alloc_id;
-	else
-		id = pinsert->key_id;
+	id = pinsert->key_id;
 	pvec_s = 0;
     dataid = db_alloc_from_grp(pclst, id, &pdh);
 	if (pdh == 0) {
@@ -804,10 +792,7 @@ int do_insert_up_via_d(struct cluster_head_t *pclst,
 	int ret;
 	int id;
 
-	if(pinsert->alloc_type == SPT_TOP_INSERT)
-		id = pclst->last_alloc_id;
-	else
-		id = pinsert->key_id;
+	id = pinsert->key_id;
 	pvec_s = 0;
     dataid = db_alloc_from_grp(pclst, id, &pdh);
 	if (pdh == 0) {
@@ -1689,6 +1674,7 @@ go_right:
 					st_insert_info.key_val = cur_vec.val;
 					st_insert_info.ref_cnt =
 						pqinfo->multiple;
+					st_insert_info.key_id = cur_vecid;
 					ret = do_insert_first_set(
 							pclst,
 							&st_insert_info,
@@ -1811,6 +1797,7 @@ go_right:
 					st_insert_info.key_val = cur_vec.val;
 					st_insert_info.ref_cnt =
 						pqinfo->multiple;
+					st_insert_info.key_id = cur_vecid;
 					ret = do_insert_first_set(pclst,
 						&st_insert_info,
 						pdata);
@@ -1969,8 +1956,8 @@ go_right:
 				st_insert_info.cmp_pos = cmpres.pos;
 				st_insert_info.signpost = signpost;
 				st_insert_info.ref_cnt = pqinfo->multiple;
-						st_insert_info.alloc_type = pqinfo->res;
-						st_insert_info.key_id = cur_vecid;
+				st_insert_info.alloc_type = pqinfo->res;
+				st_insert_info.key_id = cur_vecid;
 				ret = do_insert_down_via_r(pclst,
 						&st_insert_info, pdata);
 				if (ret == SPT_DO_AGAIN)
@@ -2064,7 +2051,7 @@ go_down:
 				st_insert_info.signpost = signpost;
 				st_insert_info.key_id = cur_vecid;
 				st_insert_info.ref_cnt = pqinfo->multiple;
-							st_insert_info.alloc_type = pqinfo->res;
+				st_insert_info.alloc_type = pqinfo->res;
 				ret = do_insert_last_down(pclst,
 						&st_insert_info, pdata);
 				if (ret == SPT_DO_AGAIN)
@@ -2993,7 +2980,7 @@ struct cluster_head_t *spt_cluster_init(u64 startbit,
 	/*
 	 * The sample space is divided into several parts on average
 	 */
-	for (i = 1; i < 256; i++) {
+	for (i = 1; i < 1; i++) {
 		plower_clst = cluster_init(1, startbit,
 				endbit, thread_num, pf, pf2,
 							pf_free, pf_con);

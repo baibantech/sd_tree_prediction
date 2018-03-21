@@ -82,8 +82,7 @@ u32 grp_alloc_map(struct cluster_head_t *pclst)
 	int grps, grp_id;
 	struct spt_grp *pgrp;
 	u32 total=0;
-	
-	grps = pclst->pg_num_max*GRPS_PER_PG;	
+	grps = pclst->pg_cursor*GRPS_PER_PG;	
 	for(grp_id=0; grp_id < grps; grp_id++)
 	{
 		pgrp = (struct spt_grp *)grp_id_2_ptr(pclst, grp_id);
@@ -118,7 +117,7 @@ void grp_free_map(struct cluster_head_t *pclst)
 	u64 va_old;
 	u32 tick;
 	
-	grps = pclst->pg_num_max*GRPS_PER_PG;	
+	grps = pclst->pg_cursor*GRPS_PER_PG;	
 	for(grp_id=0; grp_id < grps; grp_id++)
 	{
 		pgrp = (struct spt_grp *)grp_id_2_ptr(pclst, grp_id);
@@ -309,6 +308,7 @@ int cluster_add_page(struct cluster_head_t *pclst)
 	u64 double_pgs = 1<<(ptrs_bit*2);
 
 	pg_id = atomic_add_return(1, (atomic_t *)&pclst->pg_cursor);
+	pg_id--;
 	if (pclst->pg_num_max <= pg_id) {
 		atomic_sub(1, (atomic_t *)&pclst->pg_cursor);
 		return CLT_FULL;
@@ -318,7 +318,6 @@ int cluster_add_page(struct cluster_head_t *pclst)
 	if (page == NULL)
 		return CLT_NOMEM;
 
-	pg_id--;
 	grp_init_per_page(page);
 	//printf("add page id %d,page ptr %p\r\n",pg_id, page);
 	id = pg_id;
@@ -486,16 +485,19 @@ void test_break(void)
 {
 	printf("test_break\r\n");
 }
-int vec_alloc_from_spill(struct cluster_head_t *pclst, struct spt_vec **vec)
+int vec_alloc_from_spill(struct cluster_head_t *pclst, struct spt_vec **vec, int pgid)
 {
 	char *grp;
 	u64 va_old, va_new;
-	int fs, gid, pgid, i;
+	int fs, gid, i;
 	struct spt_pg_h *spt_pg;
 
 	atomic64_add(1, (atomic64_t *)&g_spill_vec);
-
-	pgid = pclst->pg_cursor;
+	pgid++;
+	if(pgid >= pclst->pg_num_max) {
+		*vec = NULL;
+		return SPT_NULL;
+	}
 	while(1)
 	{
 		spt_pg = get_pg_head(pclst, pgid);
@@ -532,11 +534,9 @@ int vec_alloc_from_spill(struct cluster_head_t *pclst, struct spt_vec **vec)
 				gid++;
 			}	
 		}
-		//pgid = atomic_add_return(1, (atomic_t *)&pclst->pg_cursor);
 		pgid++;
 		if(pclst->pg_num_max <= pgid)
 		{
-			atomic_sub(1, (atomic_t *)&pclst->pg_cursor);
 			*vec = NULL;
 			return SPT_NULL;
 		}
@@ -544,15 +544,20 @@ int vec_alloc_from_spill(struct cluster_head_t *pclst, struct spt_vec **vec)
 }
 
 
-int db_alloc_from_spill(struct cluster_head_t *pclst, struct spt_dh **db)
+int db_alloc_from_spill(struct cluster_head_t *pclst, struct spt_dh **db, int pgid)
 {
 	char *grp;
 	u64 va_old, va_new;
-	int fs, ns, gid, pgid, i, retry;
+	int fs, ns, gid , i, retry;
 	struct spt_pg_h *spt_pg;
 
 	retry=0;
-	pgid = pclst->pg_cursor;
+	pgid++;
+	
+	if(pclst->pg_num_max <= pgid) {
+		*db = NULL;
+		return SPT_NULL;
+	}
 	while(1)
 	{
 		spt_pg = get_pg_head(pclst, pgid);
@@ -600,11 +605,9 @@ int db_alloc_from_spill(struct cluster_head_t *pclst, struct spt_dh **db)
 				gid++;
 			}	
 		}
-		//pgid = atomic_add_return(1, (atomic_t *)&pclst->pg_cursor);
 		pgid++;
 		if(pclst->pg_num_max <= pgid)
 		{
-			atomic_sub(1, (atomic_t *)&pclst->pg_cursor);
 			*db = NULL;
 			return SPT_NULL;
 		}
@@ -621,6 +624,10 @@ int vec_alloc_from_grp(struct cluster_head_t *pclst, int id, struct spt_vec **ve
 	offset = id%VEC_PER_GRP;
 	//printf("alloc line %d\r\n",line);
 re_alloc:
+	if(( gid/GRPS_PER_PG) >= pclst->pg_num_max) {
+		*vec = NULL;
+		return SPT_NULL;
+	}
 	spt_pg = get_pg_head(pclst, gid/GRPS_PER_PG); /*get page head ,if page null alloc page*/
 	grp  = get_grp_from_page_head(spt_pg, gid);
     while(1)
@@ -630,7 +637,7 @@ re_alloc:
 		{
 			if(gid-gid_t >= GRPS_PER_PG)
 			{
-				return vec_alloc_from_spill(pclst, vec);
+				return vec_alloc_from_spill(pclst, vec, gid/GRPS_PER_PG);
 			}
 			gid++;
 			offset=0;
@@ -641,7 +648,7 @@ re_alloc:
 		{
 			if(gid-gid_t >= GRPS_PER_PG)
 			{
-				return vec_alloc_from_spill(pclst, vec);
+				return vec_alloc_from_spill(pclst, vec, gid/GRPS_PER_PG);
 			}
 			gid++;
 			offset=0;
@@ -671,6 +678,10 @@ int db_alloc_from_grp(struct cluster_head_t *pclst, int id, struct spt_dh **db)
 	offset = id%VEC_PER_GRP;
 	
 re_alloc:
+	if(( gid/GRPS_PER_PG) >= pclst->pg_num_max) {
+		*db = NULL;
+		return SPT_NULL;
+	}
 	spt_pg = get_pg_head(pclst, gid/GRPS_PER_PG);
 	grp  = get_grp_from_page_head(spt_pg, gid);
 	while(1)
@@ -680,7 +691,7 @@ re_alloc:
 		{
 			if(gid-gid_t >= GRPS_PER_PG)
 			{
-				return db_alloc_from_spill(pclst, db);
+				return db_alloc_from_spill(pclst, db, gid/GRPS_PER_PG);
 			}
 			gid++;
 			offset=0;
@@ -693,7 +704,7 @@ re_alloc:
 			{
 				if(gid-gid_t >= GRPS_PER_PG)
 				{
-					return db_alloc_from_spill(pclst, db);
+					return db_alloc_from_spill(pclst, db, gid/GRPS_PER_PG);
 				}
 				gid++;
 				offset=0;
