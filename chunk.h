@@ -156,9 +156,6 @@ struct spt_vec {
 struct cluster_head_t {
 	struct list_head c_list;
 	int vec_head;
-	volatile unsigned int vec_free_head;
-	volatile unsigned int dblk_free_head;
-	volatile unsigned int blk_free_head;
 
 	struct spt_vec *pstart;
 	u64 startbit;
@@ -169,21 +166,11 @@ struct cluster_head_t {
 	unsigned int pg_num_max;
 	unsigned int pg_num_total;
 	unsigned int pg_cursor;
-	unsigned int blk_per_pg_bits;
 	unsigned int pg_ptr_bits;
-	unsigned int blk_per_pg;
-	unsigned int db_per_blk;
-	unsigned int vec_per_blk;
 
-	unsigned int db_per_page;
-	unsigned int vec_per_page;
-	unsigned int free_blk_cnt;
 	unsigned int free_vec_cnt;
-	unsigned int free_dblk_cnt;
 	unsigned int used_vec_cnt;
-	unsigned int used_dblk_cnt;
-	unsigned int buf_db_cnt;
-	unsigned int buf_vec_cnt;
+	unsigned int used_db_cnt;
 	unsigned int thrd_total;
 	unsigned int last_alloc_id;
 	struct spt_thrd_data *thrd_data;

@@ -434,16 +434,7 @@ struct cluster_head_t *cluster_init(int is_bottom,
 	if (sizeof(char *) == 8)
 		ptr_bits = 3;
 	phead->pg_num_max = CLST_PG_NUM_MAX;
-	phead->blk_per_pg_bits = PG_BITS - BLK_BITS;
 	phead->pg_ptr_bits = PG_BITS - ptr_bits;
-	phead->blk_per_pg = PG_SIZE/BLK_SIZE;
-	phead->db_per_blk = BLK_SIZE/DBLK_SIZE;
-	phead->vec_per_blk = BLK_SIZE/VBLK_SIZE;
-    phead->db_per_page= 4096/DBLK_SIZE; 
-    phead->vec_per_page = 4096/VBLK_SIZE;
-	phead->vec_free_head = -1;
-	phead->blk_free_head = -1;
-	phead->dblk_free_head = -1;
 
 	phead->debug = 1;
 	phead->is_bottom = is_bottom;

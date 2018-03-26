@@ -1474,6 +1474,219 @@ int divide_sub_cluster(struct cluster_head_t *pclst, struct spt_dh_ext *pup)
 
 	return SPT_OK;
 }
+
+
+int adjust_mem_sub_cluster(struct cluster_head_t *pclst, struct spt_dh_ext *pup)
+{
+	int loop, dataid, ins_dvb_id, ret, total, sched, ref_cnt;
+	int move_time = 0;
+//	int move_per_cnt = 100;
+	struct spt_sort_info *psort;
+	struct spt_divided_info *pdinfo;
+	struct spt_dh_ext *pext_head;
+	struct cluster_head_t *plower_clst, *pdst_clst;
+	struct spt_dh *pdh;
+	struct query_info_t qinfo = {0};
+	u64 start;
+	u64 w_start, w_total, w_cnt;
+	u64 f_start, f_total, f_cnt;
+	u64 del_start, del_total, del_cnt;
+	u64 ins_start, ins_total, ins_cnt;
+	u64 sort_start, sort_total;
+
+	w_start = w_total = w_cnt = 0;
+	f_start = f_total = f_cnt = 0;
+	del_start = del_total = del_cnt = 0;
+	ins_start = ins_total = ins_cnt = 0;
+
+	pext_head = pup;
+	plower_clst = pext_head->plower_clst;
+
+	move_time = plower_clst->data_total;
+	pdinfo = spt_divided_mem_init(move_time, pext_head->plower_clst);
+	if (pdinfo == NULL) {
+		spt_debug("spt_divided_mem_init return NULL\r\n");
+		return SPT_ERR;
+	}
+	psort = spt_order_array_init(pext_head->plower_clst,
+		pext_head->plower_clst->data_total);
+	if (psort == NULL) {
+		spt_debug("spt_order_array_init return NULL\r\n");
+		cluster_destroy(pdinfo->pdst_clst);
+		spt_divided_info_free(pdinfo);
+		return SPT_ERR;
+	}
+	plower_clst->ins_mask = 1;
+	spt_preempt_disable();
+	spt_thread_start(g_thrd_id);
+
+	sort_start = rdtsc();
+	/* sort the data in the cluster.move the smaller half of the data to
+	 * the new cluster later
+	 */
+	ret = spt_cluster_sort(pext_head->plower_clst, psort);
+	if (ret == SPT_ERR) {
+		spt_thread_exit(g_thrd_id);
+		spt_preempt_enable();
+		spt_debug("spt_cluster_sort return ERR\r\n");
+		cluster_destroy(pdinfo->pdst_clst);
+		spt_divided_info_free(pdinfo);
+		spt_order_array_free(psort);
+		return SPT_ERR;
+	}
+	ret = spt_divided_info_init(pdinfo, psort, pclst);
+	sort_total = rdtsc()-sort_start;
+	spt_thread_exit(g_thrd_id);
+	spt_preempt_enable();
+	spt_print("dvd sort cycle:%llu\r\n", sort_total);
+	if (ret != SPT_OK) {
+		spt_debug("spt_divided_info_init return ERR\r\n");
+		cluster_destroy(pdinfo->pdst_clst);
+		spt_divided_info_free(pdinfo);
+		return SPT_ERR;
+	}
+
+	pdst_clst = pdinfo->pdst_clst;
+
+	for (loop = 0; loop < move_time; loop++) {
+		spt_preempt_disable();
+		spt_thread_start(g_thrd_id);
+		/* insert the virtual board into the up-level cluster
+		 * if new insert/delete/find match this board, it is masked
+		 */
+		do_insert_data(pclst, pdinfo->up_vb_arr[loop],
+						pclst->get_key_in_tree,
+						pclst->get_key_in_tree_end);
+		spt_thread_exit(g_thrd_id);
+		/* after 2 ticks, query falling into the virtual
+		 * board scope must have been completed
+		 */
+		spt_thread_wait(2, g_thrd_id);
+		spt_thread_start(g_thrd_id);
+
+		/* insert a virtual board into the low-level cluster*/
+		qinfo.op = SPT_OP_INSERT;
+        //qinfo.signpost = 0;
+		qinfo.pstart_vec = plower_clst->pstart;
+		qinfo.startid = plower_clst->vec_head;
+		qinfo.endbit = plower_clst->endbit;
+		qinfo.data = pdinfo->down_vb_arr[loop];
+		qinfo.multiple = 1;
+		qinfo.get_key = plower_clst->get_key;
+		if (find_data(plower_clst, &qinfo) != SPT_OK)
+			spt_assert(0);
+		ins_dvb_id = qinfo.db_id;
+		total = 0;
+		sched = 0;
+		/* move the datas below the virtual board to the new cluster */
+		while (1) {
+			f_start = rdtsc();
+			dataid = find_lowest_data(plower_clst,
+				plower_clst->pstart);
+			if (dataid == SPT_NULL)
+				dataid = find_lowest_data_slow(plower_clst,
+				plower_clst->pstart);
+			f_total += rdtsc()-f_start;
+			f_cnt++;
+			pdh = (struct spt_dh *)db_id_2_ptr(plower_clst, dataid);
+			ref_cnt = pdh->ref;
+			start = rdtsc();
+			while (1) {
+				del_start = rdtsc();
+				ret = do_delete_data_no_free_multiple(
+					plower_clst,
+					pdh->pdata,
+					ref_cnt,
+					plower_clst->get_key_in_tree,
+					plower_clst->get_key_in_tree_end);
+				if (ret == SPT_OK) {
+					del_total += rdtsc()-del_start;
+					del_cnt++;
+					break;
+				} else if (ret == SPT_WAIT_AMT) {
+					spt_thread_exit(g_thrd_id);
+					w_start = rdtsc();
+					spt_thread_wait(2, g_thrd_id);
+					w_total += rdtsc() - w_start;
+					w_cnt++;
+					spt_thread_start(g_thrd_id);
+				} else
+					spt_debug("divide delete error\r\n");
+			}
+			if (dataid == ins_dvb_id) {
+				ref_cnt--;
+				if (ref_cnt == 0)
+					break;
+			}
+			start = rdtsc();
+
+			ret = do_insert_data_multiple(pdst_clst,
+				pdh->pdata,
+				ref_cnt,
+				pdst_clst->get_key_in_tree,
+				pdst_clst->get_key_in_tree_end);
+			if (ret != SPT_OK)
+				spt_debug("divide insert error\r\n");
+			ins_total += rdtsc()-start;
+			ins_cnt++;
+			if (dataid == ins_dvb_id)
+				break;
+		}
+		pext_head = (struct spt_dh_ext *)pdinfo->up_vb_arr[loop];
+		pext_head->plower_clst = pdst_clst;
+		if (1) {
+			spt_thread_exit(g_thrd_id);
+			spt_preempt_enable();
+			spt_schedule();
+			spt_preempt_disable();
+			spt_thread_start(g_thrd_id);
+		}
+		if (loop > 0) {
+			while (1) {
+				ret = do_delete_data(pclst,
+					pdinfo->up_vb_arr[loop-1],
+					pclst->get_key_in_tree,
+					pclst->get_key_in_tree_end);
+				if (ret == SPT_OK)
+					break;
+				else if (ret == SPT_WAIT_AMT) {
+					spt_thread_exit(g_thrd_id);
+					w_start = rdtsc();
+					spt_thread_wait(2, g_thrd_id);
+					w_total += rdtsc() - w_start;
+					w_cnt++;
+					spt_preempt_enable();
+					spt_schedule();
+					spt_preempt_disable();
+					spt_thread_start(g_thrd_id);
+				} else
+					spt_debug("divide delete error\r\n");
+			}
+			pdinfo->up_vb_arr[loop-1] = 0;
+		}
+		spt_thread_exit(g_thrd_id);
+		spt_preempt_enable();
+	}
+	pdinfo->up_vb_arr[loop-1] = 0;
+	list_add(&pdst_clst->c_list, &pclst->c_list);
+	spt_divided_info_free(pdinfo);
+	spt_order_array_free(psort);
+	plower_clst->ins_mask = 0;
+	spt_print("================dvd cycle info================\r\n");
+	spt_print("wait 2 tick %llu times, av cycle:%llu\r\n",
+		w_cnt, (w_cnt != 0?w_total/w_cnt:0));
+	spt_print("find lowest %llu times, av cycle:%llu\r\n",
+		f_cnt, (f_cnt != 0?f_total/f_cnt:0));
+	spt_print("delete succ %llu times, av cycle:%llu\r\n",
+		del_cnt, (del_cnt != 0?del_total/del_cnt:0));
+	spt_print("insert succ %llu times, av cycle:%llu\r\n",
+		ins_cnt, (ins_cnt != 0?ins_total/ins_cnt:0));
+	spt_print("==============================================\r\n");
+
+	return SPT_OK;
+}
+
+
 int spt_divided_scan(struct cluster_head_t *pclst)
 {
 	struct spt_sort_info *psort;
@@ -1495,8 +1708,12 @@ int spt_divided_scan(struct cluster_head_t *pclst)
 	for (i = 0; i < psort->size; i++) {
 		pdh_ext = (struct spt_dh_ext *)psort->array[i];
 		plower_clst = pdh_ext->plower_clst;
-		if (plower_clst->data_total >= SPT_DVD_THRESHOLD_VA)
+		if (plower_clst->data_total >= SPT_DVD_THRESHOLD_VA) {
 			divide_sub_cluster(pclst, pdh_ext);
+
+			if (plower_clst->pg_cursor >= 7000)
+				adjust_mem_sub_cluster(pclst, pdh_ext);
+		}
 	}
 	spt_order_array_free(psort);
 	return SPT_OK;
@@ -4740,10 +4957,8 @@ void debug_cluster_info_show(struct cluster_head_t *pclst)
 
 	data_cnt = debug_thrd_data_statistic(pclst);
 	vec_cnt = debug_thrd_vec_statistic(pclst);
-	spt_print("%p [data_buf]:%d [vec_buf]:%d [vec_used]:%d\t"
-	"[data_used]:%d\r\n",
-	pclst, data_cnt, vec_cnt, pclst->used_vec_cnt,
-	pclst->used_dblk_cnt);
+	spt_print("%p [data_buf]:%d [vec_buf]:%d [vec_used]:%d\t",
+	pclst, data_cnt, vec_cnt, pclst->used_vec_cnt);
 }
 
 void debug_lower_cluster_info_show(void)
