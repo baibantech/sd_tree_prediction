@@ -1476,7 +1476,7 @@ int divide_sub_cluster(struct cluster_head_t *pclst, struct spt_dh_ext *pup)
 }
 
 
-int adjust_mem_sub_cluster(struct cluster_head_t *pclst, struct spt_dh_ext *pup)
+struct cluster_head_t *adjust_mem_sub_cluster(struct cluster_head_t *pclst, struct spt_dh_ext *pup)
 {
 	int loop, dataid, ins_dvb_id, ret, total, sched, ref_cnt;
 	int move_time = 0;
@@ -1501,12 +1501,14 @@ int adjust_mem_sub_cluster(struct cluster_head_t *pclst, struct spt_dh_ext *pup)
 
 	pext_head = pup;
 	plower_clst = pext_head->plower_clst;
-
+	plower_clst->ins_mask = 1;
+	smp_mb();/* ^^^ */
 	move_time = plower_clst->data_total;
+	move_time = move_time/(SPT_DVD_CNT_PER_TIME) + 1;
 	pdinfo = spt_divided_mem_init(move_time, pext_head->plower_clst);
 	if (pdinfo == NULL) {
 		spt_debug("spt_divided_mem_init return NULL\r\n");
-		return SPT_ERR;
+		return NULL;
 	}
 	psort = spt_order_array_init(pext_head->plower_clst,
 		pext_head->plower_clst->data_total);
@@ -1514,9 +1516,8 @@ int adjust_mem_sub_cluster(struct cluster_head_t *pclst, struct spt_dh_ext *pup)
 		spt_debug("spt_order_array_init return NULL\r\n");
 		cluster_destroy(pdinfo->pdst_clst);
 		spt_divided_info_free(pdinfo);
-		return SPT_ERR;
+		return NULL;
 	}
-	plower_clst->ins_mask = 1;
 	spt_preempt_disable();
 	spt_thread_start(g_thrd_id);
 
@@ -1532,7 +1533,7 @@ int adjust_mem_sub_cluster(struct cluster_head_t *pclst, struct spt_dh_ext *pup)
 		cluster_destroy(pdinfo->pdst_clst);
 		spt_divided_info_free(pdinfo);
 		spt_order_array_free(psort);
-		return SPT_ERR;
+		return SPT_NULL;
 	}
 	ret = spt_divided_info_init(pdinfo, psort, pclst);
 	sort_total = rdtsc()-sort_start;
@@ -1543,7 +1544,7 @@ int adjust_mem_sub_cluster(struct cluster_head_t *pclst, struct spt_dh_ext *pup)
 		spt_debug("spt_divided_info_init return ERR\r\n");
 		cluster_destroy(pdinfo->pdst_clst);
 		spt_divided_info_free(pdinfo);
-		return SPT_ERR;
+		return SPT_NULL;
 	}
 
 	pdst_clst = pdinfo->pdst_clst;
@@ -1683,7 +1684,7 @@ int adjust_mem_sub_cluster(struct cluster_head_t *pclst, struct spt_dh_ext *pup)
 		ins_cnt, (ins_cnt != 0?ins_total/ins_cnt:0));
 	spt_print("==============================================\r\n");
 
-	return SPT_OK;
+	return pdst_clst;
 }
 
 
