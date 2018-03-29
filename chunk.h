@@ -173,7 +173,6 @@ struct cluster_head_t {
 	unsigned int used_db_cnt;
 	unsigned int thrd_total;
 	unsigned int last_alloc_id;
-	struct spt_thrd_data *thrd_data;
 
 	int status;
 	int ins_mask;

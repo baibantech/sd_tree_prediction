@@ -1633,8 +1633,10 @@ struct cluster_head_t *adjust_mem_sub_cluster(struct cluster_head_t *pclst, stru
 			if (dataid == ins_dvb_id)
 				break;
 		}
-		pext_head = (struct spt_dh_ext *)pdinfo->up_vb_arr[loop];
-		pext_head->plower_clst = pdst_clst;
+		if (loop != move_time - 1) {
+			pext_head = (struct spt_dh_ext *)pdinfo->up_vb_arr[loop];
+			pext_head->plower_clst = pdst_clst;
+		}
 		if (1) {
 			spt_thread_exit(g_thrd_id);
 			spt_preempt_enable();
@@ -1665,14 +1667,41 @@ struct cluster_head_t *adjust_mem_sub_cluster(struct cluster_head_t *pclst, stru
 			}
 			pdinfo->up_vb_arr[loop-1] = 0;
 		}
+		if (loop == move_time -1) {	
+			while (1) {
+				ret = do_delete_data(pclst,
+					pdinfo->up_vb_arr[loop],
+					pclst->get_key_in_tree,
+					pclst->get_key_in_tree_end);
+				if (ret == SPT_OK)
+					break;
+				else if (ret == SPT_WAIT_AMT) {
+					spt_thread_exit(g_thrd_id);
+					w_start = rdtsc();
+					spt_thread_wait(2, g_thrd_id);
+					w_total += rdtsc() - w_start;
+					w_cnt++;
+					spt_preempt_enable();
+					spt_schedule();
+					spt_preempt_disable();
+					spt_thread_start(g_thrd_id);
+				} else
+					spt_debug("divide delete error\r\n");
+			}
+		}
 		spt_thread_exit(g_thrd_id);
 		spt_preempt_enable();
 	}
 	pdinfo->up_vb_arr[loop-1] = 0;
+	spt_preempt_disable();
+	spt_thread_start(g_thrd_id);
+	pup->plower_clst = pdst_clst;
+	spt_thread_exit(g_thrd_id);
+	spt_thread_wait(2, g_thrd_id);
+	cluster_destroy(plower_clst);
 	list_add(&pdst_clst->c_list, &pclst->c_list);
 	spt_divided_info_free(pdinfo);
 	spt_order_array_free(psort);
-	plower_clst->ins_mask = 0;
 	spt_print("================dvd cycle info================\r\n");
 	spt_print("wait 2 tick %llu times, av cycle:%llu\r\n",
 		w_cnt, (w_cnt != 0?w_total/w_cnt:0));
@@ -4565,26 +4594,7 @@ void debug_cluster_travl(struct cluster_head_t *pclst)
 	spt_print("\r\n@@@@@@@@ data_total:%d\tref_total:%d@@@@@@@@\r\n",
 	pclst->data_total, ref_total);
 }
-
-u32 debug_thrd_vec_statistic(struct cluster_head_t *pclst)
-{
-	int i;
-	u32 total = 0;
-
-	for (i = 0; i < pclst->thrd_total; i++)
-		total += pclst->thrd_data[i].vec_cnt;
-	return total;
-}
-
-u32 debug_thrd_data_statistic(struct cluster_head_t *pclst)
-{
-	int i;
-	u32 total = 0;
-
-	for (i = 0; i < pclst->thrd_total; i++)
-		total += pclst->thrd_data[i].data_cnt;
-	return total;
-}
+#if 0
 int debug_statistic2(struct cluster_head_t *pclst)
 {
 	struct spt_vec **stack;
@@ -4682,7 +4692,6 @@ sort_exit:
 	}
 	return ref_total;
 }
-
 
 int debug_statistic(struct cluster_head_t *pclst)
 {
@@ -4833,7 +4842,7 @@ int debug_statistic(struct cluster_head_t *pclst)
 	}
 	return ref_total;
 }
-
+#endif
 void debug_buf_free(struct cluster_head_t *pclst)
 {
 	struct spt_stack stack = {0};
@@ -4956,10 +4965,8 @@ void debug_cluster_info_show(struct cluster_head_t *pclst)
 {
 	int data_cnt, vec_cnt;
 
-	data_cnt = debug_thrd_data_statistic(pclst);
-	vec_cnt = debug_thrd_vec_statistic(pclst);
-	spt_print("%p [data_buf]:%d [vec_buf]:%d [vec_used]:%d\t",
-	pclst, data_cnt, vec_cnt, pclst->used_vec_cnt);
+	spt_print("%p [db_total]:%d [vec_free]:%d [vec_used]:%d\t",
+	pclst,pclst->data_total ,pclst->free_vec_cnt, pclst->used_vec_cnt);
 }
 
 void debug_lower_cluster_info_show(void)

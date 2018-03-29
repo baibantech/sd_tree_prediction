@@ -406,6 +406,9 @@ char *upper_get_key(char *pdata)
 
 void cluster_destroy(struct cluster_head_t *pclst)
 {
+	if (pclst->is_bottom)
+		list_del(&pclst->c_list);
+
 	spt_debug("\r\n");
 }
 
@@ -457,7 +460,7 @@ struct cluster_head_t *cluster_init(int is_bottom,
 
     vec = vec_alloc_from_grp(phead, 0, &pvec,__LINE__);
 	if (pvec == 0) {
-		cluster_destroy(phead);
+		spt_free(phead);
 		return NULL;
 	}
 	phead->last_alloc_id = vec;
