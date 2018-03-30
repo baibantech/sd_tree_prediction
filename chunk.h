@@ -184,7 +184,8 @@ struct cluster_head_t {
 	spt_cb_end_key get_key_end;
 	spt_cb_end_key get_key_in_tree_end;
 	spt_cb_construct construct_data;
-	volatile char *pglist[0];
+	volatile char **pglist_db;
+	volatile char *pglist_vec[0];
 };
 
 struct spt_divided_info {
@@ -439,8 +440,10 @@ struct spt_grp
 #define PG_SPILL_WATER_MARK 360
 
 #define GRP_TICK_MASK 0xful
-struct spt_pg_h *get_pg_head(struct cluster_head_t *pclst, unsigned int pgid);
-char  *grp_id_2_ptr(struct cluster_head_t *pclst, unsigned int grp_id);
+struct spt_pg_h *get_vec_pg_head(struct cluster_head_t *pclst, unsigned int pgid);
+struct spt_pg_h *get_db_pg_head(struct cluster_head_t *pclst, unsigned int pgid);
+char  *db_grp_id_2_ptr(struct cluster_head_t *pclst, unsigned int grp_id);
+char  *vec_grp_id_2_ptr(struct cluster_head_t *pclst, unsigned int grp_id);
 
 char* vec_id_2_ptr(struct cluster_head_t * pclst,unsigned int id);
 char* db_id_2_ptr(struct cluster_head_t * pclst,unsigned int id);
