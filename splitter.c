@@ -1741,7 +1741,7 @@ int spt_divided_scan(struct cluster_head_t *pclst)
 		if (plower_clst->data_total >= SPT_DVD_THRESHOLD_VA) {
 			divide_sub_cluster(pclst, pdh_ext);
 
-			if (plower_clst->pg_cursor >= 7000)
+			if (plower_clst->pg_num_total >= 7000)
 				adjust_mem_sub_cluster(pclst, pdh_ext);
 		}
 	}

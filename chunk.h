@@ -165,7 +165,7 @@ struct cluster_head_t {
 
 	unsigned int pg_num_max;
 	unsigned int pg_num_total;
-	unsigned int pg_cursor;
+	//unsigned int pg_cursor;
 	unsigned int pg_ptr_bits;
 
 	unsigned int free_vec_cnt;
@@ -173,6 +173,7 @@ struct cluster_head_t {
 	unsigned int used_db_cnt;
 	unsigned int thrd_total;
 	unsigned int last_alloc_id;
+	unsigned int spill_grp_id;
 
 	int status;
 	int ins_mask;
@@ -319,20 +320,37 @@ extern struct cluster_head_t *pgclst;
 //#define g_thrd_errno  per_cpu(local_thrd_errno,smp_processor_id())
 
 
+#define GRP_SIZE 272	//16+32*8
+#define GRPS_PER_PG  (PG_SIZE/GRP_SIZE)		//15
+#define VEC_PER_GRP 32
+#define VEC_PER_PG (VEC_PER_GRP*GRPS_PER_PG)
+#define GRP_ALLOCMAP_MASK 0xFFFFFFFFull
+#define PG_HEAD_OFFSET (GRP_SIZE*GRPS_PER_PG)
+#define PG_SPILL_WATER_MARK 360
 
-#define CLST_PG_NUM_MAX ((1<<14)) /*cluster max = 64m*/
+#define GRP_TICK_MASK 0xful
+
+#define VEC_PER_CLUSTER  0x800000ull
+
+#define CLST_PG_NUM_MAX ((VEC_PER_CLUSTER/VEC_PER_PG) + 1) /*cluster max = 64m*/
 //#define CHUNK_SIZE (1<<16)
 #define PG_BITS 12
 #define PG_SIZE (1<<PG_BITS)
 #define BLK_BITS 5
 #define BLK_SIZE (1<<BLK_BITS)
 
-#define CLST_NDIR_PGS 320        //how much
+#define CLST_NDIR_PGS  (PG_SIZE - sizeof(struct cluster_head_t) - 3*sizeof(char*))/sizeof(char*)       //how much
 
 #define CLST_IND_PG (CLST_NDIR_PGS)    //index
 #define CLST_DIND_PG (CLST_IND_PG+1)    //index
 #define CLST_N_PGS (CLST_DIND_PG+1)//pclst->pglist[] max
 
+
+#define GRP_STATIC_START   0
+#define GRP_DYNAMIC_START  GRPS_PER_PG*200
+#define GRP_SPILL_START    GRPS_PER_PG*800  
+
+#define GRP_DYNAMIC_POS 16
 
 //#define CLST_TIND_PGS        (CLST_DIND_PGS+1)
 
@@ -420,9 +438,17 @@ struct spt_grp
 		volatile unsigned long long val;
 		struct
 		{
-			volatile unsigned long long allocmap:		30;
-			volatile unsigned long long freemap:		30;
-			volatile unsigned long long tick:			4;
+			volatile unsigned long long allocmap:		32;
+			volatile unsigned long long freemap:		32;
+		};
+	};
+	union {
+		volatile unsigned long long control;
+		struct {
+			volatile unsigned long long tick:  4;
+			volatile unsigned long long next_grp: 20;
+			volatile unsigned long long pre_grp: 20;
+			volatile unsigned long long resv:  20; 
 		};
 	};
 };
@@ -432,10 +458,11 @@ struct spt_grp
 	unsigned int bit_used;
 };
 
-#define GRP_SIZE 248	//64+30*8
-#define GRPS_PER_PG  (PG_SIZE/GRP_SIZE)		//16
-#define VEC_PER_GRP 30
-#define GRP_ALLOCMAP_MASK 0x3FFFFFFFull
+#define GRP_SIZE 272	//16+32*8
+#define GRPS_PER_PG  (PG_SIZE/GRP_SIZE)		//15
+#define VEC_PER_GRP 32
+#define VEC_PER_PG (VEC_PER_GRP*GRPS_PER_PG)
+#define GRP_ALLOCMAP_MASK 0xFFFFFFFFull
 #define PG_HEAD_OFFSET (GRP_SIZE*GRPS_PER_PG)
 #define PG_SPILL_WATER_MARK 360
 
