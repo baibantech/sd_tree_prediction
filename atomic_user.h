@@ -61,6 +61,12 @@ static inline void __list_add(struct list_head *new,
     new->prev = prev;
     prev->next = new;
 }
+static inline void __list_del(struct list_head *prev,
+					struct list_head *next)
+{
+	next->prev = prev;
+}
+
 
 /**
  * list_add - add a new entry
@@ -73,6 +79,11 @@ static inline void __list_add(struct list_head *new,
 static inline void list_add(struct list_head *new, struct list_head *head)
 {
     __list_add(new, head, head->next);
+}
+
+static inline void list_del(struct list_head *item)
+{
+    __list_del(item->prev, item->next);
 }
 
 
