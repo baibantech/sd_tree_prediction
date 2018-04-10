@@ -105,9 +105,9 @@ int main(int argc,char *argv[])
         spt_debug("spt_thread_init err\r\n");
         return 1;
 	}
-	err = pthread_create(&ntid, NULL, test_divid_thread, (void *)thread_num-1);
-	if (err != 0)
-		printf("can't create thread: %s\n", strerror(err));
+	//err = pthread_create(&ntid, NULL, test_divid_thread, (void *)thread_num-1);
+	//if (err != 0)
+	//	printf("can't create thread: %s\n", strerror(err));
 
 	g_thrd_id = 1;
 	
@@ -123,12 +123,14 @@ int main(int argc,char *argv[])
 }
 long insert_data_total = 0;
 char *insert_data_ptr ;
+int insert_data_entry_debug = 0;
 void* test_insert_thread(void *arg)
 {
 	int i = (long)arg;
 	cpu_set_t mask;
 	g_thrd_id = i;
 	char *pdata;
+	char *ret_data;
 	long cnt = 0;
 	CPU_ZERO(&mask);
 	CPU_SET(i,&mask);
@@ -144,7 +146,14 @@ void* test_insert_thread(void *arg)
 		insert_data_prediction(pgclst, pdata);
 		cnt++;
 	}
-
+	cnt = 0;
+	insert_data_entry_debug = 1;
+	while (cnt *4096 < data_len){
+		pdata = data_begin + cnt*4096;
+		ret_data = insert_data_entry(pgclst, pdata);
+		printf("return data %p\r\n", ret_data);
+		cnt++;
+	}
 }
 void *test_divid_thread(void *arg)
 {
@@ -161,6 +170,7 @@ void *test_divid_thread(void *arg)
 	while(1)
 	{
 		sleep(1);
-		spt_divided_scan(pgclst);
+		if(!insert_data_entry_debug)
+			spt_divided_scan(pgclst);
 	}
 }

@@ -441,7 +441,9 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 	signpost = pinsert->signpost;
 	tmp_rd = tmp_vec.rd;
 
-    vecid_a = vec_alloc_from_grp(pclst, id, &pvec_a, __LINE__);
+    //vecid_a = vec_alloc_from_grp(pclst, id, &pvec_a, __LINE__);
+    vecid_a = vec_alloc_by_hash(pclst, &pvec_a, new_data, pinsert->cmp_pos);
+	
 	if (pvec_a == 0) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		spt_set_data_not_free(pdh);
@@ -455,6 +457,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 
 	if ((pinsert->cmp_pos-1)-signpost
 		> SPT_VEC_SIGNPOST_MASK) {
+		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		vecid_s = vec_alloc_from_grp(pclst, 0, &pvec_s, __LINE__);
 		if (pvec_s == 0) {
 			spt_print("\r\n%d\t%s", __LINE__, __func__);
@@ -479,7 +482,8 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 
 	if (tmp_vec.type == SPT_VEC_DATA
 		|| pinsert->endbit > pinsert->fs) {
-        vecid_b = vec_alloc_from_grp(pclst, id, &pvec_b,__LINE__);
+        //vecid_b = vec_alloc_from_grp(pclst, id, &pvec_b,__LINE__);
+		vecid_b = vec_alloc_by_hash(pclst, &pvec_b, new_data, pinsert->fs);
 		if (pvec_b == 0) {
 			spt_print("\r\n%d\t%s", __LINE__, __func__);
 			spt_set_data_not_free(pdh);
@@ -583,7 +587,8 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 	tmp_vec.val = pinsert->key_val;
 	signpost = pinsert->signpost;
 
-    vecid_b = vec_alloc_from_grp(pclst, id, &pvec_b, __LINE__);
+    //vecid_b = vec_alloc_from_grp(pclst, id, &pvec_b, __LINE__);
+	vecid_b = vec_alloc_by_hash(pclst, &pvec_b, new_data, pinsert->fs);
 	if (!pvec_b) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		spt_set_data_not_free(pdh);
@@ -596,7 +601,8 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 	pvec_b->rd = dataid;
 	pvec_b->down = SPT_NULL;
 
-    vecid_a = vec_alloc_from_grp(pclst, id, &pvec_a,__LINE__);
+    //vecid_a = vec_alloc_from_grp(pclst, id, &pvec_a,__LINE__);
+	vecid_a = vec_alloc_by_hash(pclst, &pvec_a, new_data, pinsert->cmp_pos);
 	if (!pvec_a) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		spt_set_data_not_free(pdh);
@@ -721,7 +727,8 @@ int do_insert_last_down(struct cluster_head_t *pclst,
 	tmp_vec.val = pinsert->key_val;
 	signpost = pinsert->signpost;
 
-    vecid_a = vec_alloc_from_grp(pclst, id, &pvec_a, __LINE__);
+    //vecid_a = vec_alloc_from_grp(pclst, id, &pvec_a, __LINE__);
+	vecid_a = vec_alloc_by_hash(pclst, &pvec_a, new_data, pinsert->fs);
 	if (pvec_a == 0) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		spt_set_data_not_free(pdh);
@@ -805,7 +812,8 @@ int do_insert_up_via_d(struct cluster_head_t *pclst,
 	tmp_vec.val = pinsert->key_val;
 	signpost = pinsert->signpost;
 
-    vecid_a = vec_alloc_from_grp(pclst, id, &pvec_a, __LINE__);
+    //vecid_a = vec_alloc_from_grp(pclst, id, &pvec_a, __LINE__);
+	vecid_a = vec_alloc_by_hash(pclst, &pvec_a, new_data, pinsert->fs);
 	if (pvec_a == 0) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		spt_set_data_not_free(pdh);
@@ -2939,6 +2947,7 @@ char *query_data(struct cluster_head_t *pclst, char *pdata)
 	struct cluster_head_t *pnext_clst;
 	struct query_info_t qinfo = {0};
 	struct spt_dh *pdh;
+	struct spt_vec *vec;
 	int ret = 0;
 	/*
 	 *first look up in the top cluster.
@@ -2949,7 +2958,8 @@ char *query_data(struct cluster_head_t *pclst, char *pdata)
 		spt_set_errno(SPT_MASKED);
 		return NULL;
 	}
-
+	//find_data_entry(pnext_clst, pdata, &vec);
+#if 1
 	qinfo.op = SPT_OP_FIND;
 	qinfo.signpost = 0;
 	qinfo.pstart_vec = pnext_clst->pstart;
@@ -2969,6 +2979,7 @@ char *query_data(struct cluster_head_t *pclst, char *pdata)
 	}
 	spt_set_errno(ret);
 	return NULL;
+#endif
 }
 int query_data_prediction(struct cluster_head_t *pclst, char *pdata)
 {
@@ -3033,14 +3044,87 @@ char *insert_data_prediction(struct cluster_head_t *pclst, char *pdata)
 		spt_set_errno(SPT_MASKED);
 		return 0;
 	}
+#if 0
 	if (pnext_clst->data_total >= SPT_DATA_HIGH_WATER_MARK
 		|| pnext_clst->ins_mask == 1) {
 		spt_set_errno(SPT_MASKED);
 		return 0;
 	}
-	
+#endif
 	pre_qinfo.pstart_vec = pnext_clst->pstart;
 	pre_qinfo.startid = pnext_clst->vec_head;
+	pre_qinfo.endbit = pnext_clst->endbit;
+	pre_qinfo.data = pdata;
+
+	ret = find_data_prediction(pnext_clst, &pre_qinfo);
+
+	qinfo.op = SPT_OP_INSERT;
+	qinfo.signpost = 0;
+	qinfo.data = pdata;
+	qinfo.multiple = 1;
+	qinfo.endbit = pnext_clst->endbit;
+	
+	if (ret == 0) {
+		qinfo.pstart_vec = pre_qinfo.ret_vec;
+		qinfo.startid = pre_qinfo.ret_vec_id;
+		
+		ret = find_data(pnext_clst, &qinfo);
+		if (ret >= 0) {
+			pdh = (struct spt_dh *)db_id_2_ptr(pnext_clst, qinfo.db_id);
+			return pdh->pdata;
+		}
+	}
+
+	qinfo.pstart_vec = pnext_clst->pstart;
+	qinfo.startid = pnext_clst->vec_head;
+	/*
+	 *insert data into the final cluster
+	 */
+	ret = find_data(pnext_clst, &qinfo);
+	if (ret >= 0) {
+		pdh = (struct spt_dh *)db_id_2_ptr(pnext_clst, qinfo.db_id);
+		return pdh->pdata;
+	}
+	spt_set_errno(ret);
+	return NULL;
+}
+char *insert_data_entry(struct cluster_head_t *pclst, char *pdata)
+{
+	struct cluster_head_t *pnext_clst;
+	struct query_info_t qinfo = {0};
+	struct prediction_info_t pre_qinfo = {0};
+	struct spt_dh *pdh;
+	int ret = 0;
+	int start_vecid;
+	struct spt_vec *start_vec;
+
+	/*
+	 *first look up in the top cluster.
+	 *which next level cluster do the data belong.
+	 */
+	pnext_clst = find_next_cluster(pclst, pdata);
+	if (pnext_clst == NULL) {
+		spt_set_errno(SPT_MASKED);
+		return 0;
+	}
+#if 0
+	if (pnext_clst->data_total >= SPT_DATA_HIGH_WATER_MARK
+		|| pnext_clst->ins_mask == 1) {
+		spt_set_errno(SPT_MASKED);
+		return 0;
+	}
+#endif
+	start_vecid = find_data_entry(pnext_clst, pdata, &start_vec);
+
+	if(start_vecid != -1) {
+		pre_qinfo.pstart_vec = start_vec;
+		pre_qinfo.startid = start_vecid;
+
+	}else {
+		pre_qinfo.pstart_vec = pnext_clst->pstart;
+		pre_qinfo.startid = pnext_clst->vec_head;
+	}
+	
 	pre_qinfo.endbit = pnext_clst->endbit;
 	pre_qinfo.data = pdata;
 

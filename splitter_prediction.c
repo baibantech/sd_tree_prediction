@@ -838,3 +838,69 @@ prediction_check:
 	}
 	return SPT_PREDICTION_ERR;
 }
+
+int global_entry_grp;
+int find_data_entry(struct cluster_head_t *pclst, char *new_data, struct spt_vec **ret_vec)
+{
+	int entry_grp; 
+	struct spt_grp *grp;
+	int fs;
+	struct spt_pg_h *spt_pg;
+	struct spt_grp va_old, va_new;
+	unsigned int allocmap;
+	unsigned int next_grp;
+	struct spt_vec *vec, cur_vec;
+	int  cur_data;
+	struct spt_dh *pdh;
+	char *pcur_data;
+
+	*ret_vec = NULL;
+	entry_grp = get_grp_by_data(pclst, new_data, 8);
+next_grp_loop:
+	if((entry_grp/GRPS_PER_PG) >= pclst->pg_num_max)
+		return -1;
+	global_entry_grp = entry_grp;
+	spt_pg = get_vec_pg_head(pclst, entry_grp/GRPS_PER_PG); /*get page head ,if page null alloc page*/
+	grp  = get_grp_from_page_head(spt_pg, entry_grp);
+	fs = -1;
+	va_old = *grp;
+	allocmap = va_old.allocmap;
+	allocmap = ~allocmap;
+
+	while (1) {
+		fs = find_next_bit(&allocmap, 32, fs+1);
+		if (fs >= 32) {
+			next_grp = grp->next_grp;
+			if (next_grp == 0 || next_grp == 0xFFFFF)
+				return -1;
+			entry_grp = next_grp;
+			goto next_grp_loop;
+		}
+		vec = (char *)grp + sizeof(struct spt_grp) + fs*sizeof(struct spt_vec);
+		cur_vec.val = vec->val;	
+		if (cur_vec.status == SPT_VEC_RAW) {
+			smp_mb();
+			cur_vec.val = vec->val;
+			if (cur_vec.status == SPT_VEC_RAW)
+				continue;
+		}
+		if (cur_vec.status == SPT_VEC_INVALID)
+			continue;
+		if (cur_vec.pos + 1 < 8)
+			continue;
+		
+		cur_data = get_data_id(pclst, vec);
+		if (cur_data >= 0 && cur_data < SPT_INVALID) {
+			int first_chbit;
+			pdh = (struct spt_dh *)db_id_2_ptr(pclst, cur_data);
+			smp_mb();
+			pcur_data = pclst->get_key_in_tree(pdh->pdata);
+			first_chbit = get_first_change_bit(new_data, pcur_data, 0, cur_vec.pos + 1);
+			if (first_chbit == -1) {
+				*ret_vec = vec;
+				return entry_grp*VEC_PER_GRP + fs;
+			}
+		}
+	}
+	return -1;
+}

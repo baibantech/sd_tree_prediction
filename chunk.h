@@ -174,6 +174,11 @@ struct cluster_head_t {
 	unsigned int thrd_total;
 	unsigned int last_alloc_id;
 	unsigned int spill_grp_id;
+	unsigned int static_grp_alloc;
+	unsigned int dynamic_grp_alloc;
+	unsigned long prediction_ok;
+	unsigned long prediction_err;
+	unsigned int prediction_area;
 
 	int status;
 	int ins_mask;
@@ -406,6 +411,10 @@ extern int g_data_size;
 
 char *insert_data(struct cluster_head_t *pclst, char *pdata);
 char *delete_data(struct cluster_head_t *pclst, char *pdata);
+char *insert_data_prediction(struct cluster_head_t *pclst, char *pdata);
+char *delete_data_prediction(struct cluster_head_t *pclst, char *pdata);
+char *insert_data_entry(struct cluster_head_t *pclst, char *pdata);
+char *delete_data_entry(struct cluster_head_t *pclst, char *pdata);
 void set_data_size(int size);
 
 struct cluster_head_t *spt_cluster_init(u64 startbit,
@@ -427,7 +436,8 @@ int spt_divided_scan(struct cluster_head_t *pclst);
 int debug_statistic(struct cluster_head_t *pclst);
 void debug_cluster_travl(struct cluster_head_t *pclst);
 void debug_lower_cluster_info_show(void);
-
+int get_grp_by_data(struct cluster_head_t *pclst, char *data, int pos);
+struct spt_grp *get_grp_from_page_head(char *page, unsigned int grp_id);
 #define SPT_TOP_INSERT 0
 #define SPT_USER_INSERT 2
 
@@ -453,7 +463,7 @@ struct spt_grp
 	};
 };
 
- struct spt_pg_h
+struct spt_pg_h
 {
 	unsigned int bit_used;
 };
