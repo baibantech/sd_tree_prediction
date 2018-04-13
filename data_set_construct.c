@@ -477,6 +477,159 @@ void data_pre_process()
 }
 u64 g_mask=0;
 u64 g_wam=0;
+
+void test_pre_insert_proc(void *args)
+{
+	struct data_set_cache *cur = NULL;
+	struct data_set_cache *next = NULL;
+	void *data = NULL;
+	int insert_cnt = 0;
+	int ret =0;
+	void *ret_data = NULL;
+	unsigned long long merge_cnt = 0;
+	unsigned long long per_cache_time_begin = 0;	
+	unsigned long long per_cache_time_end = 0;	
+	unsigned long long total_time = 0;
+    u64 *prandom1,*prandom2;
+    u64 start, end;
+	u32 hash;
+	u64 hash64;
+    int idx;
+	int cnt = g_thrd_id;
+	
+	do {
+		next = get_next_data_set_cache(cur);		
+		if(NULL == next)
+		{
+			break;
+		}
+		if(cnt != 0) {
+			cnt--;
+			goto next_loop;
+		}
+		insert_cnt =0;
+		spt_thread_start(g_thrd_id);
+		while(data = get_next_data(next))
+		{
+			insert_cnt++;
+			spt_thread_start(g_thrd_id);
+try_again:
+			if(NULL ==(ret_data =  test_insert_data(data)))
+            {
+                ret = spt_get_errno();
+                if(ret == SPT_MASKED)
+                {
+                g_mask++;
+                    spt_thread_exit(g_thrd_id);
+                    spt_thread_start(g_thrd_id);
+                    goto try_again;
+                }
+                else if(ret == SPT_WAIT_AMT)
+                {
+                g_wam++;
+                    spt_thread_exit(g_thrd_id);
+                    spt_thread_start(g_thrd_id);
+                    goto try_again;
+                }
+                else if(ret == SPT_NOMEM)
+                {
+                    printf("OOM,%d\t%s\r\n", __LINE__, __FUNCTION__);
+                    break;
+                }
+                else
+                {
+                    printf("INSERT ERROR[%d],%d\t%s\r\n", ret,__LINE__, __FUNCTION__);
+                    break;
+                }
+			}
+			else
+			{
+				if(ret_data != data)
+				{
+					merge_cnt++;		
+				}	
+				spt_thread_exit(g_thrd_id);
+			}
+		}
+next_loop:
+        if(cur)
+		{
+			free(cur);
+		}
+		cur = next;
+		sleep(0);
+	}while(cur);
+	printf("pre insert over\r\n");
+}
+void test_pre_delete_proc(void *args)
+{
+	struct data_set_cache *cur = NULL;
+	struct data_set_cache *next = NULL;
+	void *data = NULL;
+    int ret;
+	void *ret_data;
+	int delete_cnt = 0;
+	unsigned long long per_cache_time_begin = 0;	
+	unsigned long long per_cache_time_end = 0;	
+	unsigned long long total_time = 0;
+	u32 hash;
+	do {
+		next = get_next_data_set_cache(cur);		
+		if(NULL == next)
+		{
+			break;
+		}
+		delete_cnt = 0;
+		while(data = get_next_data(next))
+		{
+			delete_cnt++;
+			spt_thread_start(g_thrd_id);
+
+try_again:
+			if(NULL == (ret_data = test_delete_data(data)))
+            {
+				ret = spt_get_errno();
+				if (ret == SPT_NOT_FOUND) {
+					atomic64_add(1,(atomic64_t*)&spt_no_found_num);
+					spt_thread_exit(g_thrd_id);
+					break;
+				} else if(ret == SPT_MASKED) {
+					spt_thread_exit(g_thrd_id);
+					spt_thread_start(g_thrd_id);
+					goto try_again;
+				}
+				else if(ret == SPT_WAIT_AMT)
+				{
+					spt_thread_exit(g_thrd_id);
+					spt_thread_start(g_thrd_id);
+					goto try_again;
+				}
+				else if(ret == SPT_NOMEM)
+				{
+					printf("OOM,%d\t%s\r\n", __LINE__, __FUNCTION__);
+					break;
+				}
+				else
+				{
+					printf("DELETE ERROR[%d],%d\t%s\r\n", ret,__LINE__, __FUNCTION__);
+					break;
+				}
+            } 
+            else {
+				atomic64_add(1,(atomic64_t*)&g_delete_ok);
+				spt_thread_exit(g_thrd_id);
+			}
+		}
+		if(cur)
+		{
+			free(cur);
+		}
+		cur = next;
+		sleep(0);
+	}while(cur);
+	printf("pre delete over\r\n");
+}
+
 void test_insert_proc(void *args)
 {
 	struct data_set_cache *cur = NULL;
@@ -506,7 +659,6 @@ void test_insert_proc(void *args)
 			cnt--;
 			goto next_loop;
 		}
-
 		insert_cnt =0;
 		per_cache_time_begin = rdtsc();
 		spt_thread_start(g_thrd_id);
@@ -514,55 +666,10 @@ void test_insert_proc(void *args)
 		{
 	
 			insert_cnt++;
-//			test_insert_data(data);
-
-#if 0
-
-            prandom1 = (u64 *)(data_set_config_map_address + 
-                                (rand()%data_set_config_instance_num)*data_set_config_instance_len);
-            prandom2 = (u64 *)(data_set_config_map_address + 
-                                (rand()%data_set_config_instance_num)*data_set_config_instance_len);
-            {
-                PERF_STAT_START(random_cmp);
-				hash = xxh32(prandom1, 4096, 0);
-                for(idx=0;idx<512;idx++)
-                {
-                    if(*prandom1 != *prandom2)
-                    {
-                        spt_no_found_num++;
-                    }
-                    prandom1++;
-                    prandom2++;
-                }
-                PERF_STAT_END(random_cmp);
-            }
-
-
-
-            prandom1 = (u64 *)(data_set_config_map_address + 
-                                (rand()%data_set_config_instance_num)*data_set_config_instance_len);
-            PERF_STAT_START(jhash2_random);
-            spt_no_found_num = jhash2((const unsigned int *)prandom1,4096/4, 17);
-            PERF_STAT_END(jhash2_random);
-
-			PERF_STAT_START(jhash2_random);
-			hash64 = xxh64(data, 4096, 0);
-			PERF_STAT_END(jhash2_random);
-			
-#endif
-
-#if 1			
-            if(insert_cnt%100 == 0)
-            {
-                spt_thread_exit(g_thrd_id);
-                spt_thread_start(g_thrd_id);
-            }
-			
-
+			spt_thread_start(g_thrd_id);
 try_again:
-            
             PERF_STAT_START(whole_insert);
-			if(NULL ==(ret_data =  test_insert_data(data)))
+			if(NULL ==(ret_data =  test_insert_data_entry(data)))
             {
                 ret = spt_get_errno();
                 if(ret == SPT_MASKED)
@@ -599,16 +706,9 @@ try_again:
 				//printf("ret_data is %p,data is %p\r\n",ret_data,data);
 				merge_cnt++;		
 			}	
+			spt_thread_exit(g_thrd_id);
 		}
-#endif
 		}
-		spt_thread_exit(g_thrd_id);
-#if 1        
-		per_cache_time_end = rdtsc();
-		total_time = per_cache_time_end - per_cache_time_begin;
-		//printf("thread id %d ,per cache insert cost: %lld,insert_cnt is %d,merge_cnt is %lld,average cost is %d\r\n",g_thrd_id, total_time,insert_cnt,merge_cnt,total_time/insert_cnt);
-#endif
-        //show_sd_perf_stat_thread(g_thrd_id);
 next_loop:
         if(cur)
 		{
@@ -644,19 +744,16 @@ void test_delete_proc(void *args)
 		while(data = get_next_data(next))
 		{
 			delete_cnt++;
-            if(delete_cnt%100 == 0)
-            {
-                spt_thread_exit(g_thrd_id);
-                spt_thread_start(g_thrd_id);
-            }
 
 try_again:
+			spt_thread_start(g_thrd_id);
             PERF_STAT_START(whole_delete);
 			if(NULL == (ret_data = test_delete_data(data)))
             {
 				ret = spt_get_errno();
 				if (ret == SPT_NOT_FOUND) {
 					atomic64_add(1,(atomic64_t*)&spt_no_found_num);
+					spt_thread_exit(g_thrd_id);
 					break;
 				} else if(ret == SPT_MASKED) {
 					spt_thread_exit(g_thrd_id);
@@ -682,6 +779,7 @@ try_again:
             } 
             else
 			atomic64_add(1,(atomic64_t*)&g_delete_ok);
+			spt_thread_exit(g_thrd_id);
             PERF_STAT_END(whole_delete);  
 		}
 		spt_thread_exit(g_thrd_id);
@@ -699,6 +797,7 @@ try_again:
 	
 	printf("delete over\r\n");
 }
+
 void test_find_proc_prediction(void *args)
 {
 	struct data_set_cache *cur = NULL;

@@ -176,9 +176,12 @@ struct cluster_head_t {
 	unsigned int spill_grp_id;
 	unsigned int static_grp_alloc;
 	unsigned int dynamic_grp_alloc;
-	unsigned long prediction_ok;
-	unsigned long prediction_err;
-	unsigned int prediction_area;
+	unsigned long long data_entry;
+	unsigned long long data_loop;
+	unsigned long long data_find;
+	unsigned long long data_cmp;
+	//unsigned long prediction_err;
+	//unsigned int prediction_area;
 
 	int status;
 	int ins_mask;
@@ -352,8 +355,8 @@ extern struct cluster_head_t *pgclst;
 
 
 #define GRP_STATIC_START   0
-#define GRP_DYNAMIC_START  GRPS_PER_PG*200
-#define GRP_SPILL_START    GRPS_PER_PG*800  
+#define GRP_DYNAMIC_START  (GRPS_PER_PG*200)
+#define GRP_SPILL_START    (GRPS_PER_PG*800) 
 
 #define GRP_DYNAMIC_POS 16
 
@@ -437,7 +440,7 @@ int debug_statistic(struct cluster_head_t *pclst);
 void debug_cluster_travl(struct cluster_head_t *pclst);
 void debug_lower_cluster_info_show(void);
 int get_grp_by_data(struct cluster_head_t *pclst, char *data, int pos);
-
+struct spt_grp *get_grp_from_page_head(char *page, unsigned int grp_id);
 #define SPT_TOP_INSERT 0
 #define SPT_USER_INSERT 2
 

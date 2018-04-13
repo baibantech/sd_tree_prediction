@@ -56,6 +56,10 @@ PERF_STAT_DEC(spt_get_hash_tag);
 PERF_STAT_DEC(find_data);
 PERF_STAT_DEC(find_data_prediction);
 PERF_STAT_DEC(find_data_test);
+PERF_STAT_DEC(find_prediction);
+PERF_STAT_DEC(find_entry);
+PERF_STAT_DEC(find_prediction_ok);
+PERF_STAT_DEC(find_prediction_err);
 
 
 

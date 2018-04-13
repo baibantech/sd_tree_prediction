@@ -10,6 +10,12 @@ PERF_STAT_DEFINE(spt_get_hash_tag);
 PERF_STAT_DEFINE(find_data);
 PERF_STAT_DEFINE(find_data_prediction);
 PERF_STAT_DEFINE(find_data_test);
+PERF_STAT_DEFINE(find_prediction);
+PERF_STAT_DEFINE(find_entry);
+PERF_STAT_DEFINE(find_prediction_ok);
+PERF_STAT_DEFINE(find_prediction_err);
+
+
 
 
 
@@ -24,6 +30,10 @@ sd_perf_stat *sd_perf_stat_array[] =
     PERF_STAT_PTR(find_data),
     PERF_STAT_PTR(find_data_prediction),
     PERF_STAT_PTR(find_data_test),
+	PERF_STAT_PTR(find_prediction),
+	PERF_STAT_PTR(find_entry),
+	PERF_STAT_PTR(find_prediction_ok),
+	PERF_STAT_PTR(find_prediction_err),
 };
 
 void sd_perf_stat_init()

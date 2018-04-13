@@ -166,7 +166,47 @@ char* db_id_2_ptr(struct cluster_head_t * pclst,unsigned int id)
 	return (char*)db_grp_id_2_ptr(pclst, id/VEC_PER_GRP) + sizeof(struct spt_grp)+ id%VEC_PER_GRP*VBLK_SIZE;
 }
 
+struct spt_pg_h  *get_vec_pg_head_no_page(struct cluster_head_t *pclst, unsigned int id)
+{
+	int ptrs_bit = pclst->pg_ptr_bits;
+	int ptrs = (1 << ptrs_bit);
+	u64 direct_pgs = CLST_NDIR_PGS;
+	u64 indirect_pgs = 1<<ptrs_bit;
+	u64 double_pgs = 1<<(ptrs_bit*2);
+	int pg_id = id ;
+	int offset;
+	int get_cnt= 0;
+	char *page, **indir_page, ***dindir_page;
+	page = NULL;	
+	if (id < direct_pgs) {
+		page = (char *)pclst->pglist_vec[id];
 
+	} else if ((id - direct_pgs) < indirect_pgs) {
+		pg_id = id - direct_pgs;
+		indir_page = (char **)pclst->pglist_vec[CLST_IND_PG];
+		if (indir_page != NULL) {
+			offset = pg_id;
+			page = indir_page[offset];
+		}
+	} else if ((id - direct_pgs -  indirect_pgs) < double_pgs) {
+		pg_id = id - direct_pgs -  indirect_pgs;
+		dindir_page = (char ***)pclst->pglist_vec[CLST_DIND_PG];
+		if (dindir_page != NULL) {
+			offset = pg_id >> ptrs_bit;
+			indir_page = dindir_page[offset];
+			if (indir_page != 0) {
+				offset = pg_id & (ptrs-1);
+				page = indir_page[offset];
+			}
+		}
+	} else {
+		spt_debug("warning: id is too big\r\n");
+		return NULL;
+	}
+	if (!page)
+		return NULL;
+	return page + PG_HEAD_OFFSET;
+}
 
 /**
  * get_pg_head - called by db_id_2_ptr & vec_id_2_ptr
@@ -1078,13 +1118,45 @@ int get_grp_by_data(struct cluster_head_t *pclst, char *data, int pos)
 {
 	int end_bit = 0;
 	unsigned int key_val = 0;
-	int key_byte;
+	unsigned char key_byte;
 	int i = 0;
+	unsigned int static_hash_key;
+	unsigned int grp_static_len  = GRP_DYNAMIC_START - GRP_STATIC_START; 	
+	unsigned int grp_dynamic_len  = GRP_SPILL_START - GRP_DYNAMIC_START; 	
+	if (pos < 0 || pos > 4096*8)
+		spt_debug("error pos");
+	end_bit = (pos>>2) << 2;
+	if (end_bit <= GRP_DYNAMIC_POS) {
+		if (end_bit == 0)
+			return 0;
+		for (i = 0; i < end_bit>>2; i++){
+			key_byte = *(data+ (i>>1));
+			if(i%2)
+				key_byte = key_byte&0x0F;
+			else
+				key_byte = key_byte>>4;
+			key_val = (key_val <<4) + key_byte;
+		}
+		static_hash_key = (key_val << 16)+ end_bit;
+		return (unsigned int)jhash(&static_hash_key, 4, 17)%grp_static_len;
+	}else {
+		return ((unsigned int)jhash(data + 2, 64, 13)%grp_dynamic_len) + GRP_DYNAMIC_START;
+	}
+}
+
+int get_grp_by_data_debug(struct cluster_head_t *pclst, char *data, int pos)
+{
+	int end_bit = 0;
+	unsigned int key_val = 0;
+	unsigned char key_byte;
+	int i = 0;
+	unsigned int ret;
 	unsigned int static_hash_key;
 	int grp_static_len  = GRP_DYNAMIC_START - GRP_STATIC_START; 	
 	int grp_dynamic_len  = GRP_SPILL_START - GRP_DYNAMIC_START; 	
 	if (pos < 0 || pos > 4096*8)
 		spt_debug("error pos");
+	printf("data %p, pos %d\r\n",data, pos);
 	end_bit = (pos>>2) << 2;
 
 	if (end_bit <= GRP_DYNAMIC_POS) {
@@ -1093,17 +1165,27 @@ int get_grp_by_data(struct cluster_head_t *pclst, char *data, int pos)
 		for (i = 0; i < end_bit>>2; i++){
 			key_byte = *(data+ (i>>1));
 			if(i%2)
-				key_byte = key_byte &0x0F;
+				key_byte = key_byte&0x0F;
 			else
 				key_byte = key_byte>>4;
+			printf("keybyte %x",key_byte);
 			key_val = (key_val <<4) + key_byte;
 		}
+		printf("key_val 0x%x\r\n", key_val);
 		static_hash_key = (key_val << 16)+ end_bit;
-		return jhash(&static_hash_key, 4, 16)%grp_static_len;
+		printf("static_hash_key 0x%x\r\n", static_hash_key);
+		ret =jhash(&static_hash_key, 4, 17);
+		printf("jhash result 0x%x\r\n", ret);
+		ret = ret%grp_static_len;
+		printf("static len  0x%x\r\n", grp_static_len);
+		printf("return result 0x%x\r\n", ret);
+		return ret;
 	}else {
 		return (jhash(data + 2, 64, 13)%grp_dynamic_len) + GRP_DYNAMIC_START;
 	}
 }
+
+
 
 int vec_alloc_spill_grp(struct cluster_head_t *pclst)
 {
@@ -1126,6 +1208,7 @@ int vec_alloc_by_hash(struct cluster_head_t *pclst,  struct spt_vec **vec, char 
 	int spill_grp_id = 0;
 	int alloc_debug = 0;
 	int next_grp_id = 0;
+	u32 tick;
 
 	gid = get_grp_by_data(pclst, data, pos);
 
@@ -1142,33 +1225,42 @@ re_alloc:
 		smp_mb();
 		old.control = grp->control;
 		old.val = grp->val;
-		smp_mb();
+		tmp = old;
+		if (tmp.freemap !=0) {
+			tick = (u32)atomic_read((atomic_t *)&g_thrd_h->tick);
+			tick &= GRP_TICK_MASK;
+			if(tick - (u32)old.tick >= 2)
+			{
+				tmp.allocmap = tmp.allocmap | tmp.freemap;
+				tmp.freemap = 0;
+				if(old.val  == atomic64_cmpxchg((atomic64_t *)&grp->val, old.val, tmp.val)){
+					do {
+							smp_mb();
+							old.control = grp->control;
+							tmp.control = old.control;
+							tmp.tick = tick;
+					}while(old.control  != atomic64_cmpxchg((atomic64_t *)&grp->control, old.control, tmp.control));
+				continue;
+				}
+			}
+		}
 		if((old.allocmap & GRP_ALLOCMAP_MASK) == 0)
 		{
 			if (old.next_grp == 0) {
-				tmp = old;
 				tmp.next_grp = 0xFFFFF;
 				if(old.control == atomic64_cmpxchg((atomic64_t *)&grp->control, old.control, tmp.control)) {
 					next_grp_id = vec_alloc_spill_grp(pclst);
-					if (next_grp_id < 12000)
-						printf("bug bug bug \r\n");
 					next_grp  = get_grp_from_page_head(get_vec_pg_head(pclst, next_grp_id/GRPS_PER_PG), next_grp_id);
 					next_grp->pre_grp = gid;
 					do {
 						smp_mb();
 						old.control = grp->control;
-						if (old.next_grp != 0xFFFFF) {
-							printf("bug old_next grp err%d,%p\r\n", old.next_grp, grp);
-							sleep(1000);	
-						}
 						tmp.next_grp = next_grp_id;
 						tmp.resv = 100;
 					} while(old.control != atomic64_cmpxchg((atomic64_t *)&grp->control, old.control, tmp.control)); 
 			
 					smp_mb();
 					gid = grp->next_grp;
-					if (gid == 0xFFFFF)
-						printf("@@@@@@@@next_grp old_next_grp is %d, %d\r\n",next_grp_id, old.next_grp);
 					goto re_alloc;
 				}
 				continue;
@@ -1188,7 +1280,6 @@ re_alloc:
 		fs = find_next_bit(&old.val, 32, 0);
 		if(fs >=32)
 			goto re_alloc;
-		tmp = old;
 		tmp.allocmap = old.allocmap & (~(1 << fs));
 		
         if(old.val == atomic64_cmpxchg((atomic64_t *)&grp->val, old.val, tmp.val))
@@ -1201,4 +1292,47 @@ re_alloc:
 	//printf("cluster %p,vec alloc id %d\r\n",pclst, gid*VEC_PER_GRP +fs);
 	return gid*VEC_PER_GRP + fs;
 }
+int static_null_cnt;
+int static_use_cnt;
+int static_conflict_cnt;
+int static_conflict_max= 0;
+int static_max_grp;
+void check_static_grp_stat(struct cluster_head_t *pclst)
+{
+	struct spt_grp *grp; 
+	struct spt_pg_h *spt_pg;
+	int i, grp_id;
+	int cnt = 0;
+	for (i = 0 ; i < GRP_DYNAMIC_START; i++){
+		spt_pg = get_vec_pg_head_no_page(pclst, i/GRPS_PER_PG); /*get page head ,if page null alloc page*/
+		if (!spt_pg) {
+			static_null_cnt++;
+			continue;
+		}
+		static_use_cnt++;
+		grp  = get_grp_from_page_head(spt_pg, i);
+		if (grp->allocmap == 0xFFFFF) {
+			static_null_cnt++;
+		}
+
+		while (grp){
+			grp_id = grp->next_grp;
+			if((grp_id !=0) && (grp_id != 0xFFFFF))
+			{
+				static_conflict_cnt++;
+			}else {
+				break;
+			}
+			cnt++;
+			spt_pg = get_vec_pg_head_no_page(pclst, grp_id/GRPS_PER_PG); /*get page head ,if page null alloc page*/
+			grp  = get_grp_from_page_head(spt_pg, grp_id);
+		}
+		if (cnt > static_conflict_max){
+			static_conflict_max = cnt;
+			static_max_grp = i;
+		}
+		cnt =0;
+	}
+}
+
 #endif

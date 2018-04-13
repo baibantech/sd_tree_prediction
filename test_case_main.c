@@ -22,10 +22,12 @@ char test_case_name[64] = {'t','e','s','t','_','c','a','s','e'};
 typedef void (*test_proc_pfn)(void *args);
 
 void* test_insert_thread(void *arg);
+void* test_pre_insert_thread(void *arg);
+void* test_pre_delete_thread(void *arg);
 
 void* test_delete_thread(void *arg);
 void* test_divid_thread(void *arg);
-
+extern int sd_perf_debug;
 enum cmd_index
 {
 	SET_NAME,
@@ -89,6 +91,12 @@ struct proc_type test_proc_array[] =
 #define get_cmd_value_begin 1
 #define get_cmd_value 2
 #define get_cmd_end 3
+
+int test_break_debug(void)
+{
+	printf("test_break_debug");
+	return 0;
+}
 void print_cmd_help_info(void)
 {
 	int i = 0;
@@ -344,9 +352,18 @@ int main(int argc,char *argv[])
 #endif
 
 	g_thrd_id = 0;
-	//test_insert_thread(0);
-	sleep(10);    
-
+	test_pre_insert_proc(0);
+	test_break_debug();
+	sleep(10);
+	test_pre_delete_proc(0);
+	test_break_debug();
+	sleep(10);
+	test_pre_insert_proc(0);
+	test_break_debug();
+	sd_perf_debug = 1;
+	sleep(10);
+	test_insert_thread(0);
+#if 0
 	for(i = 0;  i  < data_set_config_insert_thread_num ; i++)
     {
         err = pthread_create(&ntid, NULL, test_insert_thread, (void *)i);
@@ -354,7 +371,6 @@ int main(int argc,char *argv[])
             printf("can't create thread: %s\n", strerror(err));
     }
 
-#if 0	
     for(i = 0;  i  < data_set_config_delete_thread_num ; i++)
     {
         err = pthread_create(&ntid, NULL, test_delete_thread, (void *)(data_set_config_insert_thread_num+i));
@@ -378,8 +394,19 @@ void *test_insert_data(char *pdata)
 }
 void *test_delete_data(char *pdata)
 {
-	return delete_data(pgclst, pdata);
+	return delete_data_prediction(pgclst, pdata);
 }
+
+void *test_insert_data_entry(char *pdata)
+{
+	total_data_num++;
+	return insert_data_entry(pgclst, pdata);
+}
+void *test_delete_data_entry(char *pdata)
+{
+	return delete_data_entry(pgclst, pdata);
+}
+
 
 void *test_find_data(char *pdata)
 {

@@ -51,7 +51,7 @@
 #include "spt_dep.h"
 #include "spt_thread.h"
 #include "splitter.h"
-
+int sd_perf_debug = 0;
 struct cluster_head_t *pgclst;
 
 
@@ -2624,6 +2624,8 @@ down_continue:
                 //pcur = ppre;
                 cur_data = SPT_INVALID;
                 pqinfo->ref_cnt = 0;
+				pqinfo->pstart_vec = pclst->pstart;
+				pqinfo->startid = pclst->vec_head;
                 //goto refind_forward;
                 goto refind_start;
             }
@@ -3055,9 +3057,11 @@ char *insert_data_prediction(struct cluster_head_t *pclst, char *pdata)
 	pre_qinfo.startid = pnext_clst->vec_head;
 	pre_qinfo.endbit = pnext_clst->endbit;
 	pre_qinfo.data = pdata;
-
+	if(sd_perf_debug)
+	PERF_STAT_START(find_prediction);
 	ret = find_data_prediction(pnext_clst, &pre_qinfo);
-
+	if(sd_perf_debug)
+	PERF_STAT_END(find_prediction);
 	qinfo.op = SPT_OP_INSERT;
 	qinfo.signpost = 0;
 	qinfo.data = pdata;
@@ -3068,7 +3072,11 @@ char *insert_data_prediction(struct cluster_head_t *pclst, char *pdata)
 		qinfo.pstart_vec = pre_qinfo.ret_vec;
 		qinfo.startid = pre_qinfo.ret_vec_id;
 		
+		if(sd_perf_debug)
+		PERF_STAT_START(find_prediction_ok);
 		ret = find_data(pnext_clst, &qinfo);
+		if(sd_perf_debug)
+		PERF_STAT_END(find_prediction_ok);
 		if (ret >= 0) {
 			pdh = (struct spt_dh *)db_id_2_ptr(pnext_clst, qinfo.db_id);
 			return pdh->pdata;
@@ -3080,7 +3088,11 @@ char *insert_data_prediction(struct cluster_head_t *pclst, char *pdata)
 	/*
 	 *insert data into the final cluster
 	 */
+	if(sd_perf_debug)
+	PERF_STAT_START(find_prediction_err);
 	ret = find_data(pnext_clst, &qinfo);
+	if(sd_perf_debug)
+	PERF_STAT_END(find_prediction_err);
 	if (ret >= 0) {
 		pdh = (struct spt_dh *)db_id_2_ptr(pnext_clst, qinfo.db_id);
 		return pdh->pdata;
@@ -3114,7 +3126,11 @@ char *insert_data_entry(struct cluster_head_t *pclst, char *pdata)
 		return 0;
 	}
 #endif
+	if(sd_perf_debug)
+	PERF_STAT_START(find_entry);
 	start_vecid = find_data_entry(pnext_clst, pdata, &start_vec);
+	if(sd_perf_debug)
+	PERF_STAT_END(find_entry);
 
 	if(start_vecid != -1) {
 		pre_qinfo.pstart_vec = start_vec;
@@ -3128,7 +3144,11 @@ char *insert_data_entry(struct cluster_head_t *pclst, char *pdata)
 	pre_qinfo.endbit = pnext_clst->endbit;
 	pre_qinfo.data = pdata;
 
+	if(sd_perf_debug)
+	PERF_STAT_START(find_prediction);
 	ret = find_data_prediction(pnext_clst, &pre_qinfo);
+	if(sd_perf_debug)
+	PERF_STAT_END(find_prediction);
 
 	qinfo.op = SPT_OP_INSERT;
 	qinfo.signpost = 0;
@@ -3140,7 +3160,11 @@ char *insert_data_entry(struct cluster_head_t *pclst, char *pdata)
 		qinfo.pstart_vec = pre_qinfo.ret_vec;
 		qinfo.startid = pre_qinfo.ret_vec_id;
 		
+	if(sd_perf_debug)
+	PERF_STAT_START(find_prediction_ok);
 		ret = find_data(pnext_clst, &qinfo);
+	if(sd_perf_debug)
+	PERF_STAT_END(find_prediction_ok);
 		if (ret >= 0) {
 			pdh = (struct spt_dh *)db_id_2_ptr(pnext_clst, qinfo.db_id);
 			return pdh->pdata;
@@ -3152,7 +3176,11 @@ char *insert_data_entry(struct cluster_head_t *pclst, char *pdata)
 	/*
 	 *insert data into the final cluster
 	 */
+	if(sd_perf_debug)
+	PERF_STAT_START(find_prediction_err);
 	ret = find_data(pnext_clst, &qinfo);
+	if(sd_perf_debug)
+	PERF_STAT_END(find_prediction_err);
 	if (ret >= 0) {
 		pdh = (struct spt_dh *)db_id_2_ptr(pnext_clst, qinfo.db_id);
 		return pdh->pdata;
@@ -3161,7 +3189,74 @@ char *insert_data_entry(struct cluster_head_t *pclst, char *pdata)
 	return NULL;
 }
 
+char *delete_data_entry(struct cluster_head_t *pclst, char *pdata)
+{
+	struct cluster_head_t *pnext_clst;
+	struct query_info_t qinfo = {0};
+	struct prediction_info_t pre_qinfo = {0};
+	struct spt_dh *pdh;
+	int start_vecid;
+	struct spt_vec *start_vec;
+	int ret = 0;
+	/*
+	 *first look up in the top cluster.
+	 *which next level cluster do the data belong.
+	 */
+	pnext_clst = find_next_cluster(pclst, pdata);
+	if (pnext_clst == NULL) {
+		spt_set_errno(SPT_MASKED);
+		return NULL;
+	}
 
+	start_vecid = find_data_entry(pnext_clst, pdata, &start_vec);
+
+	if(start_vecid != -1) {
+		pre_qinfo.pstart_vec = start_vec;
+		pre_qinfo.startid = start_vecid;
+
+	}else {
+		pre_qinfo.pstart_vec = pnext_clst->pstart;
+		pre_qinfo.startid = pnext_clst->vec_head;
+	}
+	pre_qinfo.endbit = pnext_clst->endbit;
+	pre_qinfo.data = pdata;
+
+	ret = find_data_prediction(pnext_clst, &pre_qinfo);
+	
+	qinfo.op = SPT_OP_DELETE;
+	qinfo.signpost = 0;
+	qinfo.data = pdata;
+	qinfo.multiple = 1;
+	qinfo.ref_cnt = 0;
+	qinfo.free_flag = 0;
+	qinfo.endbit = pnext_clst->endbit;
+	if (ret == 0) {
+		qinfo.pstart_vec = pre_qinfo.ret_vec;
+		qinfo.startid = pre_qinfo.ret_vec_id;
+		
+		ret = find_data(pnext_clst, &qinfo);
+		if (ret == 0) {
+			pdh = (struct spt_dh *)db_id_2_ptr(pnext_clst, qinfo.db_id);
+			if (!pdh->pdata)
+				spt_assert(0);
+			return pdh->pdata;
+		}
+	}
+
+	qinfo.pstart_vec = pnext_clst->pstart;
+	qinfo.startid = pnext_clst->vec_head;
+	
+	ret = find_data(pnext_clst, &qinfo);
+	if (ret == 0) { /*delete ok*/
+		pdh = (struct spt_dh *)db_id_2_ptr(pnext_clst,
+				qinfo.db_id);
+		if (!pdh->pdata)
+			spt_assert(0);
+		return pdh->pdata;
+	}
+	spt_set_errno(ret);
+	return NULL;
+}
 char *delete_data_prediction(struct cluster_head_t *pclst, char *pdata)
 {
 	struct cluster_head_t *pnext_clst;
@@ -5049,8 +5144,10 @@ void debug_cluster_info_show(struct cluster_head_t *pclst)
 {
 	int data_cnt, vec_cnt;
 
-	spt_print("%p [db_total]:%d [vec_free]:%d [vec_used]:%d\t",
+	spt_print("%p [db_total]:%d [vec_free]:%d [vec_used]:%d\r\n",
 	pclst,pclst->data_total ,pclst->free_vec_cnt, pclst->used_vec_cnt);
+	spt_print("[data_entry]:%lld [data_loop]:%lld [data_find]:%lld [data_cmp]:%lld\r\n",
+	pclst->data_entry ,pclst->data_loop, pclst->data_find, pclst->data_cmp);
 }
 
 void debug_lower_cluster_info_show(void)
