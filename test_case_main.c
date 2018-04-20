@@ -345,6 +345,7 @@ int main(int argc,char *argv[])
         spt_debug("spt_thread_init err\r\n");
         return 1;
 	}
+	pos_stat_mem_init();
 #if 1
 	err = pthread_create(&ntid, NULL, test_divid_thread, 3);
 	if (err != 0)
@@ -356,12 +357,12 @@ int main(int argc,char *argv[])
 	test_break_debug();
 	sleep(10);
 	test_pre_delete_proc(0);
-	test_break_debug();
-	sleep(10);
-	test_pre_insert_proc(0);
-	test_break_debug();
 	sd_perf_debug = 1;
 	sleep(10);
+	test_pre_insert_proc(0);
+	//test_pre_insert_proc(0);
+	sleep(10);
+	sd_perf_debug = 1;
 	test_insert_thread(0);
 #if 0
 	for(i = 0;  i  < data_set_config_insert_thread_num ; i++)

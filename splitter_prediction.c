@@ -55,6 +55,7 @@
 #define SPT_PREDICTION_ERR -1
 #define SPT_PREDICTION_OK  0
 int total_data_num = 0;
+extern int sd_perf_debug;
 int test_bit_set(char *pdata, u64 test_bit)
 {
 	u64 byte_offset = test_bit/8;
@@ -410,10 +411,11 @@ refind_forward:
 	} else {
 		startbit = signpost + cur_vec.pos + 1;
 	}
+#if 1
 	if(!refind_cnt)
 		pqinfo->originbit = startbit;
 	refind_cnt++;
-
+#endif
 	endbit = pqinfo->endbit;
 	if (cur_vec.status == SPT_VEC_RAW) {
 		smp_mb();/* ^^^ */
@@ -592,6 +594,8 @@ refind_forward:
 					}
 					goto prediction_check;
 				}
+				if (sd_perf_debug)
+					pclst->data_prediction_cnt++;
 				startbit += len;
 				ppre = pcur;
 				pcur = pnext;
@@ -685,6 +689,8 @@ refind_forward:
 					goto prediction_check;
 				}
 
+				if (sd_perf_debug)
+					pclst->data_prediction_cnt++;
 				startbit += len;
 				ppre = pcur;
 				pcur = pnext;
@@ -841,11 +847,12 @@ prediction_check:
 
 
 int global_entry_grp;
+int debug_get_data_id = 0;
 int find_data_entry(struct cluster_head_t *pclst, char *new_data, struct spt_vec **ret_vec)
 {
 	int entry_grp; 
 	struct spt_grp *grp;
-	int fs;
+	int fs,vec_index, ret;
 	struct spt_pg_h *spt_pg;
 	struct spt_grp va_old, va_new;
 	unsigned int allocmap, freemap;
@@ -854,64 +861,117 @@ int find_data_entry(struct cluster_head_t *pclst, char *new_data, struct spt_vec
 	int  cur_data;
 	struct spt_dh *pdh;
 	char *pcur_data;
+	int first_check = 0;
+	int i;
+	struct prediction_info_t pre_qinfo = {0};
 	pclst->data_entry++;
 
 	*ret_vec = NULL;
-	entry_grp = get_grp_by_data(pclst, new_data, 12);
-next_grp_loop:
-	pclst->data_loop++;
-	if((entry_grp/GRPS_PER_PG) >= pclst->pg_num_max)
-		return -1;
-	global_entry_grp = entry_grp;
-	spt_pg = get_vec_pg_head(pclst, entry_grp/GRPS_PER_PG); /*get page head ,if page null alloc page*/
-	grp  = get_grp_from_page_head(spt_pg, entry_grp);
-	fs = -1;
-	va_old.val = grp->val;
-	va_old.control = grp->control;
-	allocmap = va_old.allocmap;
-	freemap = va_old.freemap;
-	allocmap = allocmap&freemap;		
-	allocmap = ~allocmap;
+	entry_grp = get_grp_by_data(pclst, new_data, 16);
 
-	while (1) {
-		fs = find_next_bit(&allocmap, 32, fs+1);
-		if (fs >= 32) {
+	for(i = 0 ; i < 4 ; i++) {	
+
+		vec_index = get_vec_index_by_data(new_data, 16 + i);
+		first_check = 1;
+next_grp_loop:
+		pclst->data_loop++;
+		if((entry_grp/GRPS_PER_PG) >= pclst->pg_num_max)
+			return -1;
+		global_entry_grp = entry_grp;
+		spt_pg = get_vec_pg_head(pclst, entry_grp/GRPS_PER_PG); /*get page head ,if page null alloc page*/
+		grp  = get_grp_from_page_head(spt_pg, entry_grp);
+		va_old.val = grp->val;
+		va_old.control = grp->control;
+		allocmap = va_old.allocmap;
+		freemap = va_old.freemap;
+		allocmap = allocmap&freemap;		
+		allocmap = ~allocmap;
+		fs = -1;
+
+		while (1) {
+			if (first_check) {
+				fs = find_next_bit(&allocmap, 32, vec_index);
+				if (fs != vec_index)
+					goto get_next_grp;
+			} else {
+				fs = find_next_bit(&allocmap, 32, fs + 1);
+				if (fs >= 32)
+					goto get_next_grp;
+				
+			}
+			pclst->data_find++;
+			vec = (char *)grp + sizeof(struct spt_grp) + fs*sizeof(struct spt_vec);
+			cur_vec.val = vec->val;	
+			if (cur_vec.status == SPT_VEC_RAW) {
+				smp_mb();
+				cur_vec.val = vec->val;
+				if (cur_vec.status == SPT_VEC_RAW){
+					if (first_check) {
+						first_check = 0;
+						goto get_next_grp;
+					}
+					continue;
+				}
+			}
+			if (cur_vec.status == SPT_VEC_INVALID) {
+				if (first_check) {
+					first_check = 0;
+					goto get_next_grp;
+				}
+				continue;
+			}
+			if ((cur_vec.pos + 1 != 16 + i)) {
+				if (first_check) {
+					first_check = 0;
+					goto get_next_grp;
+				}
+				continue;
+			}
+			debug_get_data_id = 1;
+#if 0
+			pre_qinfo.pstart_vec = vec;
+			pre_qinfo.startid = entry_grp*VEC_PER_GRP + fs;
+			pre_qinfo.data = new_data;
+			pre_qinfo.endbit = pclst->endbit;
+			ret = find_data_prediction(pclst, &pre_qinfo);
+			if (ret == 0) {
+				*ret_vec = pre_qinfo.ret_vec;
+				return pre_qinfo.ret_vec_id;
+			}
+#endif
+#if 1
+			cur_data = get_data_id(pclst, vec);
+			debug_get_data_id = 0;
+			if (cur_data >= 0 && cur_data < SPT_INVALID) {
+				int first_chbit;
+				struct prediction_info_t pre_qinfo = {0};
+				pdh = (struct spt_dh *)db_id_2_ptr(pclst, cur_data);
+				smp_mb();
+				pcur_data = pclst->get_key_in_tree(pdh->pdata);
+				//get_grp_by_data_debug(pclst, pcur_data, cur_vec.pos+1);
+				//get_grp_by_data_debug(pclst, new_data, 12);
+				//get_vec_index_by_data(pcur_data, cur_vec.pos +1);
+				
+				first_chbit = get_first_change_bit(new_data, pcur_data, 0, cur_vec.pos + 1);
+				pclst->data_cmp++;
+				if (first_chbit == -1) {
+					*ret_vec = vec;
+					return entry_grp*VEC_PER_GRP + fs;
+				}
+				//printf("first chg bit %d, pos %d\r\n",first_chbit, cur_vec.pos+1);
+				if (first_check) {
+					first_check = 0;
+					goto get_next_grp;
+				}
+			}
+#endif
+get_next_grp:
 			next_grp = grp->next_grp;
 			if (next_grp == 0 || next_grp == 0xFFFFF)
 				return -1;
 			entry_grp = next_grp;
 			goto next_grp_loop;
-		}
-		pclst->data_find++;
-		vec = (char *)grp + sizeof(struct spt_grp) + fs*sizeof(struct spt_vec);
-		cur_vec.val = vec->val;	
-		if (cur_vec.status == SPT_VEC_RAW) {
-			smp_mb();
-			cur_vec.val = vec->val;
-			if (cur_vec.status == SPT_VEC_RAW)
-				continue;
-		}
-		if (cur_vec.status == SPT_VEC_INVALID)
-			continue;
-		if ((cur_vec.pos + 1 < 12) || (cur_vec.pos +1 > 16))
-			continue;
-		
-		cur_data = get_data_id(pclst, vec);
-		if (cur_data >= 0 && cur_data < SPT_INVALID) {
-			int first_chbit;
-			pdh = (struct spt_dh *)db_id_2_ptr(pclst, cur_data);
-			smp_mb();
-			pcur_data = pclst->get_key_in_tree(pdh->pdata);
-			//get_grp_by_data_debug(pclst, pcur_data, cur_vec.pos+1);
-			//get_grp_by_data_debug(pclst, new_data, 12);
-			
-			first_chbit = get_first_change_bit(new_data, pcur_data, 0, cur_vec.pos + 1);
-			pclst->data_cmp++;
-			if (first_chbit == -1) {
-				*ret_vec = vec;
-				return entry_grp*VEC_PER_GRP + fs;
-			}
-			printf("first chg bit %d, pos %d\r\n",first_chbit, cur_vec.pos+1);
+
 		}
 	}
 	return -1;

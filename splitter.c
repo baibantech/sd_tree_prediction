@@ -275,6 +275,7 @@ char *get_real_data(struct cluster_head_t *pclst, char *pdata)
  * the data id is record in the leaf node
  * a vector's data id equal it's right vector
  */
+extern int debug_get_data_id;
 int get_data_id(struct cluster_head_t *pclst, struct spt_vec *pvec)
 {
 	struct spt_vec *pcur, *pnext, *ppre;
@@ -301,6 +302,8 @@ get_id_start:
 			pnext = (struct spt_vec *)vec_id_2_ptr(pclst,
 					cur_vec.rd);
 			next_vec.val = pnext->val;
+			if (debug_get_data_id)
+				pclst->get_data_id_cnt++;
 			if (next_vec.status == SPT_VEC_VALID
 				&& next_vec.down != SPT_NULL) {
 				ppre = pcur;
@@ -3119,19 +3122,21 @@ char *insert_data_entry(struct cluster_head_t *pclst, char *pdata)
 		spt_set_errno(SPT_MASKED);
 		return 0;
 	}
-#if 1
+
 	if (pnext_clst->data_total >= SPT_DATA_HIGH_WATER_MARK
 		|| pnext_clst->ins_mask == 1) {
 		spt_set_errno(SPT_MASKED);
 		return 0;
 	}
-#endif
+	
+	
 	if(sd_perf_debug)
 	PERF_STAT_START(find_entry);
 	start_vecid = find_data_entry(pnext_clst, pdata, &start_vec);
 	if(sd_perf_debug)
 	PERF_STAT_END(find_entry);
 
+#if 0
 	if(start_vecid != -1) {
 		pre_qinfo.pstart_vec = start_vec;
 		pre_qinfo.startid = start_vecid;
@@ -3140,7 +3145,8 @@ char *insert_data_entry(struct cluster_head_t *pclst, char *pdata)
 		pre_qinfo.pstart_vec = pnext_clst->pstart;
 		pre_qinfo.startid = pnext_clst->vec_head;
 	}
-	
+//	pre_qinfo.pstart_vec = pnext_clst->pstart;
+//	pre_qinfo.startid = pnext_clst->vec_head;
 	pre_qinfo.endbit = pnext_clst->endbit;
 	pre_qinfo.data = pdata;
 
@@ -3149,17 +3155,20 @@ char *insert_data_entry(struct cluster_head_t *pclst, char *pdata)
 	ret = find_data_prediction(pnext_clst, &pre_qinfo);
 	if(sd_perf_debug)
 	PERF_STAT_END(find_prediction);
-
+#endif
 	qinfo.op = SPT_OP_INSERT;
 	qinfo.signpost = 0;
 	qinfo.data = pdata;
 	qinfo.multiple = 1;
 	qinfo.endbit = pnext_clst->endbit;
 	
-	if (ret == 0) {
-		qinfo.pstart_vec = pre_qinfo.ret_vec;
-		qinfo.startid = pre_qinfo.ret_vec_id;
+	if (start_vecid  != -1) {
+		//qinfo.pstart_vec = pre_qinfo.ret_vec;
+		//qinfo.startid = pre_qinfo.ret_vec_id;
+		qinfo.pstart_vec = start_vec;
+		qinfo.startid = start_vecid;
 		
+
 	if(sd_perf_debug)
 	PERF_STAT_START(find_prediction_ok);
 		ret = find_data(pnext_clst, &qinfo);
@@ -5140,6 +5149,7 @@ void debug_buf_free(struct cluster_head_t *pclst)
 	}
 	debug_travl_stack_destroy(pstack);
 }
+unsigned long long lower_cluster_vec_total = 0;
 void debug_cluster_info_show(struct cluster_head_t *pclst)
 {
 	int data_cnt, vec_cnt;
@@ -5148,6 +5158,7 @@ void debug_cluster_info_show(struct cluster_head_t *pclst)
 	pclst,pclst->data_total ,pclst->free_vec_cnt, pclst->used_vec_cnt);
 	spt_print("[data_entry]:%lld [data_loop]:%lld [data_find]:%lld [data_cmp]:%lld\r\n",
 	pclst->data_entry ,pclst->data_loop, pclst->data_find, pclst->data_cmp);
+	lower_cluster_vec_total+= pclst->used_vec_cnt;
 }
 
 void debug_lower_cluster_info_show(void)
@@ -5163,6 +5174,7 @@ void debug_lower_cluster_info_show(void)
 		debug_cluster_info_show(pclst);
 		i++;
 	}
+	spt_print("\r\nlower cluster vec total is %lld\r\n",lower_cluster_vec_total);
 	spt_print("\r\n==========cluster info end======================\r\n");
 }
 void clean_lower_cluster_cache(void)
