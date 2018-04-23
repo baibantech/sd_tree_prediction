@@ -183,6 +183,7 @@ struct cluster_head_t {
 	unsigned long long get_data_id_cnt;
 	unsigned int vec_stat[8];
 	unsigned long long data_prediction_cnt;
+	unsigned int first_find;
 	//unsigned long prediction_err;
 	//unsigned int prediction_area;
 
@@ -358,8 +359,8 @@ extern struct cluster_head_t *pgclst;
 
 
 #define GRP_STATIC_START   0
-#define GRP_DYNAMIC_START  (GRPS_PER_PG*1000)
-#define GRP_SPILL_START    (GRPS_PER_PG*3000) 
+#define GRP_DYNAMIC_START  (GRPS_PER_PG*4000)
+#define GRP_SPILL_START    (GRPS_PER_PG*10000) 
 
 #define GRP_DYNAMIC_POS 16
 

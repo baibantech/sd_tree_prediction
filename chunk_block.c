@@ -583,6 +583,7 @@ void cluster_vec_add_page(struct cluster_head_t *pclst, int pg_id)
 		spt_debug("warning: id is too big");
 		return ;
 	}
+	atomic_add(1, (atomic_t *)&pclst->pg_num_total);
 	return;
 }
 void cluster_db_add_page(struct cluster_head_t *pclst, int pg_id)	
@@ -1183,7 +1184,7 @@ int get_vec_index_by_data(char *data, int pos)
 		spt_debug("error pos");
 	len_byte = (pos + 1)/8;
 	if (len_byte >= 5){
-		printf("error len byte\r\n");
+		printf("error len byte,pos %d\r\n",pos);
 		sleep(1000);
 	}
 	if (len_byte == 0) {

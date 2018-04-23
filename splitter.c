@@ -5166,7 +5166,8 @@ void debug_lower_cluster_info_show(void)
 	struct list_head *list_itr;
 	struct cluster_head_t *pclst;
 	int i = 0;
-
+	
+	lower_cluster_vec_total = 0;
 	spt_print("\r\n==========cluster info show=====================\r\n");
 	list_for_each(list_itr, &pgclst->c_list) {
 		pclst = list_entry(list_itr, struct cluster_head_t, c_list);

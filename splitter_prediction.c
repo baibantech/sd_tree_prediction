@@ -955,6 +955,8 @@ next_grp_loop:
 				first_chbit = get_first_change_bit(new_data, pcur_data, 0, cur_vec.pos + 1);
 				pclst->data_cmp++;
 				if (first_chbit == -1) {
+					if (first_check)
+						pclst->first_find++;
 					*ret_vec = vec;
 					return entry_grp*VEC_PER_GRP + fs;
 				}
