@@ -179,13 +179,15 @@ struct cluster_head_t {
 	unsigned long long data_entry;
 	unsigned long long data_loop;
 	unsigned long long data_find;
-	unsigned long long data_cmp;
+	unsigned long long data_entry_prediction;
 	unsigned long long get_data_id_cnt;
 	unsigned int vec_stat[8];
 	unsigned long long data_prediction_cnt;
 	unsigned int first_find;
-	//unsigned long prediction_err;
-	//unsigned int prediction_area;
+	unsigned int vec_static_alloc;
+	unsigned int vec_static_alloc_conflict;
+	unsigned int *jhash_value_stat;
+	unsigned int jhash_value_cnt;
 
 	int status;
 	int ins_mask;
@@ -362,7 +364,7 @@ extern struct cluster_head_t *pgclst;
 #define GRP_DYNAMIC_START  (GRPS_PER_PG*4000)
 #define GRP_SPILL_START    (GRPS_PER_PG*10000) 
 
-#define GRP_DYNAMIC_POS 16
+#define GRP_DYNAMIC_POS 20
 
 //#define CLST_TIND_PGS        (CLST_DIND_PGS+1)
 

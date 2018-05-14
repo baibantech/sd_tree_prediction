@@ -14,6 +14,12 @@ PERF_STAT_DEFINE(find_prediction);
 PERF_STAT_DEFINE(find_entry);
 PERF_STAT_DEFINE(find_prediction_ok);
 PERF_STAT_DEFINE(find_prediction_err);
+PERF_STAT_DEFINE(entry_get_data);
+PERF_STAT_DEFINE(entry_get_change_bit);
+PERF_STAT_DEFINE(find_pre_entry);
+PERF_STAT_DEFINE(entry_vec_search);
+PERF_STAT_DEFINE(grp_by_data);
+PERF_STAT_DEFINE(index_by_data);
 
 
 
@@ -34,6 +40,12 @@ sd_perf_stat *sd_perf_stat_array[] =
 	PERF_STAT_PTR(find_entry),
 	PERF_STAT_PTR(find_prediction_ok),
 	PERF_STAT_PTR(find_prediction_err),
+	PERF_STAT_PTR(entry_get_data),
+	PERF_STAT_PTR(entry_get_change_bit),
+	PERF_STAT_PTR(find_pre_entry),
+	PERF_STAT_PTR(entry_vec_search),
+	PERF_STAT_PTR(grp_by_data),
+	PERF_STAT_PTR(index_by_data),
 };
 
 void sd_perf_stat_init()

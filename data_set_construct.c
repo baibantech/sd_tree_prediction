@@ -19,8 +19,8 @@
 #include "jhash.h"
 #include "xxhash.h"
 
-#define DEFAULT_INS_LEN  4096
-#define DEFAULT_INS_NUM  10000000
+#define DEFAULT_INS_LEN  256
+#define DEFAULT_INS_NUM  100000000
 #define DEFAULT_RANDOM_WAY 1
 #define DEFAULT_FILE_LEN 400*1024*1024
 unsigned long long spt_no_found_num = 0;
@@ -449,6 +449,7 @@ u64 g_insert_ok = 0;
 u64 g_delete_ok = 0;
 extern 	int test_stop;
 extern void* test_insert_data(char *pdata);
+extern void* test_insert_data_entry(char *pdata);
 extern void* test_delete_data(char *pdata);
 
 void data_pre_process()

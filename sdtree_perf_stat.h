@@ -60,6 +60,13 @@ PERF_STAT_DEC(find_prediction);
 PERF_STAT_DEC(find_entry);
 PERF_STAT_DEC(find_prediction_ok);
 PERF_STAT_DEC(find_prediction_err);
+PERF_STAT_DEC(entry_get_data);
+PERF_STAT_DEC(entry_get_change_bit);
+PERF_STAT_DEC(find_pre_entry);
+PERF_STAT_DEC(entry_vec_search);
+PERF_STAT_DEC(grp_by_data);
+PERF_STAT_DEC(index_by_data);
+			
 
 
 

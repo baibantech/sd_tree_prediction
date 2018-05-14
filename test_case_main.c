@@ -28,6 +28,7 @@ void* test_pre_delete_thread(void *arg);
 void* test_delete_thread(void *arg);
 void* test_divid_thread(void *arg);
 extern int sd_perf_debug;
+int sd_perf_debug_1= 0;
 enum cmd_index
 {
 	SET_NAME,
@@ -357,11 +358,12 @@ int main(int argc,char *argv[])
 	test_break_debug();
 	sleep(10);
 	test_pre_delete_proc(0);
-	sd_perf_debug = 1;
 	sleep(10);
+	sd_perf_debug_1 = 1;
 	test_pre_insert_proc(0);
 	//test_pre_insert_proc(0);
 	sleep(10);
+	sd_perf_debug_1 = 0;
 	sd_perf_debug = 1;
 	test_insert_thread(0);
 #if 0

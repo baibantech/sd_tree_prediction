@@ -50,8 +50,10 @@
 #include "chunk.h"
 #include "jhash.h"
 extern int sd_perf_debug;
+extern int sd_perf_debug_1;
 int g_data_size;
 unsigned int *pos_stat_ptr = NULL;
+
 void pos_stat_mem_init(void)
 {
 	pos_stat_ptr = spt_malloc((g_data_size*8 + 1)*sizeof(unsigned int));
@@ -724,6 +726,23 @@ void cluster_destroy(struct cluster_head_t *pclst)
 	spt_debug("\r\n");
 }
 
+void insert_jhash_value_stat(struct cluster_head_t *pclst, unsigned int hash_value)
+{
+	int i = 0;
+	for (i = 0; i < pclst->jhash_value_cnt; i++) {
+		if (pclst->jhash_value_stat[i] == hash_value)
+			return;
+	}
+
+	if (pclst->jhash_value_cnt < 100000) {
+		pclst->jhash_value_stat[i] = hash_value;
+		pclst->jhash_value_cnt++;
+		return;
+	}
+	printf("jhash valure too many \r\n");	
+}
+
+
 struct cluster_head_t *cluster_init(int is_bottom,
 		u64 startbit,
 		u64 endbit,
@@ -794,6 +813,8 @@ struct cluster_head_t *cluster_init(int is_bottom,
 	phead->vec_head = vec;
 	phead->pstart = pvec;
 
+	phead->jhash_value_stat = spt_malloc(sizeof(unsigned int) *100000);
+	phead->jhash_value_cnt = 0;
 	return phead;
 }
 u64 g_spill_vec = 0;
@@ -1147,6 +1168,7 @@ int get_grp_by_data(struct cluster_head_t *pclst, char *data, int pos)
 	unsigned char key_byte;
 	int i = 0;
 	unsigned int static_hash_key;
+	unsigned int hash_value;
 	unsigned int grp_static_len  = GRP_DYNAMIC_START - GRP_STATIC_START; 	
 	unsigned int grp_dynamic_len  = GRP_SPILL_START - GRP_DYNAMIC_START; 	
 	if (pos < 0 || pos > 4096*8)
@@ -1164,8 +1186,12 @@ int get_grp_by_data(struct cluster_head_t *pclst, char *data, int pos)
 			key_val = (key_val <<4) + key_byte;
 		}
 		static_hash_key = (key_val << 16)+ end_bit;
-		pclst->vec_stat[pos>>2]++;
-		return (unsigned int)jhash(&static_hash_key, 4, 17)%grp_static_len;
+		if (sd_perf_debug_1)
+			pclst->vec_stat[pos>>2]++;
+		hash_value = (unsigned int)jhash(&static_hash_key, 4, 17);
+		if (sd_perf_debug_1)
+			insert_jhash_value_stat(pclst, static_hash_key);
+		return hash_value%grp_static_len;
 	}else {
 		pclst->vec_stat[7]++;
 		return ((unsigned int)jhash(data + 2, 64, 13)%grp_dynamic_len) + GRP_DYNAMIC_START;
@@ -1205,7 +1231,7 @@ int get_vec_index_by_data(char *data, int pos)
 			key[i] = key_byte;
 	//		printf("key value is 0x%x\r\n",key[i]);
 		}
-		vec_index = (unsigned int)jhash(&key, i , 17)%32;
+		vec_index = ((unsigned int)jhash(&key, i , 17) + pos)%32;
 	}
 	//printf("vec_index is %d\r\n", vec_index);
 
@@ -1284,7 +1310,8 @@ int vec_alloc_by_hash(struct cluster_head_t *pclst,  struct spt_vec **vec, char 
 	gid = get_grp_by_data(pclst, data, pos);
 
 	if (gid < GRP_DYNAMIC_START)
-		atomic_add(1, (atomic_t *)&pclst->static_grp_alloc);
+		if (sd_perf_debug_1)
+			atomic_add(1, (atomic_t *)&pclst->static_grp_alloc);
 	else
 		atomic_add(1, (atomic_t *)&pclst->dynamic_grp_alloc);
 	
@@ -1355,8 +1382,12 @@ alloc_next_grp:
 			goto re_alloc;
 		}
 		if (alloc_by_index) {	
+			if (sd_perf_debug_1)
+				pclst->vec_static_alloc++;
 			fs = find_next_bit(&old.val, 32, vec_index);
 			if(fs != vec_index) {
+				if (sd_perf_debug_1)
+					pclst->vec_static_alloc_conflict++;
 				old.control = grp->control;
 				old.val = grp->val;
 				tmp = old;
@@ -1479,15 +1510,25 @@ re_alloc:
 
 int static_null_cnt;
 int static_use_cnt;
-int static_conflict_cnt;
 int static_conflict_max= 0;
 int static_max_grp;
+int static_max_grp_array[10];
+int static_vec_cnt_array[10];
 void check_static_grp_stat(struct cluster_head_t *pclst)
 {
 	struct spt_grp *grp; 
 	struct spt_pg_h *spt_pg;
 	int i, grp_id;
 	int cnt = 0;
+	int vec_cnt = 0;
+	static_null_cnt = 0;
+	static_use_cnt = 0;
+	static_conflict_max = 0;
+	static_max_grp = 0;
+	for (i = 0 ; i < 10 ; i++)
+		static_max_grp_array[i] = 0;
+	for (i = 0 ; i < 10 ; i++)
+		static_vec_cnt_array[i] = 0;
 	for (i = 0 ; i < GRP_DYNAMIC_START; i++){
 		spt_pg = get_vec_pg_head_no_page(pclst, i/GRPS_PER_PG); /*get page head ,if page null alloc page*/
 		if (!spt_pg) {
@@ -1496,28 +1537,43 @@ void check_static_grp_stat(struct cluster_head_t *pclst)
 		}
 		static_use_cnt++;
 		grp  = get_grp_from_page_head(spt_pg, i);
-		if (grp->allocmap == 0xFFFFF) {
+		if (grp->allocmap == 0xFFFFFFFF) {
 			static_null_cnt++;
+			continue;
 		}
-
+		vec_cnt += 32 - calBitNum(grp->allocmap);
 		while (grp){
 			grp_id = grp->next_grp;
 			if((grp_id !=0) && (grp_id != 0xFFFFF))
 			{
-				static_conflict_cnt++;
 			}else {
 				break;
 			}
 			cnt++;
 			spt_pg = get_vec_pg_head_no_page(pclst, grp_id/GRPS_PER_PG); /*get page head ,if page null alloc page*/
 			grp  = get_grp_from_page_head(spt_pg, grp_id);
+			vec_cnt += 32 - calBitNum(grp->allocmap);
 		}
+		if (cnt < 10) {
+			static_max_grp_array[cnt]++;
+			static_vec_cnt_array[cnt] += vec_cnt;
+		} else
+			printf("conflict too many\r\n");
 		if (cnt > static_conflict_max){
 			static_conflict_max = cnt;
 			static_max_grp = i;
 		}
+		vec_cnt = 0;
 		cnt =0;
 	}
+
+	printf("null cnt %d\r\n", static_null_cnt);
+	printf("use cnt %d\r\n", static_use_cnt);
+	printf("conflict max cnt %d\r\n", static_conflict_max);
+	printf("max grp id %d\r\n", static_max_grp);
+	for (i = 0 ; i < 10 ; i++)
+		printf("conflict array cnt %d,%d,vec_cnt %d\r\n", i ,static_max_grp_array[i],static_vec_cnt_array[i]);
+
 }
 
 #endif
