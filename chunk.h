@@ -361,8 +361,8 @@ extern struct cluster_head_t *pgclst;
 
 
 #define GRP_STATIC_START   0
-#define GRP_DYNAMIC_START  (GRPS_PER_PG*4000)
-#define GRP_SPILL_START    (GRPS_PER_PG*10000) 
+#define GRP_DYNAMIC_START  (GRPS_PER_PG*1)
+#define GRP_SPILL_START    (GRPS_PER_PG*2) 
 
 #define GRP_DYNAMIC_POS 20
 

@@ -1309,9 +1309,10 @@ int vec_alloc_by_hash(struct cluster_head_t *pclst,  struct spt_vec **vec, char 
 	int alloc_cnt = 0;
 	gid = get_grp_by_data(pclst, data, pos);
 
-	if (gid < GRP_DYNAMIC_START)
+	if (gid < GRP_DYNAMIC_START) {
 		if (sd_perf_debug_1)
 			atomic_add(1, (atomic_t *)&pclst->static_grp_alloc);
+	}
 	else
 		atomic_add(1, (atomic_t *)&pclst->dynamic_grp_alloc);
 	
@@ -1373,10 +1374,6 @@ alloc_next_grp:
 			if (old.next_grp == 0xFFFFF)
 				continue;
 			gid = grp->next_grp;
-			if (gid < 12000) {
-				printf("bug bug bug \r\n");
-				sleep(100);
-			}
 			if(gid == 0xFFFFF)
 				printf("@@@@@@@old.next_grp is %d\r\n",old.next_grp);
 			goto re_alloc;
@@ -1484,10 +1481,6 @@ re_alloc:
 			if (old.next_grp == 0xFFFFF)
 				continue;
 			gid = grp->next_grp;
-			if (gid < 12000) {
-				printf("bug bug bug \r\n");
-				sleep(100);
-			}
 			if(gid == 0xFFFFF)
 				printf("@@@@@@@old.next_grp is %d\r\n",old.next_grp);
 			goto re_alloc;

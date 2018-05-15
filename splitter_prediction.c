@@ -1233,13 +1233,13 @@ int find_data_entry(struct cluster_head_t *pclst, char *new_data, struct spt_vec
 
 	*ret_vec = NULL;
 	//PERF_STAT_START(grp_by_data);
-	entry_grp = get_grp_by_data(pclst, new_data, 16);
+	entry_grp = get_grp_by_data(pclst, new_data, 8);
 	//PERF_STAT_END(grp_by_data);
 
 	for(i = 0 ; i < 4 ; i++) {	
 
 		//PERF_STAT_START(index_by_data);
-		vec_index = get_vec_index_by_data(new_data, 16 + i);
+		vec_index = get_vec_index_by_data(new_data, 8 + i);
 		//PERF_STAT_END(index_by_data);
 		first_check = 1;
 next_grp_loop:
@@ -1299,7 +1299,7 @@ next_grp_loop:
 				}
 				continue;
 			}
-			if ((cur_vec.pos + 1 != 16 + i)) {
+			if ((cur_vec.pos + 1 != 8 + i)) {
 				if (first_check) {
 					first_check = 0;
 					goto get_next_grp;
