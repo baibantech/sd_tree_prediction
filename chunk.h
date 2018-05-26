@@ -52,6 +52,9 @@
 
 #include "spt_dep.h"
 #include "spt_thread.h"
+
+#define CLUSTER_COMMON 0
+#define CLUSTER_TEMPLATE 1
 #define SPT_VEC_RIGHT 0
 #define SPT_VEC_DATA 1
 #define SPT_VEC_SIGNPOST 2
@@ -98,8 +101,6 @@ typedef char *(*spt_cb_get_key)(char *);
 typedef void (*spt_cb_free)(char *);
 typedef void (*spt_cb_end_key)(char *);
 typedef char *(*spt_cb_construct)(char *);
-
-
 
 struct spt_sort_info {
 	int idx;
@@ -156,16 +157,17 @@ struct spt_vec {
 struct cluster_head_t {
 	struct list_head c_list;
 	int vec_head;
+	int index;
 
 	struct spt_vec *pstart;
 	u64 startbit;
 	u64 endbit;
 	int is_bottom;
+	int cluster_type;
 	volatile unsigned int data_total;
 
 	unsigned int pg_num_max;
 	unsigned int pg_num_total;
-	//unsigned int pg_cursor;
 	unsigned int pg_ptr_bits;
 
 	unsigned int free_vec_cnt;
@@ -173,6 +175,7 @@ struct cluster_head_t {
 	unsigned int used_db_cnt;
 	unsigned int thrd_total;
 	unsigned int last_alloc_id;
+	unsigned int last_db_id;
 	unsigned int spill_grp_id;
 	unsigned int static_grp_alloc;
 	unsigned int dynamic_grp_alloc;
@@ -180,14 +183,11 @@ struct cluster_head_t {
 	unsigned long long data_loop;
 	unsigned long long data_find;
 	unsigned long long data_entry_prediction;
-	unsigned long long get_data_id_cnt;
 	unsigned int vec_stat[8];
 	unsigned long long data_prediction_cnt;
 	unsigned int first_find;
 	unsigned int vec_static_alloc;
 	unsigned int vec_static_alloc_conflict;
-	unsigned int *jhash_value_stat;
-	unsigned int jhash_value_cnt;
 
 	int status;
 	int ins_mask;
@@ -253,6 +253,9 @@ struct query_info_t {
 	/* return value,the last compared vector, when find return */
 	u32 vec_id;
 	int res;
+	int *search_vecid;
+	int *search_vecpos;
+	int search_vec_cnt;
 	/* if NULL, use the default callback function*/
 	spt_cb_get_key get_key;
 	/* if NULL, use the default callback function*/
@@ -286,6 +289,9 @@ struct insert_info_t {
     u32 hang_vec;
 	/* for debug */
 	int alloc_type;
+	int *search_vecid;
+	int *search_vecpos;
+	int search_vec_cnt;
 	char *pcur_data;
 	struct vec_cmpret_t cmpres;
 };
@@ -366,6 +372,8 @@ extern struct cluster_head_t *pgclst;
 
 #define GRP_DYNAMIC_POS 20
 
+#define TEMPLATE_TREE_PER_CLST 1024
+
 //#define CLST_TIND_PGS        (CLST_DIND_PGS+1)
 
 
@@ -417,6 +425,8 @@ void db_buf_free(struct cluster_head_t *pclst, int thread_id);
 
 void debug_data_print(char *pdata);
 extern int g_data_size;
+extern struct cluster_head_t *template_cluster;
+extern struct cluster_head_t *global_cluster_array[];
 
 char *insert_data(struct cluster_head_t *pclst, char *pdata);
 char *delete_data(struct cluster_head_t *pclst, char *pdata);
@@ -424,6 +434,7 @@ char *insert_data_prediction(struct cluster_head_t *pclst, char *pdata);
 char *delete_data_prediction(struct cluster_head_t *pclst, char *pdata);
 char *insert_data_entry(struct cluster_head_t *pclst, char *pdata);
 char *delete_data_entry(struct cluster_head_t *pclst, char *pdata);
+char *insert_data_template(char *pdata);
 void set_data_size(int size);
 
 struct cluster_head_t *spt_cluster_init(u64 startbit,
@@ -434,6 +445,12 @@ struct cluster_head_t *spt_cluster_init(u64 startbit,
 						spt_cb_free pf_free,
 						spt_cb_construct pf_con);
 
+
+struct cluster_head_t *spt_cluster_template_init(
+						spt_cb_get_key pf,
+						spt_cb_end_key pf2,
+						spt_cb_free pf_free,
+						spt_cb_construct pf_con);
 
 struct spt_thrd_t *spt_thread_init(int thread_num);
 void spt_set_thrd_id(int val);
@@ -499,5 +516,8 @@ int db_alloc_from_grp(struct cluster_head_t *pclst, int id, struct spt_dh **db);
 extern unsigned long find_next_bit(const unsigned long *addr, unsigned long size,
 			    unsigned long offset);
 
+int vec_alloc_by_hash_template(struct cluster_head_t *pclst, struct spt_vec **vec,
+			int pos, int *template_vecid,
+			int * template_vecpos, int search_vec_cnt);
 #endif
 

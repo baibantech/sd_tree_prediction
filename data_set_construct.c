@@ -445,6 +445,34 @@ void get_data_from_file(struct data_set_file *flist,long long start_off,long lon
 			
 	return ;
 }
+
+char * construct_template_data(int mem_size)
+{
+    int dev_random_id = -1;
+    char *mem = NULL;
+	int i = 0;
+
+    mem = malloc(mem_size);
+    
+	dev_random_id = open("/dev/urandom",O_RDONLY);
+	if(-1 == dev_random_id){
+		return NULL;
+	}
+
+	for (i = 0; i < mem_size/8 ; i++) {
+
+		if(-1 == get_random_instance(dev_random_id, mem + i*8, 8))
+		{
+			close(dev_random_id);
+			free(mem);
+			return NULL;
+		}
+	}
+    close(dev_random_id);
+    return mem;
+}
+
+
 u64 g_insert_ok = 0;
 u64 g_delete_ok = 0;
 extern 	int test_stop;

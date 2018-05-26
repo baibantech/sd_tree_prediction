@@ -319,6 +319,7 @@ int main(int argc,char *argv[])
 	}
 	get_data_from_file(set_file_list,data_set_config_map_read_start*data_set_config_instance_len,get_data_len);
 	
+	test_spt_cluster_template_init();
 	//set data size
 	
 	set_data_size(data_set_config_instance_len);
@@ -328,7 +329,7 @@ int main(int argc,char *argv[])
     printf("thread_num is %d\r\n",thread_num);
 
     sd_perf_stat_init();
-
+#if 1
 	pgclst = spt_cluster_init(0,DATA_BIT_MAX, thread_num, 
                               tree_get_key_from_data,
                               tree_free_key,
@@ -339,7 +340,7 @@ int main(int argc,char *argv[])
         spt_debug("cluster_init err\r\n");
         return 1;
     }
-
+#endif
     g_thrd_h = spt_thread_init(thread_num);
     if(g_thrd_h == NULL)
     {
@@ -347,7 +348,7 @@ int main(int argc,char *argv[])
         return 1;
 	}
 	pos_stat_mem_init();
-#if 1
+#if 0
 	err = pthread_create(&ntid, NULL, test_divid_thread, 3);
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));
@@ -355,6 +356,7 @@ int main(int argc,char *argv[])
 
 	g_thrd_id = 0;
 	test_pre_insert_proc(0);
+#if 0
 	test_break_debug();
 	sleep(10);
 	test_pre_delete_proc(0);
@@ -366,6 +368,7 @@ int main(int argc,char *argv[])
 	sd_perf_debug_1 = 0;
 	sd_perf_debug = 1;
 	test_insert_thread(0);
+#endif
 #if 0
 	for(i = 0;  i  < data_set_config_insert_thread_num ; i++)
     {
@@ -393,7 +396,7 @@ extern int total_data_num;
 void *test_insert_data(char *pdata)
 {
 	total_data_num++;
-	return insert_data_prediction(pgclst, pdata);
+	return insert_data_template(pdata);
 }
 void *test_delete_data(char *pdata)
 {
@@ -481,3 +484,13 @@ void *test_divid_thread(void *arg)
 		spt_divided_scan(pgclst);
 	}
 }
+
+void test_spt_cluster_template_init(void)
+{
+	template_cluster = spt_cluster_template_init(tree_get_key_from_data,
+                              tree_free_key,
+                              tree_free_data,
+                              tree_construct_data_from_key);
+	printf("template cluster %p\r\n", template_cluster);
+}
+
