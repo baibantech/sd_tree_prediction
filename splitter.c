@@ -1812,16 +1812,9 @@ void print_debug_path(int id)
 int check_vecid_useful(struct cluster_head_t *pclst, char *data, int *check_vec, int vec_cnt)
 {
 	int i ;
-	int template_index;
-	int begin_grp;
-	template_index = get_data_template_index(data);
-	begin_grp = template_index * (GRPS_PER_PG + 10);
 	
-	for (i = vec_cnt; i >=0 ; i--) {
+	for (i = vec_cnt -1 ; i >=0 ; i--) {
 		int vec_id = check_vec[i];
-		int grp_id = vec_id/VEC_PER_GRP;
-		grp_id = begin_grp + grp_id;
-		vec_id = grp_id * VEC_PER_GRP;
 		if (is_vec_alloced(pclst, vec_id))
 			return vec_id;
 	}
@@ -1841,6 +1834,11 @@ int find_data_template(struct cluster_head_t *pclst, char *data, int *search_vec
 	struct spt_dh *pdh;
 	spt_cb_end_key finish_key_cb;
 	int vec_cnt = 0;
+	int template_index;
+	int begin_grp;
+	template_index = get_data_template_index(data);
+	begin_grp = template_index * (GRPS_PER_PG + 10);
+
 
 	pdata = data;
 
@@ -1859,8 +1857,8 @@ int find_data_template(struct cluster_head_t *pclst, char *data, int *search_vec
 	cur_vec.val = pcur->val;
 	startbit = pclst->startbit;
 	endbit = pclst->endbit;
-	search_vecid[vec_cnt] = cur_vecid;
-	search_vecpos[vec_cnt] = cur_vec.pos;
+	search_vecid[vec_cnt] = cur_vecid + begin_grp*VEC_PER_GRP;
+	search_vecpos[vec_cnt] = 16;
 	vec_cnt++;
 	
 	fs_pos = find_fs(prdata, startbit, endbit-startbit);
@@ -1924,8 +1922,8 @@ go_right:
 			pre_vecid = cur_vecid;
 			cur_vecid = next_vecid;
 			cur_vec.val = next_vec.val;
-			search_vecid[vec_cnt] = cur_vecid;
-			search_vecpos[vec_cnt] = cur_vec.pos;
+			search_vecid[vec_cnt] = cur_vecid + begin_grp*VEC_PER_GRP;
+			search_vecpos[vec_cnt] = 16 + cur_vec.pos + 1;
 			vec_cnt++;
 			fs_pos = find_fs(prdata,
 				startbit,
@@ -1957,8 +1955,8 @@ go_down:
 				pre_vecid = cur_vecid;
 				cur_vecid = next_vecid;
 				cur_vec.val = next_vec.val;
-				search_vecid[vec_cnt] = cur_vecid;
-				search_vecpos[vec_cnt] = cur_vec.pos;
+				search_vecid[vec_cnt] = cur_vecid + begin_grp*VEC_PER_GRP;
+				search_vecpos[vec_cnt] = 16 + cur_vec.pos + 1;
 				vec_cnt++;
 				continue;
 			}
@@ -3508,6 +3506,9 @@ char *delete_data_prediction(struct cluster_head_t *pclst, char *pdata)
 	spt_set_errno(ret);
 	return NULL;
 }
+int template_entry_ok;
+int template_entry_cnt;
+
 char *insert_data_template(char *pdata)
 {
 	struct cluster_head_t *pnext_clst;
@@ -3530,19 +3531,26 @@ char *insert_data_template(char *pdata)
 		spt_set_errno(SPT_MASKED);
 		return 0;
 	}
-	vec_cnt = find_data_template(template_cluster, pdata + 16 ,search_vecid, search_vecpos);
+	vec_cnt = find_data_template(template_cluster, pdata + 2 ,search_vecid, search_vecpos);
 	entry_vec_id = check_vecid_useful(pnext_clst, pdata, search_vecid, vec_cnt);
 
 	if (entry_vec_id != -1) {
 		pre_qinfo.pstart_vec = vec_id_2_ptr(pnext_clst, entry_vec_id);
 		pre_qinfo.startid = entry_vec_id;
-	} else {
-		pre_qinfo.pstart_vec = pnext_clst->pstart;
-		pre_qinfo.startid = pnext_clst->vec_head;
+		template_entry_ok++;
+		ret = find_data_entry_prediction(pnext_clst, &pre_qinfo);
+		if (ret == 0) {
+			template_entry_cnt++;
+			goto pre_find_data;
+		}
 	}
+	
+	pre_qinfo.pstart_vec = pnext_clst->pstart;
+	pre_qinfo.startid = pnext_clst->vec_head;
 	pre_qinfo.endbit = pnext_clst->endbit;
 	pre_qinfo.data = pdata;
 	ret = find_data_prediction(pnext_clst, &pre_qinfo);
+pre_find_data:
 	qinfo.op = SPT_OP_INSERT;
 	qinfo.signpost = 0;
 	qinfo.data = pdata;
@@ -3742,6 +3750,7 @@ struct cluster_head_t *spt_cluster_template_init(
 		qinfo.endbit = plower_clst->endbit;
 		qinfo.data = data_mem + i;
 		qinfo.multiple = 1;
+		printf("data value 0x%04x\r\n",*(data_mem +i));
 
 		ret = find_data(plower_clst, &qinfo);
 		if (ret >= 0) {
