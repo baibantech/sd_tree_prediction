@@ -518,6 +518,6 @@ extern unsigned long find_next_bit(const unsigned long *addr, unsigned long size
 
 int vec_alloc_by_hash_template(struct cluster_head_t *pclst, struct spt_vec **vec,
 			int pos, int *template_vecid,
-			int * template_vecpos, int search_vec_cnt);
+			int * template_vecpos, int search_vec_cnt, int flag);
 #endif
 

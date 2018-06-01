@@ -1477,12 +1477,12 @@ int select_template_id(int pos, int *template_vecid, int *template_vecpos, int s
 {
 	int i = 0;
 	for (i = 0 ; i < search_vec_cnt; i++) {
-		if (pos <= template_vecpos[i])
+		if (pos + 1 <= template_vecpos[i])
 			return template_vecid[i];
 	}
-	return template_vecid[i-1];
+	return -1;
 }
-int vec_alloc_by_hash_template(struct cluster_head_t *pclst,  struct spt_vec **vec, int pos, int *template_vecid, int *template_vecpos, int search_vec_cnt)
+int vec_alloc_by_hash_template(struct cluster_head_t *pclst,  struct spt_vec **vec, int pos, int *template_vecid, int *template_vecpos, int search_vec_cnt, int flag)
 {
 	struct spt_grp  *grp, *next_grp;
 	int fs, gid, offset, gid_t;
@@ -1501,6 +1501,10 @@ int vec_alloc_by_hash_template(struct cluster_head_t *pclst,  struct spt_vec **v
 		return vec_alloc_from_grp(pclst, id, vec, 0);
 	}
 	template_id = select_template_id(pos, template_vecid, template_vecpos, search_vec_cnt);
+	if (template_id == -1) {
+		template_id = template_vecid[search_vec_cnt -1];
+		flag = 0;
+	}
 	gid = template_id/VEC_PER_GRP; 
 	offset = template_id%VEC_PER_GRP ;
 re_alloc:
@@ -1566,7 +1570,7 @@ alloc_next_grp:
 			goto re_alloc;
 		} else {
 			fs = find_next_bit(&old.val, 32, offset);
-			if(fs != offset) {
+			if((fs != offset)||(!flag)) {
 				old.control = grp->control;
 				old.val = grp->val;
 				tmp = old;

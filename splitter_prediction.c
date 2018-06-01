@@ -53,6 +53,7 @@
 #include "splitter.h"
 
 #define SPT_PREDICTION_ERR -1
+#define SPT_PREDICTION_DEBUG -2
 #define SPT_PREDICTION_OK  0
 int total_data_num = 0;
 extern int sd_perf_debug;
@@ -361,6 +362,13 @@ int get_first_change_bit(char *src, char *dst, u64 startbit, u64 endbit)
 	return -1;
 
 }
+
+int ret_err1;
+int ret_err2;
+int ret_err3;
+int ret_err4;
+int ret_err5;
+
 int find_data_entry_prediction(struct cluster_head_t *pclst, struct prediction_info_t *pqinfo)
 {
 	int cur_data, vecid, cmp, op, cur_vecid, pre_vecid, next_vecid, cnt;
@@ -410,6 +418,11 @@ refind_forward:
 	} else {
 		startbit = signpost + cur_vec.pos + 1;
 	}
+#if 1
+	if(!refind_cnt)
+		pqinfo->originbit = startbit;
+	refind_cnt++;
+#endif
 
 	endbit = pqinfo->endbit;
 	if (cur_vec.status == SPT_VEC_RAW) {
@@ -466,6 +479,7 @@ refind_forward:
 				} else if (cur_data == SPT_NULL) {
 					if(ppre == NULL) {
 						//printf("return err line %d,loop_cnt %d,data_num %d\r\n",__LINE__, loop_cnt, total_data_num); 
+						ret_err1++;
 						return SPT_PREDICTION_ERR;
 					}
 					cur_data = get_data_id(pclst, ppre);
@@ -488,6 +502,7 @@ refind_forward:
 					
 					} else {
 						//printf("return err line %d,loop_cnt %d,data_num %d\r\n",__LINE__, loop_cnt, total_data_num); 
+						ret_err2++;
 						return SPT_PREDICTION_ERR;
 					}
 				}
@@ -695,6 +710,7 @@ refind_forward:
 			 } else {
 				if(ppre == NULL) {
 					//printf("return err line %d,loop_cnt %d,data_num %d\r\n",__LINE__, loop_cnt, total_data_num); 
+					ret_err3++;
 					return SPT_PREDICTION_ERR;
 				}
 				cur_data = get_data_id(pclst, ppre);
@@ -717,6 +733,7 @@ refind_forward:
 				
 				} else {
 					//printf("return err line %d,loop_cnt %d,data_num %d\r\n",__LINE__, loop_cnt, total_data_num); 
+					ret_err4++;
 					return SPT_PREDICTION_ERR;
 				
 				}
@@ -725,8 +742,127 @@ refind_forward:
 	}
 
 prediction_check:
+#if 1
+	pcur = pqinfo->pstart_vec;
+	cur_vecid = pre_vecid = pqinfo->startid;
+	if (pcur == NULL)
+		goto refind_start;
+	ppre = NULL;
+	cur_vecid = pre_vecid;
+	pre_vecid = SPT_INVALID;
+	cur_vec.val = pcur->val;
+
+	endbit = first_chbit;
+	startbit = pqinfo->originbit;
+	if (first_chbit < startbit) {	
+		ret_err5++;
+		//printf("chgbir %d.startbit %d\r\n", first_chbit, startbit);
+		return SPT_PREDICTION_DEBUG;
+	}
+	if (cur_vec.status == SPT_VEC_RAW) {
+		smp_mb();/* ^^^ */
+		cur_vec.val = pcur->val;
+		if (cur_vec.status == SPT_VEC_RAW) {
+			//printf("return err line %d\r\n",__LINE__);
+			return SPT_PREDICTION_ERR;
+		}
+	}
+	if (cur_vec.status == SPT_VEC_INVALID
+		|| cur_vec.type == SPT_VEC_SIGNPOST) {
+			//printf("return err line %d\r\n",__LINE__);
+			return SPT_PREDICTION_ERR;
+	}
+	if(startbit == endbit) {
+		pqinfo->ret_vec_id = cur_vecid;
+		pqinfo->ret_vec = pcur; 
+		return SPT_PREDICTION_OK;
+	}
+
+	while(startbit < endbit) {
+		/*first bit is 1｣ｬcompare with pcur_vec->right*/
+		if (test_bit_set(prdata, startbit)) {
+			
+			if (cur_vec.type == SPT_VEC_DATA) {
+				//printf("return err line %d\r\n",__LINE__);
+				return SPT_PREDICTION_ERR;
+			}
+			else {
+				pnext = (struct spt_vec *)vec_id_2_ptr(pclst,
+					cur_vec.rd);
+				next_vec.val = pnext->val;
+				next_vecid = cur_vec.rd;
+				if (next_vec.status == SPT_VEC_RAW) {
+					//printf("return err line %d\r\n",__LINE__);
+					return SPT_PREDICTION_ERR;
+				}
+				if (next_vec.status == SPT_VEC_INVALID) {
+					//printf("return err line %d\r\n",__LINE__);
+					return SPT_PREDICTION_ERR;
+				}
+
+				if (next_vec.down == SPT_NULL) {
+					//printf("return err line %d\r\n",__LINE__);
+					return SPT_PREDICTION_ERR;
+				}
+				len = next_vec.pos + signpost - startbit + 1;
+				if(startbit + len >= endbit) {
+					pqinfo->ret_vec_id = cur_vecid;
+					pqinfo->ret_vec = pcur; 
+					return SPT_PREDICTION_OK;
+				}
+				startbit += len;
+				ppre = pcur;
+				pcur = pnext;
+				pre_vecid = cur_vecid;
+				cur_vecid = next_vecid;
+				cur_vec.val = next_vec.val;
+			}
+		} else {
+
+			if (cur_vec.down != SPT_NULL) {
+				pnext = (struct spt_vec *)vec_id_2_ptr(pclst,
+						cur_vec.down);
+				next_vec.val = pnext->val;
+				next_vecid = cur_vec.down;
+				if (next_vec.status == SPT_VEC_RAW) {
+					smp_mb();/* ^^^ */
+					next_vec.val = pnext->val;
+					if (next_vec.status == SPT_VEC_RAW) {
+						//printf("return err line %d\r\n",__LINE__);
+						return SPT_PREDICTION_ERR;
+					}
+				}
+				if (next_vec.status == SPT_VEC_INVALID) {
+					//printf("return err line %d\r\n",__LINE__);
+					return SPT_PREDICTION_ERR;
+				}
+
+
+				len = next_vec.pos + signpost - startbit + 1;
+
+				if (!test_bit_zero(prdata, startbit, len) 
+						|| (startbit + len >= endbit)) {
+					pqinfo->ret_vec_id = cur_vecid;
+					pqinfo->ret_vec = pcur; 
+					return SPT_PREDICTION_OK;
+				}
+
+				startbit += len;
+				ppre = pcur;
+				pcur = pnext;
+				pre_vecid = cur_vecid;
+				cur_vecid = next_vecid;
+				cur_vec.val = next_vec.val;
+			 } else {
+				//printf("return err line %d\r\n",__LINE__);
+				 return SPT_PREDICTION_ERR;
+			 }
+		}
+	}
+#endif
 	return SPT_PREDICTION_ERR;
 }
+
 
 int find_data_prediction(struct cluster_head_t *pclst, struct prediction_info_t *pqinfo)
 {

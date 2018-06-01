@@ -448,7 +448,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
     //vecid_a = vec_alloc_from_grp(pclst, id, &pvec_a, __LINE__);
     //vecid_a = vec_alloc_by_hash(pclst, &pvec_a, new_data, pinsert->cmp_pos);
     vecid_a = vec_alloc_by_hash_template(pclst, &pvec_a, pinsert->cmp_pos,
-			pinsert->search_vecid, pinsert->search_vecpos, pinsert->search_vec_cnt);
+			pinsert->search_vecid, pinsert->search_vecpos, pinsert->search_vec_cnt, 1);
 	
 	if (pvec_a == 0) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
@@ -491,7 +491,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
         //vecid_b = vec_alloc_from_grp(pclst, id, &pvec_b,__LINE__);
 		//vecid_b = vec_alloc_by_hash(pclst, &pvec_b, new_data, pinsert->fs);
 		vecid_b = vec_alloc_by_hash_template(pclst, &pvec_b,  pinsert->fs,
-			pinsert->search_vecid, pinsert->search_vecpos, pinsert->search_vec_cnt);
+			pinsert->search_vecid, pinsert->search_vecpos, pinsert->search_vec_cnt, 0);
 		if (pvec_b == 0) {
 			spt_print("\r\n%d\t%s", __LINE__, __func__);
 			spt_set_data_not_free(pdh);
@@ -598,7 +598,7 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
     //vecid_b = vec_alloc_from_grp(pclst, id, &pvec_b, __LINE__);
 	//vecid_b = vec_alloc_by_hash(pclst, &pvec_b, new_data, pinsert->fs);
 	vecid_b = vec_alloc_by_hash_template(pclst, &pvec_b, pinsert->fs,
-			pinsert->search_vecid, pinsert->search_vecpos, pinsert->search_vec_cnt);
+			pinsert->search_vecid, pinsert->search_vecpos, pinsert->search_vec_cnt, 1);
 	if (!pvec_b) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		spt_set_data_not_free(pdh);
@@ -614,7 +614,7 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
     //vecid_a = vec_alloc_from_grp(pclst, id, &pvec_a,__LINE__);
 	//vecid_a = vec_alloc_by_hash(pclst, &pvec_a, new_data, pinsert->cmp_pos);
 	vecid_a = vec_alloc_by_hash_template(pclst, &pvec_a, pinsert->cmp_pos,
-			pinsert->search_vecid, pinsert->search_vecpos, pinsert->search_vec_cnt);
+			pinsert->search_vecid, pinsert->search_vecpos, pinsert->search_vec_cnt, 0);
 	if (!pvec_a) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		spt_set_data_not_free(pdh);
@@ -742,7 +742,7 @@ int do_insert_last_down(struct cluster_head_t *pclst,
     //vecid_a = vec_alloc_from_grp(pclst, id, &pvec_a, __LINE__);
 	//vecid_a = vec_alloc_by_hash(pclst, &pvec_a, new_data, pinsert->fs);
 	vecid_a = vec_alloc_by_hash_template(pclst, &pvec_a, pinsert->fs,
-			pinsert->search_vecid, pinsert->search_vecpos, pinsert->search_vec_cnt);
+			pinsert->search_vecid, pinsert->search_vecpos, pinsert->search_vec_cnt, 1);
 	if (pvec_a == 0) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		spt_set_data_not_free(pdh);
@@ -829,7 +829,7 @@ int do_insert_up_via_d(struct cluster_head_t *pclst,
     //vecid_a = vec_alloc_from_grp(pclst, id, &pvec_a, __LINE__);
 	//vecid_a = vec_alloc_by_hash(pclst, &pvec_a, new_data, pinsert->fs);
 	vecid_a = vec_alloc_by_hash_template(pclst, &pvec_a, pinsert->fs,
-			pinsert->search_vecid, pinsert->search_vecpos, pinsert->search_vec_cnt);
+			pinsert->search_vecid, pinsert->search_vecpos, pinsert->search_vec_cnt, 1);
 	if (pvec_a == 0) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		spt_set_data_not_free(pdh);
@@ -1839,7 +1839,7 @@ int find_data_template(struct cluster_head_t *pclst, char *data, int *search_vec
 	template_index = get_data_template_index(data);
 	begin_grp = template_index * (GRPS_PER_PG + 10);
 
-
+	data = data + 2;
 	pdata = data;
 
 	prdata = pclst->get_key(data);
@@ -1915,8 +1915,10 @@ go_right:
 		if (cmp == 0) {
 			startbit += len;
 			/*find the same record*/
-			if (startbit >= endbit)
+			if (startbit >= endbit) {
+				vec_cnt--;
 				break;
+			}
 			ppre = pcur;
 			pcur = pnext;
 			pre_vecid = cur_vecid;
@@ -1930,7 +1932,7 @@ go_right:
 				endbit - startbit);
 			continue;
 		}
-		return vec_cnt;
+		return vec_cnt--;
 		/*first bit is 0£¬start from pcur_vec->down*/
 go_down:
 
@@ -1940,7 +1942,7 @@ go_down:
 		}
 		while (fs_pos > startbit) {
 			if (cur_vec.down == SPT_NULL)
-				return vec_cnt;
+				return vec_cnt--;
 			pnext = (struct spt_vec *)vec_id_2_ptr(pclst,
 					cur_vec.down);
 			next_vec.val = pnext->val;
@@ -1960,7 +1962,7 @@ go_down:
 				vec_cnt++;
 				continue;
 			}
-			return vec_cnt;
+			return vec_cnt--;
 
 		}
 		spt_assert(fs_pos == startbit);
@@ -3508,6 +3510,7 @@ char *delete_data_prediction(struct cluster_head_t *pclst, char *pdata)
 }
 int template_entry_ok;
 int template_entry_cnt;
+extern 
 
 char *insert_data_template(char *pdata)
 {
@@ -3518,8 +3521,8 @@ char *insert_data_template(char *pdata)
 	int ret = 0;
 	int cluster_id = get_data_cluster_index(pdata);
 	int vec_cnt = 0;
-	int search_vecid[32];
-	int search_vecpos[32];
+	int search_vecid[32] = {0};
+	int search_vecpos[32] ={0};
 	int entry_vec_id ;
 	/*
 	 *first look up in the top cluster.
@@ -3531,9 +3534,11 @@ char *insert_data_template(char *pdata)
 		spt_set_errno(SPT_MASKED);
 		return 0;
 	}
-	vec_cnt = find_data_template(template_cluster, pdata + 2 ,search_vecid, search_vecpos);
+	vec_cnt = find_data_template(template_cluster, pdata ,search_vecid, search_vecpos);
 	entry_vec_id = check_vecid_useful(pnext_clst, pdata, search_vecid, vec_cnt);
 
+	pre_qinfo.endbit = pnext_clst->endbit;
+	pre_qinfo.data = pdata;
 	if (entry_vec_id != -1) {
 		pre_qinfo.pstart_vec = vec_id_2_ptr(pnext_clst, entry_vec_id);
 		pre_qinfo.startid = entry_vec_id;
@@ -3542,13 +3547,21 @@ char *insert_data_template(char *pdata)
 		if (ret == 0) {
 			template_entry_cnt++;
 			goto pre_find_data;
+		} else {
+			if (ret == -2) {
+#if 0
+				printf("entry_vec_id %x\r\n", entry_vec_id);
+				printf("%p,%p,%d\r\n",search_vecid, search_vecpos, vec_cnt);
+				printf("data %p\r\n", pdata);
+				printf("cluster %p\r\n", pnext_clst);
+#endif
+			}
 		}
+
 	}
 	
 	pre_qinfo.pstart_vec = pnext_clst->pstart;
 	pre_qinfo.startid = pnext_clst->vec_head;
-	pre_qinfo.endbit = pnext_clst->endbit;
-	pre_qinfo.data = pdata;
 	ret = find_data_prediction(pnext_clst, &pre_qinfo);
 pre_find_data:
 	qinfo.op = SPT_OP_INSERT;
