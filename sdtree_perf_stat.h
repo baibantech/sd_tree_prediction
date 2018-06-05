@@ -66,6 +66,12 @@ PERF_STAT_DEC(find_pre_entry);
 PERF_STAT_DEC(entry_vec_search);
 PERF_STAT_DEC(grp_by_data);
 PERF_STAT_DEC(index_by_data);
+PERF_STAT_DEC(get_data_template);
+PERF_STAT_DEC(temp_get_data);
+PERF_STAT_DEC(temp_diff_cmp);
+PERF_STAT_DEC(temp_find_fs);
+PERF_STAT_DEC(temp_find_start);
+PERF_STAT_DEC(temp_find_down);
 			
 
 

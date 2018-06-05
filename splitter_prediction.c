@@ -403,6 +403,7 @@ int find_data_entry_prediction(struct cluster_head_t *pclst, struct prediction_i
 	refind_cnt = 0;
 
 refind_start:
+	signpost = 0;
 	pcur = pqinfo->pstart_vec;
 	cur_vecid = pre_vecid = pqinfo->startid;
 refind_forward:
@@ -862,7 +863,248 @@ prediction_check:
 #endif
 	return SPT_PREDICTION_ERR;
 }
+int find_data_template_prediction(struct cluster_head_t *pclst, char *data,int *search_vecid, int *search_vecpos)
+{
+	int cur_data, vecid, cmp, op, cur_vecid, pre_vecid, next_vecid, cnt;
+	struct spt_vec *pcur, *pnext, *ppre;
+	struct spt_vec tmp_vec, cur_vec, next_vec;
+	char *pcur_data;
+	u64 startbit, endbit, len, fs_pos, signpost;
+	int va_old, va_new;
+	int ret;
+	int retb;
+	char *pdata, *prdata;
+	struct spt_dh *pdh;
+	spt_cb_end_key finish_key_cb;
+	u64 first_chbit;
+	int template_index;
+	int begin_grp;
+	int vec_cnt = 0;
+	template_index = get_data_template_index(data);
+	begin_grp = template_index *(GRPS_PER_PG + 10);
+	data = data +2;	
+	pdata = data;
 
+	prdata = pclst->get_key(data);
+	finish_key_cb = pclst->get_key_end;
+
+	cur_data = SPT_INVALID;
+	pcur = pclst->pstart;
+	cur_vecid = pre_vecid = pclst->vec_head;
+
+	ppre = NULL;
+	cur_vecid = pre_vecid;
+	pre_vecid = SPT_INVALID;
+	cur_vec.val = pcur->val;
+	startbit = pclst->startbit;
+	endbit = pclst->endbit;
+	search_vecid[vec_cnt] = cur_vecid + begin_grp*VEC_PER_GRP;
+	search_vecpos[vec_cnt] = 16;
+	vec_cnt++;
+
+	while (startbit < endbit) {
+		/*first bit is 1｣ｬcompare with pcur_vec->right*/
+		if (test_bit_set(prdata, startbit)) {
+			if (cur_vec.type == SPT_VEC_DATA) {
+				len = endbit - startbit;
+				if (cur_data != SPT_INVALID) {
+					pclst->get_key_in_tree_end(pcur_data);
+				}
+				cur_data = cur_vec.rd;
+				if (cur_data >= 0 && cur_data < SPT_INVALID) {
+					pdh = (struct spt_dh *)db_id_2_ptr(pclst,
+						cur_data);
+					smp_mb();/* ^^^ */
+					pcur_data = pclst->get_key_in_tree(pdh->pdata);
+
+					first_chbit = get_first_change_bit(prdata,
+							pcur_data,
+							pclst->startbit,
+							startbit);
+					if (first_chbit == -1) {	
+						return vec_cnt;
+					}
+					goto prediction_check;
+
+				} else if (cur_data == SPT_NULL) {
+					return 1;
+				}
+				else {
+					spt_assert(0);
+				}
+
+			} else {
+				pnext = (struct spt_vec *)vec_id_2_ptr(pclst,
+					cur_vec.rd);
+				next_vec.val = pnext->val;
+				next_vecid = cur_vec.rd;
+				len = next_vec.pos + signpost - startbit + 1;
+
+				if(startbit + len >= endbit) {
+					cur_data = get_data_id(pclst, pnext);
+					if (cur_data >= 0 && cur_data < SPT_INVALID) {
+						pdh = (struct spt_dh *)db_id_2_ptr(pclst,
+							cur_data);
+						smp_mb();/* ^^^ */
+						pcur_data = pclst->get_key_in_tree(pdh->pdata);
+					
+					} else
+						spt_assert(0);
+
+					first_chbit = get_first_change_bit(
+							prdata,
+							pcur_data,
+							pclst->startbit,
+							startbit);
+					if(first_chbit == -1) {
+						return vec_cnt;
+					}
+					goto prediction_check;
+				}
+				startbit += len;
+				ppre = pcur;
+				pcur = pnext;
+				pre_vecid = cur_vecid;
+				cur_vecid = next_vecid;
+				cur_vec.val = next_vec.val;
+				search_vecid[vec_cnt] = cur_vecid + begin_grp*VEC_PER_GRP;
+				search_vecpos[vec_cnt] = 16 + cur_vec.pos + 1;
+				vec_cnt++;
+			}
+		} else {
+
+			if (cur_vec.down != SPT_NULL) {
+				pnext = (struct spt_vec *)vec_id_2_ptr(pclst,
+						cur_vec.down);
+				next_vec.val = pnext->val;
+				next_vecid = cur_vec.down;
+				len = next_vec.pos + signpost - startbit + 1;
+
+				if (!test_bit_zero(prdata, startbit, len) 
+						|| (startbit + len >= endbit)) {
+					cur_data = get_data_id(pclst, pnext);
+					if (cur_data >= 0 && cur_data < SPT_INVALID) {
+						pdh = (struct spt_dh *)db_id_2_ptr(pclst,
+							cur_data);
+						smp_mb();/* ^^^ */
+						pcur_data = pclst->get_key_in_tree(pdh->pdata);
+					
+					} else
+						spt_assert(0);
+					first_chbit = get_first_change_bit(prdata,
+								pcur_data,
+								pclst->startbit,
+								startbit);
+					if (first_chbit == -1) {
+						return vec_cnt;
+					}
+					goto prediction_check;
+				}
+
+				startbit += len;
+				ppre = pcur;
+				pcur = pnext;
+				pre_vecid = cur_vecid;
+				cur_vecid = next_vecid;
+				cur_vec.val = next_vec.val;
+				search_vecid[vec_cnt] = cur_vecid + begin_grp*VEC_PER_GRP;
+				search_vecpos[vec_cnt] = 16 + cur_vec.pos + 1;
+				vec_cnt++;
+
+			 } else {
+				if(ppre == NULL) {
+					return 1;
+				}
+				cur_data = get_data_id(pclst, ppre);
+				if (cur_data >= 0 && cur_data < SPT_INVALID) {
+					pdh = (struct spt_dh *)db_id_2_ptr(pclst,
+						cur_data);
+					smp_mb();/* ^^^ */
+					pcur_data = pclst->get_key_in_tree(pdh->pdata);
+					first_chbit = get_first_change_bit(prdata,
+							pcur_data,
+							pclst->startbit,
+							startbit);
+					if (first_chbit == -1) {	
+						return vec_cnt;
+					}
+					goto prediction_check;
+				
+				} else {
+					spt_assert(0);
+				
+				}
+			 }
+		}
+	}
+prediction_check:
+	pcur = pclst->pstart;
+	cur_vecid = pre_vecid = pclst->vec_head;
+	ppre = NULL;
+	cur_vecid = pre_vecid;
+	pre_vecid = SPT_INVALID;
+	cur_vec.val = pcur->val;
+
+	endbit = first_chbit;
+	startbit = pclst->startbit;
+	vec_cnt = 1;
+
+	if(startbit == endbit) {
+		return vec_cnt;
+	}
+
+	while(startbit < endbit) {
+		if (test_bit_set(prdata, startbit)) {
+			
+			if (cur_vec.type == SPT_VEC_DATA) {
+				return vec_cnt;
+			}
+			else {
+				pnext = (struct spt_vec *)vec_id_2_ptr(pclst,
+					cur_vec.rd);
+				next_vec.val = pnext->val;
+				next_vecid = cur_vec.rd;
+				
+				len = next_vec.pos + signpost - startbit + 1;
+				if(startbit + len >= endbit) {
+					return vec_cnt;
+				}
+				startbit += len;
+				ppre = pcur;
+				pcur = pnext;
+				pre_vecid = cur_vecid;
+				cur_vecid = next_vecid;
+				cur_vec.val = next_vec.val;
+				vec_cnt++;
+			}
+		} else {
+
+			if (cur_vec.down != SPT_NULL) {
+				pnext = (struct spt_vec *)vec_id_2_ptr(pclst,
+						cur_vec.down);
+				next_vec.val = pnext->val;
+				next_vecid = cur_vec.down;
+				len = next_vec.pos + signpost - startbit + 1;
+
+				if (!test_bit_zero(prdata, startbit, len) 
+						|| (startbit + len >= endbit)) {
+					return vec_cnt;
+				}
+
+				startbit += len;
+				ppre = pcur;
+				pcur = pnext;
+				pre_vecid = cur_vecid;
+				cur_vecid = next_vecid;
+				cur_vec.val = next_vec.val;
+				vec_cnt++;
+			 } else {
+				 return vec_cnt;
+			 }
+		}
+	}
+	return vec_cnt;
+}
 
 int find_data_prediction(struct cluster_head_t *pclst, struct prediction_info_t *pqinfo)
 {
@@ -898,6 +1140,7 @@ int find_data_prediction(struct cluster_head_t *pclst, struct prediction_info_t 
 	refind_cnt = 0;
 
 refind_start:
+	signpost = 0;
 	pcur = pqinfo->pstart_vec;
 	cur_vecid = pre_vecid = pqinfo->startid;
 refind_forward:

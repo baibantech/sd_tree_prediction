@@ -20,6 +20,12 @@ PERF_STAT_DEFINE(find_pre_entry);
 PERF_STAT_DEFINE(entry_vec_search);
 PERF_STAT_DEFINE(grp_by_data);
 PERF_STAT_DEFINE(index_by_data);
+PERF_STAT_DEFINE(get_data_template);
+PERF_STAT_DEFINE(temp_get_data);
+PERF_STAT_DEFINE(temp_diff_cmp);
+PERF_STAT_DEFINE(temp_find_fs);
+PERF_STAT_DEFINE(temp_find_start);
+PERF_STAT_DEFINE(temp_find_down);
 
 
 
@@ -46,6 +52,12 @@ sd_perf_stat *sd_perf_stat_array[] =
 	PERF_STAT_PTR(entry_vec_search),
 	PERF_STAT_PTR(grp_by_data),
 	PERF_STAT_PTR(index_by_data),
+	PERF_STAT_PTR(get_data_template),
+	PERF_STAT_PTR(temp_get_data),
+	PERF_STAT_PTR(temp_diff_cmp),
+	PERF_STAT_PTR(temp_find_fs),
+	PERF_STAT_PTR(temp_find_start),
+	PERF_STAT_PTR(temp_find_down),
 };
 
 void sd_perf_stat_init()

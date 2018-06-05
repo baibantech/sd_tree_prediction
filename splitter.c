@@ -1836,6 +1836,7 @@ int find_data_template(struct cluster_head_t *pclst, char *data, int *search_vec
 	int vec_cnt = 0;
 	int template_index;
 	int begin_grp;
+	PERF_STAT_START(temp_find_start);	
 	template_index = get_data_template_index(data);
 	begin_grp = template_index * (GRPS_PER_PG + 10);
 
@@ -1847,7 +1848,6 @@ int find_data_template(struct cluster_head_t *pclst, char *data, int *search_vec
 
 	cur_data = SPT_INVALID;
 
-	signpost = 0;
 	pcur = pclst->pstart;
 	cur_vecid = pre_vecid = pclst->vec_head;
 	
@@ -1860,8 +1860,8 @@ int find_data_template(struct cluster_head_t *pclst, char *data, int *search_vec
 	search_vecid[vec_cnt] = cur_vecid + begin_grp*VEC_PER_GRP;
 	search_vecpos[vec_cnt] = 16;
 	vec_cnt++;
-	
 	fs_pos = find_fs(prdata, startbit, endbit-startbit);
+	PERF_STAT_END(temp_find_start);	
 	while (startbit < endbit) {
 		/*first bit is 1£¬compare with pcur_vec->right*/
 		if (fs_pos != startbit)
@@ -1872,6 +1872,8 @@ go_right:
 			pclst->get_key_in_tree_end(pcur_data);
 		}
 		if (cur_vec.type == SPT_VEC_DATA) { 
+			return vec_cnt;
+#if 0
 			len = endbit - startbit;
 			cur_data = cur_vec.rd;
 			if (cur_data >= 0 && cur_data < SPT_INVALID) {
@@ -1883,6 +1885,8 @@ go_right:
 				return vec_cnt;
 			} else
 				spt_assert(0);
+
+#endif
 		} else {
 			pnext = (struct spt_vec *)vec_id_2_ptr(pclst,
 					cur_vec.rd);
@@ -1893,7 +1897,9 @@ go_right:
 		}
 		if (cur_data == SPT_INVALID
 			&& cur_vec.type != SPT_VEC_DATA) {
+			PERF_STAT_START(temp_get_data);
 			cur_data = get_data_id(pclst, pnext);
+			PERF_STAT_END(temp_get_data);
 			if (cur_data >= 0
 				&& cur_data < SPT_INVALID) {
 				pdh = (struct spt_dh *)db_id_2_ptr(pclst,
@@ -1909,8 +1915,9 @@ go_right:
 				return -1;
 			}
 		}
-
+		PERF_STAT_START(temp_diff_cmp);
 		cmp = diff_identify(prdata, pcur_data, startbit, len, &cmpres);
+		PERF_STAT_END(temp_diff_cmp);
 
 		if (cmp == 0) {
 			startbit += len;
@@ -1927,22 +1934,26 @@ go_right:
 			search_vecid[vec_cnt] = cur_vecid + begin_grp*VEC_PER_GRP;
 			search_vecpos[vec_cnt] = 16 + cur_vec.pos + 1;
 			vec_cnt++;
+			PERF_STAT_START(temp_find_fs);	
 			fs_pos = find_fs(prdata,
 				startbit,
 				endbit - startbit);
+			PERF_STAT_END(temp_find_fs);	
 			continue;
 		}
 		return vec_cnt--;
 		/*first bit is 0£¬start from pcur_vec->down*/
 go_down:
-
+		PERF_STAT_START(temp_find_down);
 		if (cur_data != SPT_INVALID) {
 			cur_data = SPT_INVALID;
 			pclst->get_key_in_tree_end(pcur_data);
 		}
 		while (fs_pos > startbit) {
-			if (cur_vec.down == SPT_NULL)
+			if (cur_vec.down == SPT_NULL) {
+				PERF_STAT_END(temp_find_down);
 				return vec_cnt--;
+			}
 			pnext = (struct spt_vec *)vec_id_2_ptr(pclst,
 					cur_vec.down);
 			next_vec.val = pnext->val;
@@ -1962,6 +1973,7 @@ go_down:
 				vec_cnt++;
 				continue;
 			}
+			PERF_STAT_END(temp_find_down);
 			return vec_cnt--;
 
 		}
@@ -3510,7 +3522,6 @@ char *delete_data_prediction(struct cluster_head_t *pclst, char *pdata)
 }
 int template_entry_ok;
 int template_entry_cnt;
-extern 
 
 char *insert_data_template(char *pdata)
 {
@@ -3534,7 +3545,9 @@ char *insert_data_template(char *pdata)
 		spt_set_errno(SPT_MASKED);
 		return 0;
 	}
-	vec_cnt = find_data_template(template_cluster, pdata ,search_vecid, search_vecpos);
+	PERF_STAT_START(get_data_template);
+	vec_cnt = find_data_template_prediction(template_cluster, pdata ,search_vecid, search_vecpos);
+	PERF_STAT_END(get_data_template);
 	entry_vec_id = check_vecid_useful(pnext_clst, pdata, search_vecid, vec_cnt);
 
 	pre_qinfo.endbit = pnext_clst->endbit;
@@ -3543,7 +3556,10 @@ char *insert_data_template(char *pdata)
 		pre_qinfo.pstart_vec = vec_id_2_ptr(pnext_clst, entry_vec_id);
 		pre_qinfo.startid = entry_vec_id;
 		template_entry_ok++;
+
+		PERF_STAT_START(find_pre_entry);
 		ret = find_data_entry_prediction(pnext_clst, &pre_qinfo);
+		PERF_STAT_END(find_pre_entry);
 		if (ret == 0) {
 			template_entry_cnt++;
 			goto pre_find_data;
@@ -3753,8 +3769,10 @@ struct cluster_head_t *spt_cluster_template_init(
 		return NULL;
 	}
 	plower_clst->cluster_type = CLUSTER_TEMPLATE;
+	plower_clst->last_alloc_id = ((4096 - sizeof(struct cluster_head_t))/GRP_SIZE)*VEC_PER_GRP;
 
 	data_mem = construct_template_data(2048);
+	sort_data_mem(data_mem, 256);
 	do {
 		qinfo.op = SPT_OP_INSERT;
 		qinfo.signpost = 0;

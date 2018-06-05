@@ -446,6 +446,26 @@ void get_data_from_file(struct data_set_file *flist,long long start_off,long lon
 	return ;
 }
 
+#define spt_htonl(x) ((((unsigned int)(x)&0xff000000) >> 24) | \
+					(((unsigned int)(x)&0x00ff0000) >>8)| \
+					(((unsigned int)(x)&0x0000ff00) << 8) | \
+					(((unsigned int)(x)&0x000000ff) << 24))
+void sort_data_mem(unsigned int  *data_mem, int size)
+{
+	int i ,j;
+	int tmp = 0;
+	for (i = 0 ; i < size - 1 ; i++) {
+		for (j = 0 ; j < size - i - 1 ;j++) {
+			if (spt_htonl(*(data_mem + j)) < spt_htonl(*(data_mem + j + 1)))
+			{
+				tmp = *(data_mem + j);	
+				*(data_mem + j) = *(data_mem + j + 1);
+				*(data_mem + j + 1) = tmp;
+			}
+		}
+	}
+}
+
 char * construct_template_data(int mem_size)
 {
     int dev_random_id = -1;
@@ -543,6 +563,8 @@ void test_pre_insert_proc(void *args)
 			insert_cnt++;
 			spt_thread_start(g_thrd_id);
 try_again:
+
+            PERF_STAT_START(whole_insert);
 			if(NULL ==(ret_data =  test_insert_data(data)))
             {
                 ret = spt_get_errno();
@@ -573,6 +595,7 @@ try_again:
 			}
 			else
 			{
+				PERF_STAT_END(whole_insert);
 				if(ret_data != data)
 				{
 					merge_cnt++;		
