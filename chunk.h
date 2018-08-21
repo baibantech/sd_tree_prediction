@@ -52,53 +52,99 @@
 
 #include "spt_dep.h"
 #include "spt_thread.h"
+
+/* vec type*/
 #define SPT_VEC_RIGHT 0
 #define SPT_VEC_DATA 1
-#define SPT_VEC_SIGNPOST 2
-#define SPT_VEC_SYS_FLAG_DATA 1
 
-
+/* vec status */
 #define SPT_VEC_VALID 0
 #define SPT_VEC_INVALID 1
 #define SPT_VEC_RAW 2
 
+/* vec scan status */
+#define SPT_VEC_PVALUE  0
+#define SPT_VEC_HVALUE 1
+#define SPT_VEC_SCAN_LOCK 1
 
-#define SPT_VEC_SIGNPOST_BIT 15
+/* vec id bit len*/
+#define SPT_VEC_BITS_LEN 21
 
-#define SPT_VEC_SIGNPOST_MASK ((1ul<<SPT_VEC_SIGNPOST_BIT)-1)
+/* vec nums in a cluster define by SPT_VEC_BITS_LEN*/
+#define VEC_PER_CLUSTER  0x200000ull
 
+/* vec grp info*/
+#define VBLK_SIZE 8
+#define GRP_SIZE 272	//16+32*8
+#define GRPS_PER_PG  (PG_SIZE/GRP_SIZE)		//15
+#define VEC_PER_GRP 32
+#define VEC_PER_PG (VEC_PER_GRP*GRPS_PER_PG)
+#define GRP_ALLOCMAP_MASK 0xFFFFFFFFull
+#define PG_HEAD_OFFSET (GRP_SIZE*GRPS_PER_PG)
+#define GRP_TICK_MASK 0xful
+#define PG_SPILL_WATER_MARK 360
 
-#define spt_set_vec_invalid(x) (x.status = SPT_VEC_INVALID)
-#define spt_set_right_flag(x) (x.type = SPT_VEC_RIGHT)
-#define spt_set_data_flag(x) (x.type = SPT_VEC_DATA)
-
-#define SPT_PTR_MASK (0x00000000fffffffful)
-#define SPT_PTR_VEC (0ul)
-#define SPT_PTR_DATA (1ul)
-
-#define SPT_BUF_TICK_BITS 18
-#define SPT_BUF_TICK_MASK ((1<<SPT_BUF_TICK_BITS)-1)
-
-#define SPT_PER_THRD_RSV_CNT 5
-#define SPT_BUF_VEC_WATERMARK 200
-#define SPT_BUF_DATA_WATERMARK 100
-
-#define spt_data_free_flag(x) ((x)->rsv&0x1)
-#define spt_set_data_free_flag(x, y) ((x)->rsv |= y)
-#define spt_set_data_not_free(x) ((x)->rsv &= 0xfffe)
-
-
+/* cluster divide info*/
 #define SPT_SORT_ARRAY_SIZE (4096*8)
 #define SPT_DVD_CNT_PER_TIME (100)
 #define SPT_DVD_THRESHOLD_VA (1000000)
 #define SPT_DVD_MOVE_TIMES (SPT_DVD_THRESHOLD_VA/(2*SPT_DVD_CNT_PER_TIME))
 #define SPT_DATA_HIGH_WATER_MARK (1600000)
 
+
+/* data size and bit len*/
+#define DATA_SIZE g_data_size
+#define DATA_BIT_MAX (DATA_SIZE*8)
+
+
+/* vec id to ptr address info */
+#define PG_BITS 12
+#define PG_SIZE (1<<PG_BITS)
+#define CLST_PG_NUM_MAX ((VEC_PER_CLUSTER/VEC_PER_PG) + 1)
+#define CLST_NDIR_PGS  (PG_SIZE - sizeof(struct cluster_head_t) - 3*sizeof(char*))/sizeof(char*)       //how much
+#define CLST_IND_PG (CLST_NDIR_PGS)    //index
+#define CLST_DIND_PG (CLST_IND_PG+1)    //index
+#define CLST_N_PGS (CLST_DIND_PG+1)//pclst->pglist[] max
+
+/*vec special value*/
+#define SPT_NULL 0x1fffff
+#define SPT_INVALID 0x1ffffe
+
+/*scan direction*/
+#define SPT_DIR_START 0
+#define SPT_RIGHT 1
+#define SPT_DOWN 2
+
+/* data opt*/
+#define SPT_OP_FIND 1
+#define SPT_OP_DELETE 2
+#define SPT_OP_INSERT 3
+
+/* ret code */
+#define CLT_FULL 3
+#define CLT_NOMEM 2
+#define CLT_ERR 1
+#define SPT_OK 0
+#define SPT_ERR -1
+#define SPT_NOMEM -2
+#define SPT_WAIT_AMT -3
+#define SPT_DO_AGAIN -4
+#define SPT_MASKED -5
+#define SPT_NOT_FOUND 1
+
+#define spt_set_vec_invalid(x) (x.status = SPT_VEC_INVALID)
+#define spt_set_right_flag(x) (x.type = SPT_VEC_RIGHT)
+#define spt_set_data_flag(x) (x.type = SPT_VEC_DATA)
+
+#define SPT_HASH_BIT  11
+#define SPT_POS_BIT 5
+#define spt_get_pos_hash(x) (x.scan_status >> SPT_POS_BIT)
+#define spt_get_pos_offset(x) (x.scan_status & 0x001F)
+
 typedef char *(*spt_cb_get_key)(char *);
 typedef void (*spt_cb_free)(char *);
 typedef void (*spt_cb_end_key)(char *);
 typedef char *(*spt_cb_construct)(char *);
-
 
 
 struct spt_sort_info {
@@ -108,22 +154,6 @@ struct spt_sort_info {
 	char *array[0];//pdh->pdata
 };
 
-struct spt_buf_list {
-//    unsigned long long flag:1;
-	unsigned long long tick:18;
-	unsigned long long id:23;
-	unsigned long long next:23;
-};
-
-struct block_head_t {
-	unsigned int magic;
-	unsigned int next;
-};
-
-struct db_head_t {
-	unsigned int magic;
-	unsigned int next;
-};
 
 struct spt_dh {
 //spt_data_hd
@@ -139,18 +169,46 @@ struct spt_vec {
 		struct {
 			volatile unsigned long long status:      2;
 			volatile unsigned long long type:       1;
-			volatile unsigned long long pos:        15;
-			volatile unsigned long long down:       23;
-			volatile unsigned long long rd:         23;
-		};
-		struct {
-			volatile unsigned long long dummy_flag:         3;
-			volatile unsigned long long ext_sys_flg:        6;
-			volatile unsigned long long ext_usr_flg:        6;
-			volatile unsigned long long idx:                24;
-			volatile long long dummy_rd:           23;
+			volatile unsigned long long scan_lock:   1;
+			volatile unsigned long long	scan_status: 2; 
+			volatile unsigned long long pos:        16;
+			volatile unsigned long long down:       21;
+			volatile unsigned long long rd:         21;
 		};
 	};
+};
+
+struct spt_grp
+{
+	union
+	{
+		volatile unsigned long long val;
+		struct
+		{
+			volatile unsigned long long allocmap:		32;
+			volatile unsigned long long freemap:		32;
+		};
+	};
+	union {
+		volatile unsigned long long control;
+		struct {
+			volatile unsigned long long tick:  4;
+			volatile unsigned long long next_grp: 20;
+			volatile unsigned long long pre_grp: 20;
+			volatile unsigned long long resv:  20; 
+		};
+	};
+};
+
+struct spt_pg_h
+{
+	unsigned int bit_used;
+};
+struct cluster_address_trans_info {
+	unsigned int pg_num_max;
+	unsigned int pg_vec_num_total;
+	unsigned int pg_db_num_total;
+	unsigned int pg_ptr_bits;
 };
 
 struct cluster_head_t {
@@ -161,44 +219,27 @@ struct cluster_head_t {
 	u64 startbit;
 	u64 endbit;
 	int is_bottom;
-	volatile unsigned int data_total;
-
-	unsigned int pg_num_max;
-	unsigned int pg_num_total;
-	//unsigned int pg_cursor;
-	unsigned int pg_ptr_bits;
-
-	unsigned int free_vec_cnt;
-	unsigned int used_vec_cnt;
-	unsigned int used_db_cnt;
-	unsigned int thrd_total;
-	unsigned int last_alloc_id;
-	unsigned int spill_grp_id;
-	unsigned int static_grp_alloc;
-	unsigned int dynamic_grp_alloc;
-	unsigned long long data_entry;
-	unsigned long long data_loop;
-	unsigned long long data_find;
-	unsigned long long data_entry_prediction;
-	unsigned long long get_data_id_cnt;
-	unsigned int vec_stat[8];
-	unsigned long long data_prediction_cnt;
-	unsigned int first_find;
-	unsigned int vec_static_alloc;
-	unsigned int vec_static_alloc_conflict;
-	unsigned int *jhash_value_stat;
-	unsigned int jhash_value_cnt;
-
 	int status;
 	int ins_mask;
 	unsigned int debug;
+	volatile unsigned int data_total;
+
+	unsigned int used_vec_cnt;
+	unsigned int used_db_cnt;
+	unsigned int free_vec_cnt;
+	unsigned int spill_grp_id;
+	unsigned int thrd_total;
+	unsigned int last_alloc_id;
+
 	spt_cb_get_key get_key;
 	spt_cb_get_key get_key_in_tree;
-	//void (*freedata)(char *p, u8 flag);
 	spt_cb_free freedata;
 	spt_cb_end_key get_key_end;
 	spt_cb_end_key get_key_in_tree_end;
 	spt_cb_construct construct_data;
+	
+	/* vec id to ptr info */
+	struct cluster_address_trans_info address_info;
 	volatile char **pglist_db;
 	volatile char *pglist_vec[0];
 };
@@ -220,11 +261,6 @@ struct spt_dh_ext {
 	char *data;
 };
 
-
-struct vec_head_t {
-	unsigned int magic;
-	unsigned int next;
-};
 
 struct vec_cmpret_t {
 	u64 smallfs;    /* small data firt set bit from the diff bit */
@@ -272,8 +308,8 @@ struct prediction_info_t {
 };
 
 struct insert_info_t {
-//spt_insert_info
 	struct spt_vec *pkey_vec;
+	u32 vec_real_pos;
 	u64 key_val;
 	u64 signpost;
 	u64 startbit;
@@ -282,11 +318,9 @@ struct insert_info_t {
 	u64 endbit;         /* not include */
 	u32 dataid;
 	int ref_cnt;
-	u32 key_id;
     u32 hang_vec;
-	/* for debug */
-	int alloc_type;
-	char *pcur_data;
+	char *pcur_data; /*maped orig data*/
+	char *pnew_data; /*maped new data*/
 	struct vec_cmpret_t cmpres;
 };
 
@@ -309,92 +343,14 @@ struct travl_info {
 	struct spt_vec_f vec_f;
 	long long signpost;
 };
-//#define DBLK_BITS 3
-#define DATA_SIZE g_data_size
-#define RSV_SIZE 2
-#define DBLK_SIZE (sizeof(struct spt_dh))
-#define VBLK_BITS 3
-#define VBLK_SIZE (1<<VBLK_BITS)
-#define DATA_BIT_MAX (DATA_SIZE*8)
 
-//#define vec_id_2_ptr(pchk, id)    ((char *)pchk+id*VBLK_SIZE);
-
-unsigned int vec_alloc(struct cluster_head_t *pclst, struct spt_vec **vec);
+int vec_alloc(struct cluster_head_t *pclst, struct spt_vec **vec, int sed);
 void vec_free(struct cluster_head_t *pcluster, int id);
 void vec_list_free(struct cluster_head_t *pcluster, int id);
 void db_free(struct cluster_head_t *pcluster, int id);
 
 int spt_get_errno(void);
 extern struct cluster_head_t *pgclst;
-
-//DECLARE_PER_CPU(u32,local_thrd_id);
-//DECLARE_PER_CPU(int,local_thrd_errno);
-//DECLARE_PER_CPU(int,process_enter_check);
-//#define g_thrd_id     per_cpu(local_thrd_id,smp_processor_id())
-//#define g_thrd_errno  per_cpu(local_thrd_errno,smp_processor_id())
-
-
-#define GRP_SIZE 272	//16+32*8
-#define GRPS_PER_PG  (PG_SIZE/GRP_SIZE)		//15
-#define VEC_PER_GRP 32
-#define VEC_PER_PG (VEC_PER_GRP*GRPS_PER_PG)
-#define GRP_ALLOCMAP_MASK 0xFFFFFFFFull
-#define PG_HEAD_OFFSET (GRP_SIZE*GRPS_PER_PG)
-#define PG_SPILL_WATER_MARK 360
-
-#define GRP_TICK_MASK 0xful
-
-#define VEC_PER_CLUSTER  0x800000ull
-
-#define CLST_PG_NUM_MAX ((VEC_PER_CLUSTER/VEC_PER_PG) + 1) /*cluster max = 64m*/
-//#define CHUNK_SIZE (1<<16)
-#define PG_BITS 12
-#define PG_SIZE (1<<PG_BITS)
-#define BLK_BITS 5
-#define BLK_SIZE (1<<BLK_BITS)
-
-#define CLST_NDIR_PGS  (PG_SIZE - sizeof(struct cluster_head_t) - 3*sizeof(char*))/sizeof(char*)       //how much
-
-#define CLST_IND_PG (CLST_NDIR_PGS)    //index
-#define CLST_DIND_PG (CLST_IND_PG+1)    //index
-#define CLST_N_PGS (CLST_DIND_PG+1)//pclst->pglist[] max
-
-
-#define GRP_STATIC_START   0
-#define GRP_DYNAMIC_START  (GRPS_PER_PG*1)
-#define GRP_SPILL_START    (GRPS_PER_PG*2) 
-
-#define GRP_DYNAMIC_POS 20
-
-//#define CLST_TIND_PGS        (CLST_DIND_PGS+1)
-
-
-//extern char* blk_id_2_ptr(cluster_head_t *pclst, unsigned int id);
-//extern char* db_id_2_ptr(cluster_head_t *pclst, unsigned int id);
-//extern char* vec_id_2_ptr(cluster_head_t *pclst, unsigned int id);
-
-#define SPT_NULL 0x7fffff
-#define SPT_INVALID 0x7ffffe
-
-#define SPT_DIR_START 0
-#define SPT_RIGHT 1
-#define SPT_DOWN 2
-
-#define SPT_OP_FIND 1
-#define SPT_OP_DELETE 2
-#define SPT_OP_INSERT 3
-
-
-#define CLT_FULL 3
-#define CLT_NOMEM 2
-#define CLT_ERR 1
-#define SPT_OK 0
-#define SPT_ERR -1
-#define SPT_NOMEM -2
-#define SPT_WAIT_AMT -3
-#define SPT_DO_AGAIN -4
-#define SPT_MASKED -5
-#define SPT_NOT_FOUND 1
 
 unsigned int db_alloc(struct cluster_head_t *pclst,
 		struct spt_dh **db);
@@ -408,12 +364,13 @@ struct cluster_head_t *cluster_init(int is_bottom,
 						spt_cb_free pf_free,
 						spt_cb_construct pf_con);
 
+
+void cluster_vec_add_page(struct cluster_head_t *pclst, int pg_id);
+void cluster_db_add_page(struct cluster_head_t *pclst, int pg_id);
+
 void cluster_destroy(struct cluster_head_t *pclst);
 void free_data(char *p);
 void default_end_get_key(char *p);
-void vec_buf_free(struct cluster_head_t *pclst, int thread_id);
-void db_buf_free(struct cluster_head_t *pclst, int thread_id);
-
 
 void debug_data_print(char *pdata);
 extern int g_data_size;
@@ -447,45 +404,7 @@ void debug_cluster_travl(struct cluster_head_t *pclst);
 void debug_lower_cluster_info_show(void);
 int get_grp_by_data(struct cluster_head_t *pclst, char *data, int pos);
 struct spt_grp *get_grp_from_page_head(char *page, unsigned int grp_id);
-#define SPT_TOP_INSERT 0
-#define SPT_USER_INSERT 2
 
-struct spt_grp
-{
-	union
-	{
-		volatile unsigned long long val;
-		struct
-		{
-			volatile unsigned long long allocmap:		32;
-			volatile unsigned long long freemap:		32;
-		};
-	};
-	union {
-		volatile unsigned long long control;
-		struct {
-			volatile unsigned long long tick:  4;
-			volatile unsigned long long next_grp: 20;
-			volatile unsigned long long pre_grp: 20;
-			volatile unsigned long long resv:  20; 
-		};
-	};
-};
-
-struct spt_pg_h
-{
-	unsigned int bit_used;
-};
-
-#define GRP_SIZE 272	//16+32*8
-#define GRPS_PER_PG  (PG_SIZE/GRP_SIZE)		//15
-#define VEC_PER_GRP 32
-#define VEC_PER_PG (VEC_PER_GRP*GRPS_PER_PG)
-#define GRP_ALLOCMAP_MASK 0xFFFFFFFFull
-#define PG_HEAD_OFFSET (GRP_SIZE*GRPS_PER_PG)
-#define PG_SPILL_WATER_MARK 360
-
-#define GRP_TICK_MASK 0xful
 struct spt_pg_h *get_vec_pg_head(struct cluster_head_t *pclst, unsigned int pgid);
 struct spt_pg_h *get_db_pg_head(struct cluster_head_t *pclst, unsigned int pgid);
 char  *db_grp_id_2_ptr(struct cluster_head_t *pclst, unsigned int grp_id);

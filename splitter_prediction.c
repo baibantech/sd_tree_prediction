@@ -408,7 +408,7 @@ refind_forward:
 	if (pcur == pclst->pstart) {
 		startbit = pclst->startbit;
 	} else {
-		startbit = signpost + cur_vec.pos + 1;
+		startbit = signpost + get_real_pos(&cur_vec) + 1;
 	}
 
 	endbit = pqinfo->endbit;
@@ -563,7 +563,8 @@ refind_forward:
 					}
 					continue;
 				}
-				len = next_vec.pos + signpost - startbit + 1;
+				//len = next_vec.pos + signpost - startbit + 1;
+				len = get_real_pos(&next_vec) + signpost - startbit + 1;
 
 				if(startbit + len >= endbit) {
 					cur_data = get_data_id(pclst, pnext);
@@ -657,7 +658,8 @@ refind_forward:
 					}
 				}
 
-				len = next_vec.pos + signpost - startbit + 1;
+				//len = next_vec.pos + signpost - startbit + 1;
+				len = get_real_pos(&next_vec) + signpost - startbit + 1;
 
 				if (!test_bit_zero(prdata, startbit, len) 
 						|| (startbit + len >= endbit)) {
@@ -775,7 +777,8 @@ refind_forward:
 	if (pcur == pclst->pstart) {
 		startbit = pclst->startbit;
 	} else {
-		startbit = signpost + cur_vec.pos + 1;
+		//startbit = signpost + cur_vec.pos + 1;
+		startbit = signpost + get_real_pos(&cur_vec) + 1;
 	}
 #if 1
 	if(!refind_cnt)
@@ -934,7 +937,8 @@ refind_forward:
 					}
 					continue;
 				}
-				len = next_vec.pos + signpost - startbit + 1;
+				//len = next_vec.pos + signpost - startbit + 1;
+				len = get_real_pos(&next_vec) + signpost - startbit + 1;
 
 				if(startbit + len >= endbit) {
 					cur_data = get_data_id(pclst, pnext);
@@ -1028,7 +1032,8 @@ refind_forward:
 					}
 				}
 
-				len = next_vec.pos + signpost - startbit + 1;
+				//len = next_vec.pos + signpost - startbit + 1;
+				len = get_real_pos(&next_vec) + signpost - startbit + 1;
 
 				if (!test_bit_zero(prdata, startbit, len) 
 						|| (startbit + len >= endbit)) {
@@ -1152,7 +1157,9 @@ prediction_check:
 					//printf("return err line %d\r\n",__LINE__);
 					return SPT_PREDICTION_ERR;
 				}
-				len = next_vec.pos + signpost - startbit + 1;
+				//len = next_vec.pos + signpost - startbit + 1;
+				len = get_real_pos(&next_vec) + signpost - startbit + 1;
+				
 				if(startbit + len >= endbit) {
 					pqinfo->ret_vec_id = cur_vecid;
 					pqinfo->ret_vec = pcur; 
@@ -1186,7 +1193,8 @@ prediction_check:
 				}
 
 
-				len = next_vec.pos + signpost - startbit + 1;
+				//len = next_vec.pos + signpost - startbit + 1;
+				len = get_real_pos(&next_vec) + signpost - startbit + 1;
 
 				if (!test_bit_zero(prdata, startbit, len) 
 						|| (startbit + len >= endbit)) {
@@ -1299,7 +1307,7 @@ next_grp_loop:
 				}
 				continue;
 			}
-			if ((cur_vec.pos + 1 != 8 + i)) {
+			if ((get_real_pos(&cur_vec) + 1 != 8 + i)) {
 				if (first_check) {
 					first_check = 0;
 					goto get_next_grp;
