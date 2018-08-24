@@ -359,8 +359,6 @@ get_id_start:
 			pnext = (struct spt_vec *)vec_id_2_ptr(pclst,
 					cur_vec.rd);
 			next_vec.val = pnext->val;
-			if (debug_get_data_id)
-				pclst->get_data_id_cnt++;
 			if (next_vec.status == SPT_VEC_VALID
 				&& next_vec.down != SPT_NULL) {
 				ppre = pcur;
@@ -2016,7 +2014,6 @@ int final_vec_process(struct cluster_head_t *pclst, struct query_info_t *pqinfo 
 				break;
 
 			case SPT_LAST_DOWN:
-
 				break;
 			case SPT_FIRST_SET:
 				st_insert_info.pkey_vec = pdinfo->pcur;
@@ -2046,9 +2043,6 @@ int final_vec_process(struct cluster_head_t *pclst, struct query_info_t *pqinfo 
 	return ret;
 }
 
-
-
-
 /*ret:1 not found;0 successful; -1 error*/
 /**
 * find_data - data find/delete/insert in a sd tree cluster
@@ -2073,10 +2067,11 @@ int find_data(struct cluster_head_t *pclst, struct query_info_t *pqinfo)
 	struct spt_dh *pdh;
 	//	spt_cb_get_key get_key;
 	spt_cb_end_key finish_key_cb;
-	u32 check_data_id, check_pos;
+	u32 check_data_id, check_pos, check_type;
 
 	struct spt_vec *pcheck_vec = NULL;
 	struct spt_vec check_vec;
+	char *check_data = NULL;
 
 
 	ret = SPT_NOT_FOUND;
@@ -2193,6 +2188,7 @@ prediction_right:
 				} else { 
 					check_pos = first_chbit;
 					check_data_id = cur_data;
+					check_data = pcur_data;
 					goto prediction_check;
 				}
 			} else if (cur_data == SPT_NULL) {
@@ -2210,6 +2206,7 @@ prediction_right:
 						if (first_chbit != -1) {	
 							check_pos = first_chbit;
 							check_data_id = cur_data;
+							check_data = pcur_data;
 							goto prediction_check;
 						}
 					} else 
@@ -2321,13 +2318,14 @@ prediction_down:
 				if (first_chbit != -1) {	
 					check_pos = first_chbit;
 					check_data_id = cur_data;
+					check_data = pcur_data;
 					goto prediction_check;
 				}
 			} else if (cur_data == SPT_NULL) {
-				
-
-			} else 
+				if (ppre)
 					spt_assert(0);
+			} else 
+				spt_assert(0);
 
 			/*last down */
 			pinfo.cur_vec = cur_vec;
@@ -2396,6 +2394,7 @@ prediction_down_continue:
 			if (first_chbit != -1) {
 				check_pos = first_chbit;
 				check_data_id = cur_data;
+				check_data = pcur_data;
 				goto prediction_check;
 			}
 			pinfo.cur_vec = cur_vec;
@@ -2470,49 +2469,32 @@ go_right:
 			}
 			cur_data = cur_vec.rd;
 			if (cur_data >= 0 && cur_data < SPT_INVALID) {
-				pdh = (struct spt_dh *)db_id_2_ptr(pclst,
-						cur_data);
-				smp_mb();/* ^^^ */
-				pcur_data = pclst->get_key_in_tree(pdh->pdata);
+				if (cur_data != check_data_id)
+					goto refind_start;
+				if (!pcheck_vec)
+					goto refind_start;
 			} else if (cur_data == SPT_NULL) {
-				switch (op) {
-				case SPT_OP_FIND:
-					finish_key_cb(prdata);
-					return ret;
-				case SPT_OP_INSERT:
-					st_insert_info.pkey_vec = pcur;
-					st_insert_info.key_val = cur_vec.val;
-					st_insert_info.ref_cnt =
-						pqinfo->multiple;
-					st_insert_info.key_id = cur_vecid;
-					ret = do_insert_first_set(
-							pclst,
-							&st_insert_info,
-							pdata);
-					if (ret == SPT_DO_AGAIN) {
-						cur_data = SPT_INVALID;
+				if (ppre != NULL) {
+					cur_data = get_data_id(pclst, ppre);
+					if (cur_data != check_data_id)
+						goto refind_data;
+					if (!pcheck_vec)
 						goto refind_start;
-					} else if (ret >= 0) {
-						pqinfo->db_id = ret;
-						pqinfo->data = 0;
-						finish_key_cb(prdata);
-						return SPT_OK;
-					}
-					finish_key_cb(prdata);
-					return ret;
-
-					break;
-				case SPT_OP_DELETE:
-					finish_key_cb(prdata);
-					return ret;
-				default:
-					break;
-				}
+						
+				} else
+					goto refind_start;
+			
 			} else
 				spt_assert(0);
-			//ppre = pcur;
-			//pre_vec.val = cur_vec.val;
-			//pcur = NULL;
+			
+			ret = final_vec_process(pclst, pqinfo, &pinfo, check_type;);
+			if (ret == SPT_DO_AGAIN)
+				goto refind_start;
+			finish_key_cb(prdata);
+			if (cur_data != SPT_INVALID)
+				pclst->get_key_in_tree_end(pcur_data);
+			return ret;
+
 		} else {
 			pnext = (struct spt_vec *)vec_id_2_ptr(pclst,
 					cur_vec.rd);
@@ -2549,71 +2531,23 @@ go_right:
 				continue;
 			}
 			len = get_real_pos(&next_vec) - startbit + 1;
+	
+			if (startbit + len >= check_pos) {
+				pcheck_vec = pcur;
+				check_vec = cur_vec;
+				cmp = diff_identify(prdata, check_data, startbit, len, &cmpres);
+				if (cmp == 0)
+					spt_assert(0);
+				else if (cmp > 0) {
+					check_type = SPT_RD_UP;
 
-		}
-		if (cur_data == SPT_INVALID
-			&& cur_vec.type != SPT_VEC_DATA) {
-			cur_data = get_data_id(pclst, pnext);
-			if (cur_data >= 0
-				&& cur_data < SPT_INVALID) {
-				pdh = (struct spt_dh *)db_id_2_ptr(pclst,
-					cur_data);
-				smp_mb();/* ^^^ */
-				pcur_data = pclst->get_key_in_tree(
-					pdh->pdata);
-			} else if (cur_data == SPT_DO_AGAIN) {
-				cur_data = SPT_INVALID;
-				goto refind_start;
-			} else if (cur_data == SPT_NULL) {
-				switch (op) {
-				case SPT_OP_FIND:
-					finish_key_cb(prdata);
-					return ret;
-				case SPT_OP_INSERT:
-					st_insert_info.pkey_vec = pcur;
-					st_insert_info.key_val = cur_vec.val;
-					st_insert_info.ref_cnt =
-						pqinfo->multiple;
-					st_insert_info.key_id = cur_vecid;
-					ret = do_insert_first_set(pclst,
-						&st_insert_info,
-						pdata);
-					if (ret == SPT_DO_AGAIN) {
-						cur_data = SPT_INVALID;
-						goto refind_start;
-					} else if (ret >= 0) {
-						pqinfo->db_id = ret;
-						pqinfo->data = 0;
-                        pqinfo->vec_id = cur_vecid;
-						finish_key_cb(prdata);
-						return SPT_OK;
-					}
-					finish_key_cb(prdata);
-					return ret;
-				case SPT_OP_DELETE:
-					finish_key_cb(prdata);
-					return ret;
-				default:
-					break;
+				} else {
+					check_type = SPT_RD_DOWN;
 				}
-
-			} else {
-				//SPT_NOMEM or SPT_WAIT_AMT;
-
-				finish_key_cb(prdata);
-				if (ret == SPT_OK)
-					return ret;
-				return cur_data;
 			}
-		}
-
-		cmp = diff_identify(prdata, pcur_data, startbit, len, &cmpres);
-
-		if (cmp == 0) {
 			startbit += len;
-			/*find the same record*/
 			if (startbit >= endbit)
-				break;
+				spt_assert(0);
 			ppre = pcur;
 			pcur = pnext;
 			pre_vecid = cur_vecid;
@@ -2624,134 +2558,8 @@ go_right:
 			fs_pos = find_fs(prdata,
 				startbit,
 				endbit - startbit);
-			continue;
 		}
-	/*insert up*/
-		if (cur_vec.type != SPT_VEC_DATA)
-			if (cur_data != get_data_id(pclst, pnext))
-				goto refind_start;
-		if (cmp > 0) {
-			switch (op) {
-			case SPT_OP_FIND:
-				if (pqinfo->op == SPT_OP_FIND) {
-					pqinfo->db_id = cur_data;
-					pqinfo->vec_id = cur_vecid;
-					pqinfo->cmp_result = 1;
-				}
-
-				finish_key_cb(prdata);
-
-				if (cur_data != SPT_INVALID)
-					pclst->get_key_in_tree_end(pcur_data);
-				return ret;
-			case SPT_OP_INSERT:
-				st_insert_info.pkey_vec = pcur;
-				st_insert_info.key_val = cur_vec.val;
-				st_insert_info.cmp_pos = cmpres.pos;
-				st_insert_info.fs = cmpres.smallfs;
-				st_insert_info.signpost = signpost;
-				st_insert_info.endbit = startbit+len;
-				st_insert_info.dataid = cur_data;
-				//for debug
-                //st_insert_info.pcur_data = pcur_data;
-                //st_insert_info.startbit = startbit;
-                //st_insert_info.cmpres = cmpres;
-                st_insert_info.ref_cnt = pqinfo->multiple;
-				st_insert_info.alloc_type = pqinfo->res;
-				st_insert_info.key_id = cur_vecid;
-				ret = do_insert_up_via_r(pclst,
-					&st_insert_info,
-					pdata);
-				if (ret == SPT_DO_AGAIN)
-					goto refind_start;
-				else if (ret >= 0) {
-					pqinfo->db_id = ret;
-					pqinfo->data = 0;
-                            pqinfo->vec_id = cur_vecid;
-					finish_key_cb(prdata);
-
-					if (cur_data != SPT_INVALID)
-						pclst->get_key_in_tree_end(
-							pcur_data);
-					return SPT_OK;
-				}
-				finish_key_cb(prdata);
-				if (cur_data != SPT_INVALID)
-					pclst->get_key_in_tree_end(pcur_data);
-				return ret;
-			case SPT_OP_DELETE:
-				finish_key_cb(prdata);
-
-				if (cur_data != SPT_INVALID)
-					pclst->get_key_in_tree_end(pcur_data);
-				return ret;
-			default:
-				break;
-			}
-		} else {
-		/*insert down*/
-			switch (op) {
-			case SPT_OP_FIND:
-				if (pqinfo->op == SPT_OP_FIND) {
-					pqinfo->db_id = cur_data;
-					pqinfo->vec_id = cur_vecid;
-					pqinfo->cmp_result = -1;
-				}
-
-				finish_key_cb(prdata);
-
-				if (cur_data != SPT_INVALID)
-					pclst->get_key_in_tree_end(pcur_data);
-				return ret;
-			case SPT_OP_INSERT:
-				startbit += len;
-				if (cmpres.smallfs == startbit
-						&& startbit < endbit)
-					st_insert_info.fs = find_fs(
-							prdata, startbit,
-							endbit-startbit);
-				else
-					st_insert_info.fs = cmpres.smallfs;
-				st_insert_info.pkey_vec = pcur;
-				st_insert_info.key_val = cur_vec.val;
-				st_insert_info.cmp_pos = cmpres.pos;
-				st_insert_info.signpost = signpost;
-				st_insert_info.ref_cnt = pqinfo->multiple;
-				st_insert_info.alloc_type = pqinfo->res;
-				st_insert_info.key_id = cur_vecid;
-				ret = do_insert_down_via_r(pclst,
-						&st_insert_info, pdata);
-				if (ret == SPT_DO_AGAIN)
-					goto refind_start;
-
-				if (ret >= 0) {
-					pqinfo->db_id = ret;
-					pqinfo->data = 0;
-                            pqinfo->vec_id = st_insert_info.hang_vec;
-					finish_key_cb(prdata);
-
-					if (cur_data != SPT_INVALID)
-						pclst->get_key_in_tree_end(
-								pcur_data);
-					return SPT_OK;
-				}
-				finish_key_cb(prdata);
-
-				if (cur_data != SPT_INVALID)
-					pclst->get_key_in_tree_end(
-							pcur_data);
-				return ret;
-
-			case SPT_OP_DELETE:
-				finish_key_cb(prdata);
-
-				if (cur_data != SPT_INVALID)
-					pclst->get_key_in_tree_end(pcur_data);
-				return ret;
-			default:
-				break;
-			}
-		}
+		
 		continue;
 		/*first bit is 0£¬start from pcur_vec->down*/
 go_down:
@@ -2776,62 +2584,26 @@ go_down:
 				pcur = ppre;
 				goto refind_forward;
 			}
-			switch (op) {
-			case SPT_OP_FIND:
-				if (cur_data == SPT_INVALID) {
-					cur_data = get_data_id(pclst, pcur);
-					if (cur_data >= 0
-						&& cur_data < SPT_INVALID) {
-						//pqinfo->db_id = cur_data;
-					} else if (cur_data == SPT_DO_AGAIN) {
-						cur_data = SPT_INVALID;
-						goto refind_start;
-					} else {
-						//SPT_NOMEM or SPT_WAIT_AMT;
+			
+			cur_data = get_data_id(pclst, pcur);
+			if (cur_data >= 0 && cur_data < SPT_INVALID) {
+				if (cur_data != check_data_id)
+					goto refind_start;
+				if (!pcheck_vec)
+					goto refind_start;
 
-						finish_key_cb(prdata);
-						//if (ret == SPT_OK)
-							//return ret;
-						cur_data =
-						(ret == SPT_OK) ? ret:cur_data;
-						return cur_data;
-					}
-				}
-				if (pqinfo->op == SPT_OP_FIND) {
-					pqinfo->db_id = cur_data;
-					pqinfo->vec_id = cur_vecid;
-					pqinfo->cmp_result = -1;
-				}
-
-				finish_key_cb(prdata);
-				return ret;
-			case SPT_OP_INSERT:
-				st_insert_info.pkey_vec = pcur;
-				st_insert_info.key_val = cur_vec.val;
-				st_insert_info.fs = fs_pos;
-				st_insert_info.signpost = signpost;
-				st_insert_info.key_id = cur_vecid;
-				st_insert_info.ref_cnt = pqinfo->multiple;
-				st_insert_info.alloc_type = pqinfo->res;
-				ret = do_insert_last_down(pclst,
-						&st_insert_info, pdata);
+				ret = final_vec_process(pclst, pqinfo, &pinfo, check_type;);
 				if (ret == SPT_DO_AGAIN)
 					goto refind_start;
-				if (ret >= 0) {
-					pqinfo->db_id = ret;
-					pqinfo->data = 0;
-                    pqinfo->vec_id = cur_vecid;
-					ret = SPT_OK;
-				}
 				finish_key_cb(prdata);
+				if (cur_data != SPT_INVALID)
+					pclst->get_key_in_tree_end(pcur_data);
 				return ret;
-			case SPT_OP_DELETE:
 
-				finish_key_cb(prdata);
-				return ret;
-			default:
-				break;
-			}
+			} else if (cur_data == SPT_NULL) {
+				goto refind_start;
+			} else 
+				spt_assert(0);
 down_continue:
 			pnext = (struct spt_vec *)vec_id_2_ptr(pclst,
 					cur_vec.down);
@@ -2869,70 +2641,25 @@ down_continue:
 				cur_vec.val = next_vec.val;
 				continue;
 			}
-			/*insert*/
-			switch (op) {
-			case SPT_OP_FIND:
-				if (cur_data == SPT_INVALID) {
-					cur_data = get_data_id(pclst, pcur);
-					if (cur_data >= 0 &&
-						cur_data < SPT_INVALID) {
-						//pqinfo->db_id = cur_data;
-						//debug
-					} else if (cur_data == SPT_DO_AGAIN) {
-						cur_data = SPT_INVALID;
-						goto refind_start;
-
-					} else {
-						//SPT_NOMEM or SPT_WAIT_AMT;
-
-						finish_key_cb(prdata);
-						//if (ret == SPT_OK)
-							//return ret;
-						cur_data =
-						(ret == SPT_OK) ? ret:cur_data;
-
-						return cur_data;
-					}
-				}
-				if (pqinfo->op == SPT_OP_FIND) {
-					pqinfo->db_id = cur_data;
-					pqinfo->vec_id = cur_vecid;
-					pqinfo->cmp_result = -1;
-				}
-
-				finish_key_cb(prdata);
-				return ret;
-			case SPT_OP_INSERT:
-				st_insert_info.pkey_vec = pcur;
-				st_insert_info.key_val = cur_vec.val;
-				st_insert_info.fs = fs_pos;
-				st_insert_info.signpost = signpost;
-				st_insert_info.key_id = cur_vecid;
-				st_insert_info.ref_cnt = pqinfo->multiple;
-				st_insert_info.alloc_type = pqinfo->res;
-				ret = do_insert_up_via_d(pclst,
-						&st_insert_info, pdata);
+			cur_data = get_data_id(pclst, pnext);
+			if (cur_data >= 0 && cur_data < SPT_INVALID) {
+				
+				if (cur_data != check_data_id)
+					goto refind_start;
+				if (!pcheck_vec)
+					goto refind_start;
+				ret = final_vec_process(pclst, pqinfo, &pinfo, check_type);
 				if (ret == SPT_DO_AGAIN)
 					goto refind_start;
-				if (ret >= 0) {
-					pqinfo->db_id = ret;
-					pqinfo->data = 0;
-                    pqinfo->vec_id = cur_vecid;
-					ret = SPT_OK;
-				}
 				finish_key_cb(prdata);
+				if (cur_data != SPT_INVALID)
+					pclst->get_key_in_tree_end(pcur_data);
 				return ret;
-			case SPT_OP_DELETE:
 
-				finish_key_cb(prdata);
-				return ret;
-			default:
-				break;
-			}
-
+			} else 
+				goto refind_start;
 		}
 		spt_assert(fs_pos == startbit);
-
 	}
 
 same_record: 
