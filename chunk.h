@@ -141,6 +141,15 @@
 #define spt_get_pos_hash(x) (x.scan_status >> SPT_POS_BIT)
 #define spt_get_pos_offset(x) (x.scan_status & 0x001F)
 
+
+/*final process type*/
+
+#define SPT_FIRST_SET 0
+#define SPT_RD_UP 1
+#define SPT_RD_DOWN 2
+#define SPT UP_DOWN 3
+#define SPT_DOWN_DOWN 4
+
 typedef char *(*spt_cb_get_key)(char *);
 typedef void (*spt_cb_free)(char *);
 typedef void (*spt_cb_end_key)(char *);
@@ -272,7 +281,6 @@ struct query_info_t {
 //spt_query_info
 	 /* from which vector to start querying */
 	struct spt_vec *pstart_vec;
-	u64 signpost;               /* not used now */
 	char *data;                 /* data to be queried */
 	u64 endbit;                 /* data end bit */
 	u32 startid;                /* start vector id */
@@ -311,7 +319,6 @@ struct insert_info_t {
 	struct spt_vec *pkey_vec;
 	u32 vec_real_pos;
 	u64 key_val;
-	u64 signpost;
 	u64 startbit;
 	u64 fs;
 	u64 cmp_pos;
@@ -322,6 +329,16 @@ struct insert_info_t {
 	char *pcur_data; /*maped orig data*/
 	char *pnew_data; /*maped new data*/
 	struct vec_cmpret_t cmpres;
+};
+
+struct data_info_t {
+	struct spt_vec cur_vec;
+	struct spt_vec *pcur;
+	int cur_vecid;
+	char *pnew_data;
+	char *pcur_data;
+	u32 cur_data_id;
+	struct vec_cmpret cmpres;
 };
 
 struct spt_stack {
