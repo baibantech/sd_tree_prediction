@@ -138,8 +138,8 @@
 
 #define SPT_HASH_BIT  11
 #define SPT_POS_BIT 5
-#define spt_get_pos_hash(x) (x.scan_status >> SPT_POS_BIT)
-#define spt_get_pos_offset(x) (x.scan_status & 0x001F)
+#define spt_get_pos_hash(x) ((x).scan_status >> SPT_POS_BIT)
+#define spt_get_pos_offset(x) ((x).scan_status & 0x001F)
 
 
 /*final process type*/
@@ -149,6 +149,9 @@
 #define SPT_RD_DOWN 2
 #define SPT UP_DOWN 3
 #define SPT_DOWN_DOWN 4
+
+
+#define THREAD_NUM_MAX 64
 
 typedef char *(*spt_cb_get_key)(char *);
 typedef void (*spt_cb_free)(char *);
@@ -328,17 +331,20 @@ struct insert_info_t {
     u32 hang_vec;
 	char *pcur_data; /*maped orig data*/
 	char *pnew_data; /*maped new data*/
-	struct vec_cmpret_t cmpres;
 };
 
 struct data_info_t {
 	struct spt_vec cur_vec;
 	struct spt_vec *pcur;
 	int cur_vecid;
+	int cur_pos;
+	u32 cur_data_id;
 	char *pnew_data;
 	char *pcur_data;
-	u32 cur_data_id;
-	struct vec_cmpret cmpres;
+	u64 startbit;
+	u64 fs;
+	u64 cmp_pos;
+	u64 endbit;         /* not include */
 };
 
 struct spt_stack {

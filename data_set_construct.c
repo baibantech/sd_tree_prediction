@@ -16,7 +16,6 @@
 #include "data_cache.h"
 #include "chunk.h"
 #include "sdtree_perf_stat.h"
-#include "jhash.h"
 #include "xxhash.h"
 
 #define DEFAULT_INS_LEN  256
