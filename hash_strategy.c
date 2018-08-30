@@ -186,23 +186,16 @@ void set_real_pos(struct spt_vec *pvec, unsigned int real_pos, unsigned int pre_
 		pvec->pos = (real_hash << 5) + offset;
 	}
 }
-int is_need_chg_pos(struct spt_vec *vec,int real_pos, struct spt_vec *next_vec, int next_pos, int type)
+int is_need_chg_pos(struct spt_vec *vec, struct spt_vec *next_vec, int type)
 {
-	int window_id;
-	if (real_pos == -1)
-		window_id = 0;
-	else
-		window_id = (real_pos/8)/HASH_WINDOW_LEN;
 	if (type == SPT_OP_INSERT) {
-		if(((next_pos/8)/HASH_WINDOW_LEN) == window_id) {
-			if ((vec->scan_status == SPT_VEC_PVALUE)&&(next_vec->scan_status == SPT_VEC_PVALUE))
+			if ((vec->scan_status == SPT_VEC_PVALUE)&&
+					(next_vec->scan_status == SPT_VEC_PVALUE))
 				return 1;
-		}
 	} else if (type == SPT_OP_DELETE){
-		if(((next_pos/8)/HASH_WINDOW_LEN) == window_id) {
-			if ((vec->scan_status == SPT_VEC_PVALUE)&&(next_vec->scan_status == SPT_VEC_HVALUE))
+			if ((vec->scan_status == SPT_VEC_PVALUE)&&
+					(next_vec->scan_status == SPT_VEC_HVALUE))
 				return 1;
-		}
 	}
 	return 0;
 }

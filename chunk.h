@@ -83,7 +83,7 @@
 #define PG_HEAD_OFFSET (GRP_SIZE*GRPS_PER_PG)
 #define GRP_TICK_MASK 0xful
 #define PG_SPILL_WATER_MARK 360
-
+#define GRP_SPILL_START (32*1024)
 /* cluster divide info*/
 #define SPT_SORT_ARRAY_SIZE (4096*8)
 #define SPT_DVD_CNT_PER_TIME (100)
@@ -136,6 +136,10 @@
 #define spt_set_right_flag(x) (x.type = SPT_VEC_RIGHT)
 #define spt_set_data_flag(x) (x.type = SPT_VEC_DATA)
 
+#define spt_data_free_flag(x) ((x)->rsv&0x1)
+#define spt_set_data_free_flag(x, y) ((x)->rsv |= y)
+#define spt_set_data_not_free(x) ((x)->rsv &= 0xfffe)
+
 #define SPT_HASH_BIT  11
 #define SPT_POS_BIT 5
 #define spt_get_pos_hash(x) ((x).scan_status >> SPT_POS_BIT)
@@ -147,8 +151,8 @@
 #define SPT_FIRST_SET 0
 #define SPT_RD_UP 1
 #define SPT_RD_DOWN 2
-#define SPT UP_DOWN 3
-#define SPT_DOWN_DOWN 4
+#define SPT_UP_DOWN 3
+#define SPT_LAST_DOWN 4
 
 
 #define THREAD_NUM_MAX 64
@@ -300,6 +304,7 @@ struct query_info_t {
 	/* return value,the last compared vector, when find return */
 	u32 vec_id;
 	int res;
+	int originbit;
 	/* if NULL, use the default callback function*/
 	spt_cb_get_key get_key;
 	/* if NULL, use the default callback function*/
@@ -328,6 +333,7 @@ struct insert_info_t {
 	u64 endbit;         /* not include */
 	u32 dataid;
 	int ref_cnt;
+	int key_id;
     u32 hang_vec;
 	char *pcur_data; /*maped orig data*/
 	char *pnew_data; /*maped new data*/
@@ -436,10 +442,18 @@ char  *vec_grp_id_2_ptr(struct cluster_head_t *pclst, unsigned int grp_id);
 char* vec_id_2_ptr(struct cluster_head_t * pclst,unsigned int id);
 char* db_id_2_ptr(struct cluster_head_t * pclst,unsigned int id);
 
-int vec_alloc_from_grp(struct cluster_head_t *pclst, int id, struct spt_vec **vec,int line);
 int db_alloc_from_grp(struct cluster_head_t *pclst, int id, struct spt_dh **db);
+
+int vec_alloc(struct cluster_head_t *pclst, struct spt_vec **vec, int sed);
 extern unsigned long find_next_bit(const unsigned long *addr, unsigned long size,
 			    unsigned long offset);
+
+int delete_next_vec(struct cluster_head_t *pclst,
+		struct spt_vec next_vec,
+		struct spt_vec *pnext,
+		struct spt_vec cur_vec,
+		struct spt_vec *pcur,
+		int direction );
 
 #endif
 

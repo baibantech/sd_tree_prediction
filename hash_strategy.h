@@ -35,4 +35,28 @@ struct precise_pos_record {
 	int cur_index;
 	int pos_array[0];
 };
+
+void calc_hash(char *data, unsigned int *window_hash,
+		unsigned int *seg_hash, int pos);
+
+void calc_hash_by_base(char *data,
+		unsigned int base_hash,
+		int base_pos, unsigned int *window_hash,
+		unsigned int *seg_hash, int pos);
+
+int get_real_pos_start(struct spt_vec *pvec);
+
+int get_real_pos_next(struct spt_vec *pvec);
+
+void real_pos_back(struct spt_vec *pvec,
+		struct spt_vec *pre_vec);
+
+void set_real_pos(struct spt_vec *pvec,
+		unsigned int real_pos,
+		unsigned int pre_pos,
+		unsigned int real_hash);
+
+int is_need_chg_pos(struct spt_vec *vec,
+		struct spt_vec *next_vec,
+		int type);
 #endif

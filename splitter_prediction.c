@@ -361,6 +361,7 @@ int get_first_change_bit(char *src, char *dst, u64 startbit, u64 endbit)
 	return -1;
 
 }
+#if 0
 int find_data_entry_prediction(struct cluster_head_t *pclst, struct prediction_info_t *pqinfo)
 {
 	int cur_data, vecid, cmp, op, cur_vecid, pre_vecid, next_vecid, cnt;
@@ -1329,3 +1330,4 @@ get_next_grp:
 	}
 	return -1;
 }
+#endif

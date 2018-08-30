@@ -24,6 +24,8 @@ typedef void (*test_proc_pfn)(void *args);
 void* test_insert_thread(void *arg);
 void* test_pre_insert_thread(void *arg);
 void* test_pre_delete_thread(void *arg);
+void* test_pre_insert_proc(void *arg);
+void* test_pre_delete_proc(void *arg);
 
 void* test_delete_thread(void *arg);
 void* test_divid_thread(void *arg);
@@ -83,9 +85,9 @@ struct proc_type
 
 struct proc_type test_proc_array[] = 
 {
-	{.type = insert_proc,.pfn = test_insert_proc},
+	{.type = insert_proc,.pfn = test_pre_insert_proc},
 	
-	{.type = delete_proc,.pfn = test_delete_proc},
+	{.type = delete_proc,.pfn = test_pre_delete_proc},
 };
 
 #define get_cmd_id 0
@@ -346,8 +348,8 @@ int main(int argc,char *argv[])
         spt_debug("spt_thread_init err\r\n");
         return 1;
 	}
-	pos_stat_mem_init();
-#if 1
+	//pos_stat_mem_init();
+#if 0
 	err = pthread_create(&ntid, NULL, test_divid_thread, 3);
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));
@@ -359,13 +361,6 @@ int main(int argc,char *argv[])
 	sleep(10);
 	test_pre_delete_proc(0);
 	sleep(10);
-	sd_perf_debug_1 = 1;
-	test_pre_insert_proc(0);
-	//test_pre_insert_proc(0);
-	sleep(10);
-	sd_perf_debug_1 = 0;
-	sd_perf_debug = 1;
-	test_insert_thread(0);
 #if 0
 	for(i = 0;  i  < data_set_config_insert_thread_num ; i++)
     {
@@ -393,13 +388,14 @@ extern int total_data_num;
 void *test_insert_data(char *pdata)
 {
 	total_data_num++;
-	return insert_data_prediction(pgclst, pdata);
+	return insert_data(pgclst, pdata);
 }
 void *test_delete_data(char *pdata)
 {
-	return delete_data_prediction(pgclst, pdata);
+	return delete_data(pgclst, pdata);
 }
 
+#if 0
 void *test_insert_data_entry(char *pdata)
 {
 	total_data_num++;
@@ -409,17 +405,19 @@ void *test_delete_data_entry(char *pdata)
 {
 	return delete_data_entry(pgclst, pdata);
 }
-
+#endif
 
 void *test_find_data(char *pdata)
 {
 	return query_data(pgclst, pdata);
 }
 
+#if 0
 int test_find_data_prediction(char *pdata)
 {
 	return query_data_prediction(pgclst, pdata);
 }
+#endif
 
 int test_stop = 1;
 void* test_insert_thread(void *arg)
@@ -434,7 +432,7 @@ void* test_insert_thread(void *arg)
 		printf("warning: could not set CPU AFFINITY\r\n");
 	}
 	//while(test_stop == 0)
-	    test_insert_proc(i);
+	    test_pre_insert_proc(i);
 	if(i != 0)
 	{	
 		while(1)
@@ -456,7 +454,7 @@ void* test_delete_thread(void *arg)
 		printf("warning: could not set CPU AFFINITY\r\n");
 	}
 	//while(test_stop == 0)
-	    test_delete_proc(i);
+	    test_pre_delete_proc(i);
 	while(1)
 	{
 		sleep(1);
