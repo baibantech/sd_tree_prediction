@@ -499,7 +499,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 				next_vec_val = tmp_vec.val = next_vec->val;
 				tmp_vec.scan_status = SPT_VEC_PVALUE;
 				tmp_vec.pos = new_next_pos;
-			}while (next_vec_val == atomic64_cmpxchg (
+			}while (next_vec_val != atomic64_cmpxchg (
 						(atomic64_t *)next_vec, next_vec_val,
 						tmp_vec.val));
 			prev_vec->scan_lock = 0;
@@ -615,7 +615,7 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 				next_vec_val = tmp_vec.val = next_vec->val;
 				tmp_vec.scan_status = SPT_VEC_PVALUE;
 				tmp_vec.pos = new_next_pos;
-			}while (next_vec_val == atomic64_cmpxchg (
+			}while (next_vec_val != atomic64_cmpxchg (
 						(atomic64_t *)next_vec, next_vec_val,
 						tmp_vec.val));
 			prev_vec->scan_lock = 0;
@@ -761,7 +761,7 @@ int do_insert_up_via_d(struct cluster_head_t *pclst,
 				next_vec_val = tmp_vec.val = next_vec->val;
 				tmp_vec.scan_status = SPT_VEC_PVALUE;
 				tmp_vec.pos = new_next_pos;
-			}while (next_vec_val == atomic64_cmpxchg (
+			}while (next_vec_val != atomic64_cmpxchg (
 						(atomic64_t *)next_vec, next_vec_val,
 						tmp_vec.val));
 			prev_vec->scan_lock = 0;
@@ -1694,7 +1694,7 @@ int delete_next_vec(struct cluster_head_t *pclst,
 						tmp_val = tmp_vec.val = the_next_vec->val;
 						tmp_vec.scan_status = SPT_VEC_PVALUE;
 						tmp_vec.pos = new_next_pos;
-					}while (tmp_val == atomic64_cmpxchg (
+					}while (tmp_val != atomic64_cmpxchg (
 								(atomic64_t *)the_next_vec, tmp_val,
 								tmp_vec.val));
 					pcur->scan_lock = 0;
@@ -1767,7 +1767,7 @@ int delete_next_vec(struct cluster_head_t *pclst,
 						tmp_val = tmp_vec.val = the_next_vec->val;
 						tmp_vec.scan_status = SPT_VEC_PVALUE;
 						tmp_vec.pos = new_next_pos;
-					}while (tmp_val == atomic64_cmpxchg (
+					}while (tmp_val != atomic64_cmpxchg (
 								(atomic64_t *)the_next_vec, tmp_val,
 								tmp_vec.val));
 					pcur->scan_lock = 0;
@@ -1824,7 +1824,7 @@ int final_vec_process(struct cluster_head_t *pclst, struct query_info_t *pqinfo 
 		case SPT_OP_INSERT:
 			st_insert_info.pkey_vec = pdinfo->pcur;
 			st_insert_info.key_val = pdinfo->cur_vec.val;
-			st_insert_info.vec_real_pos = pdinfo->cur_pos;
+			st_insert_info.vec_real_pos = pdinfo->startbit;
 			st_insert_info.cmp_pos = pdinfo->cmp_pos;	
 			st_insert_info.ref_cnt = pqinfo->multiple;
 			st_insert_info.key_id = pdinfo->cur_vecid;	
@@ -1909,7 +1909,7 @@ int final_vec_process(struct cluster_head_t *pclst, struct query_info_t *pqinfo 
 					st_insert_info.endbit = pdinfo->endbit;
 					st_insert_info.pnew_data = pdinfo->pnew_data;
 					
-					ret = do_insert_up_via_d(pclst,
+					ret = do_insert_last_down(pclst,
 						&st_insert_info,
 						pqinfo->data);
 					if (ret == SPT_DO_AGAIN)
@@ -1993,7 +1993,7 @@ int find_data(struct cluster_head_t *pclst, struct query_info_t *pqinfo)
 	if (pcur == pclst->pstart) {
 		startbit = pclst->startbit;
 	} else {
-		startbit = get_real_pos_next(&cur_vec) + 1;
+		startbit = get_real_pos_next(&cur_vec);
 	}
 	endbit = pqinfo->endbit;
 	if (cur_vec.status == SPT_VEC_RAW) {
@@ -2115,6 +2115,7 @@ prediction_right:
 				pinfo.pnew_data = prdata;
 				pinfo.pcur_data = pcur_data;
 				pinfo.cur_data_id = cur_data;
+				pinfo.startbit = startbit;
 
 				ret = final_vec_process(pclst, pqinfo, &pinfo, SPT_FIRST_SET);
 				if (ret == SPT_DO_AGAIN)
@@ -2168,7 +2169,7 @@ prediction_right:
 				}
 				continue;
 			}
-			len = get_real_pos_next(&next_vec) + 1 - startbit;
+			len = get_real_pos_next(&next_vec) - startbit;
 
 			startbit += len;
 			if (startbit >= endbit)
@@ -2239,6 +2240,7 @@ prediction_down:
 			pinfo.cur_data_id = cur_data;
 			pinfo.cur_vecid = cur_vecid;
 			pinfo.fs = fs_pos;
+			pinfo.startbit = startbit;
 			ret = final_vec_process(pclst, pqinfo, &pinfo, SPT_LAST_DOWN);
 			if (ret == SPT_DO_AGAIN)
 				goto refind_start;
@@ -2274,7 +2276,7 @@ prediction_down_continue:
 				continue;
 			}
 
-			len = get_real_pos_next(&next_vec) - startbit + 1;
+			len = get_real_pos_next(&next_vec) - startbit;
 			direction = SPT_DOWN;
 			
 			if (fs_pos >= startbit + len) {
@@ -2312,6 +2314,8 @@ prediction_down_continue:
 			pinfo.cur_data_id = cur_data;
 			pinfo.cur_vecid = cur_vecid;
 			pinfo.fs = fs_pos;
+			pinfo.startbit = startbit;
+
 			ret = final_vec_process(pclst, pqinfo, &pinfo, SPT_UP_DOWN);
 			if (ret == SPT_DO_AGAIN)
 				goto refind_start;
@@ -2337,7 +2341,7 @@ prediction_check:
 	if (pcur == pclst->pstart) {
 		startbit = pclst->startbit;
 	} else {
-		startbit = get_real_pos_next(&cur_vec) + 1;
+		startbit = get_real_pos_next(&cur_vec);
 	}
 	endbit = pqinfo->endbit;
 	if (cur_vec.status == SPT_VEC_RAW) {
@@ -2429,7 +2433,7 @@ go_right:
 						tmp_vec.val);
 				goto refind_start;
 			}
-			len = get_real_pos_next(&next_vec) - startbit + 1;
+			len = get_real_pos_next(&next_vec) - startbit;
 	
 			if (startbit + len >= check_pos) {
 				pcheck_vec = pcur;
@@ -2532,7 +2536,7 @@ down_continue:
 
 			}
 
-			len = get_real_pos_next(&next_vec) - startbit + 1;
+			len = get_real_pos_next(&next_vec) - startbit;
 
 			direction = SPT_DOWN;
 			/* signpost not used now*/

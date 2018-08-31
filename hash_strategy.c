@@ -30,8 +30,10 @@ int hash_calc_process_init(int thread_num)
 
 		pos = (struct precise_pos_record *)spt_alloc_zero_page();
 		
-		if (pos)
-				pos->cur_index = 0;
+		if (pos) {
+			pos->cur_index = 0;
+			pos_record[i] = pos;
+		}
 		else
 			return -1;
 	}
@@ -126,9 +128,10 @@ void calc_hash_by_base(char *data, unsigned int base_hash, int base_pos, unsigne
 int get_real_pos_start(struct spt_vec *pvec)
 {
 	if (pvec->scan_status == SPT_VEC_PVALUE) {
+		pvec->pos = pvec->pos + 1;
 		pos_record[g_thrd_id]->pos_array[0] = pvec->pos;
 		pos_record[g_thrd_id]->cur_index = 1;
-		return pvec->pos;
+		return pvec->pos + 1;
 	}
 	spt_assert(0);
 	return -1;
@@ -142,6 +145,7 @@ int get_real_pos_next(struct spt_vec *pvec)
 	
 	if (pvec->scan_status == SPT_VEC_PVALUE) {
 		cur_index = pos_record[g_thrd_id]->cur_index++;
+		pvec->pos = pvec->pos + 1;
 		pos_record[g_thrd_id]->pos_array[cur_index] = pvec->pos;
 		if (cur_index)
 			spt_assert(pvec->pos > pos_record[g_thrd_id]->pos_array[cur_index - 1]);

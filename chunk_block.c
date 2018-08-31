@@ -145,7 +145,7 @@ struct spt_pg_h  *get_db_pg_head(struct cluster_head_t *pclst, unsigned int id)
 	do {
 		page = get_pg_head(pclst, pclst->pglist_db, id);
 		if (page)
-			return page + PG_HEAD_OFFSET;
+			return page;
 		cluster_db_add_page(pclst, id);
 	}while(1);
 }
@@ -685,7 +685,7 @@ int vec_alloc_spill_grp(struct cluster_head_t *pclst)
 	spill_grp_id--;
 	return spill_grp_id;	
 }
-int vec_alloc(struct cluster_head_t *pclst,  struct spt_vec **vec, int sed)
+int vec_alloc(struct cluster_head_t *pclst,  struct spt_vec **vec, unsigned int sed)
 {
 	struct spt_grp  *grp, *next_grp;
 	int fs, gid, gid_t;
@@ -700,6 +700,8 @@ int vec_alloc(struct cluster_head_t *pclst,  struct spt_vec **vec, int sed)
 	u32 tick;
 	int alloc_cnt = 0;
 	gid = sed % GRP_SPILL_START ;
+
+	printf("gid is %d, %d\r\n",gid, GRP_SPILL_START);
 
 re_alloc:
 	spt_pg = get_vec_pg_head(pclst, gid/GRPS_PER_PG); /*get page head ,if page null alloc page*/

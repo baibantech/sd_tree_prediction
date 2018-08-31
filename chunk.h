@@ -185,9 +185,9 @@ struct spt_vec {
 		struct {
 			volatile unsigned long long status:      2;
 			volatile unsigned long long type:       1;
-			volatile unsigned long long scan_lock:   1;
+			volatile unsigned long long scan_lock:   2;
 			volatile unsigned long long	scan_status: 2; 
-			volatile unsigned long long pos:        16;
+			volatile unsigned long long pos:        15;
 			volatile unsigned long long down:       21;
 			volatile unsigned long long rd:         21;
 		};
@@ -373,7 +373,6 @@ struct travl_info {
 	long long signpost;
 };
 
-int vec_alloc(struct cluster_head_t *pclst, struct spt_vec **vec, int sed);
 void vec_free(struct cluster_head_t *pcluster, int id);
 void vec_list_free(struct cluster_head_t *pcluster, int id);
 void db_free(struct cluster_head_t *pcluster, int id);
@@ -444,7 +443,7 @@ char* db_id_2_ptr(struct cluster_head_t * pclst,unsigned int id);
 
 int db_alloc_from_grp(struct cluster_head_t *pclst, int id, struct spt_dh **db);
 
-int vec_alloc(struct cluster_head_t *pclst, struct spt_vec **vec, int sed);
+int vec_alloc(struct cluster_head_t *pclst, struct spt_vec **vec, unsigned int sed);
 extern unsigned long find_next_bit(const unsigned long *addr, unsigned long size,
 			    unsigned long offset);
 
