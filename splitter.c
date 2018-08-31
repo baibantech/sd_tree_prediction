@@ -2368,6 +2368,7 @@ prediction_check:
 		pclst->get_key_in_tree_end(pcur_data);
 	}
 
+	fs_pos = find_fs(prdata, startbit, endbit-startbit);
 	while (startbit < endbit) {
 		/*first bit is 1£¬compare with pcur_vec->right*/
 		if (fs_pos != startbit)

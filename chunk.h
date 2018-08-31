@@ -343,7 +343,6 @@ struct data_info_t {
 	struct spt_vec cur_vec;
 	struct spt_vec *pcur;
 	int cur_vecid;
-	int cur_pos;
 	u32 cur_data_id;
 	char *pnew_data;
 	char *pcur_data;
