@@ -19,7 +19,7 @@
 #include "xxhash.h"
 
 #define DEFAULT_INS_LEN  256
-#define DEFAULT_INS_NUM  100000000
+#define DEFAULT_INS_NUM  1000
 #define DEFAULT_RANDOM_WAY 1
 #define DEFAULT_FILE_LEN 400*1024*1024
 unsigned long long spt_no_found_num = 0;
@@ -27,8 +27,8 @@ unsigned long long spt_merge_num = 0;
 long long  data_set_config_instance_len = DEFAULT_INS_LEN;
 long long  data_set_config_instance_num = DEFAULT_INS_NUM;
 
-long long  data_set_config_random = DEFAULT_RANDOM_WAY;
-//long long  data_set_config_random = 0;
+//long long  data_set_config_random = DEFAULT_RANDOM_WAY;
+long long  data_set_config_random = 0;
 long long  data_set_config_file_len = DEFAULT_FILE_LEN;
 
 long long  data_set_config_cache_unit_len = 40*1024*1024;
