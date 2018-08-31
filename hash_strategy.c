@@ -81,22 +81,19 @@ unsigned int djb_hash_seg(char *data, unsigned int src_hash, int len)
 	return hash;
 }
 
+/*pos >= 0*/
 void calc_hash(char *data, unsigned int *window_hash, unsigned int *seg_hash, int pos)
 {
 	int window_id;
 
-	if (pos == -1) {
-		window_id = 0;
-	} else
-		window_id = (pos/8)/HASH_WINDOW_LEN;
+	window_id = (pos/8)/HASH_WINDOW_LEN;
 
-	window_id--;
-	if (window_id == -1) {
+	if (window_id == 0) {
 		*window_hash = 0;
 		*seg_hash = djb_hash(data, HASH_WINDOW_LEN); 
 	} else {
-		*window_hash = djb_hash(data, (window_id+1)*HASH_WINDOW_LEN);
-		*seg_hash = djb_hash_seg (data + (window_id + 1)*HASH_WINDOW_LEN, *window_hash, HASH_WINDOW_LEN);
+		*window_hash = djb_hash(data, window_id*HASH_WINDOW_LEN);
+		*seg_hash = djb_hash_seg (data + window_id*HASH_WINDOW_LEN, *window_hash, HASH_WINDOW_LEN);
 	}
 }
 
@@ -106,22 +103,23 @@ void calc_hash_by_base(char *data, unsigned int base_hash, int base_pos, unsigne
 
 	if(pos <= base_pos)
 		spt_assert(0);
-	window_id = pos > -1 ? (pos/8)/HASH_WINDOW_LEN : 0 ;
-	base_window_id = base_pos > -1 ? (base_pos/8)/HASH_WINDOW_LEN : 0 ;
+
+	window_id = (pos/8)/HASH_WINDOW_LEN;
+	base_window_id = (base_pos/8)/HASH_WINDOW_LEN;
 
 	if (window_id == base_window_id) {
 		*window_hash = base_hash;
-		if (base_window_id == -1)
+		if (base_window_id == 0)
 			*seg_hash = djb_hash(data, HASH_WINDOW_LEN);
 		else
-			*seg_hash = djb_hash_seg(data + (base_window_id + 1)*HASH_WINDOW_LEN , base_hash, HASH_WINDOW_LEN);
+			*seg_hash = djb_hash_seg(data + base_window_id*HASH_WINDOW_LEN , base_hash, HASH_WINDOW_LEN);
 	} else {
-		if(base_window_id == -1) {
-			*window_hash = djb_hash(data, (window_id + 1)*HASH_WINDOW_LEN);
-			*seg_hash = djb_hash_seg(data + (window_id +1)*HASH_WINDOW_LEN, *window_hash, HASH_WINDOW_LEN);
+		if(base_window_id == 0) {
+			*window_hash = djb_hash(data, window_id*HASH_WINDOW_LEN);
+			*seg_hash = djb_hash_seg(data + window_id*HASH_WINDOW_LEN, *window_hash, HASH_WINDOW_LEN);
 		} else {
-			*window_hash = djb_hash_seg(data + (base_window_id + 1)*HASH_WINDOW_LEN, base_hash, (window_id - base_window_id)*HASH_WINDOW_LEN);
-			*seg_hash = djb_hash_seg(data + (window_id +1)*HASH_WINDOW_LEN, *window_hash, HASH_WINDOW_LEN);
+			*window_hash = djb_hash_seg(data + base_window_id*HASH_WINDOW_LEN, base_hash, (window_id - base_window_id)*HASH_WINDOW_LEN);
+			*seg_hash = djb_hash_seg(data + window_id*HASH_WINDOW_LEN, *window_hash, HASH_WINDOW_LEN);
 		}
 	}
 }
