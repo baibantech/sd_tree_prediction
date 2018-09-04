@@ -360,7 +360,8 @@ int main(int argc,char *argv[])
 	test_pre_insert_proc(0);
 	test_break_debug();
 	sleep(10);
-	test_pre_delete_proc(0);
+	test_pre_insert_proc(0);
+	//test_pre_delete_proc(0);
 	sleep(10);
 #if 0
 	for(i = 0;  i  < data_set_config_insert_thread_num ; i++)

@@ -701,7 +701,6 @@ int vec_alloc(struct cluster_head_t *pclst,  struct spt_vec **vec, unsigned int 
 	int alloc_cnt = 0;
 	gid = sed % GRP_SPILL_START ;
 
-	printf("gid is %d, %d\r\n",gid, GRP_SPILL_START);
 
 re_alloc:
 	spt_pg = get_vec_pg_head(pclst, gid/GRPS_PER_PG); /*get page head ,if page null alloc page*/

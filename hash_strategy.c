@@ -155,7 +155,7 @@ int get_real_pos_next(struct spt_vec *pvec)
 		cur_index = pos_record[g_thrd_id]->cur_index;
 		spt_assert(cur_index > 0);
 		real_pos = pos_record[g_thrd_id]->pos_array[cur_index - 1];
-		real_pos =  real_pos + spt_get_pos_offset(vec);
+		real_pos =  (real_pos /32 )*32 + spt_get_pos_offset(vec);
 		return real_pos;
 	}
 	spt_assert(0);
