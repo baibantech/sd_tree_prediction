@@ -119,6 +119,7 @@
 #define SPT_OP_FIND 1
 #define SPT_OP_DELETE 2
 #define SPT_OP_INSERT 3
+#define SPT_OP_DELETE_FIND 4
 
 /* ret code */
 #define CLT_FULL 3
@@ -142,8 +143,8 @@
 
 #define SPT_HASH_BIT  11
 #define SPT_POS_BIT 5
-#define spt_get_pos_hash(x) ((x).scan_status >> SPT_POS_BIT)
-#define spt_get_pos_offset(x) ((x).scan_status & 0x001F)
+#define spt_get_pos_hash(x) ((x).pos >> SPT_POS_BIT)
+#define spt_get_pos_offset(x) ((x).pos & 0x001F)
 
 
 /*final process type*/

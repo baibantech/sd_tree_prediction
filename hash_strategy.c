@@ -153,7 +153,8 @@ int get_real_pos_next(struct spt_vec *pvec)
 	} else if(pvec->scan_status == SPT_VEC_HVALUE) {
 		vec.val = pvec->val;
 		cur_index = pos_record[g_thrd_id]->cur_index;
-		real_pos = pos_record[g_thrd_id]->pos_array[cur_index];
+		spt_assert(cur_index > 0);
+		real_pos = pos_record[g_thrd_id]->pos_array[cur_index - 1];
 		real_pos =  real_pos + spt_get_pos_offset(vec);
 		return real_pos;
 	}
