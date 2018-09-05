@@ -355,7 +355,11 @@ int do_insert_first_set(struct cluster_head_t *pclst,
 	struct spt_dh_ext *pdh_ext;
 	int ret;
 
-    dataid = db_alloc_from_grp(pclst, 0, &pdh);
+	tmp_vec.val = pinsert->key_val;
+	if (tmp_vec.scan_lock)
+		return SPT_DO_AGAIN;
+
+	dataid = db_alloc_from_grp(pclst, 0, &pdh);
 	if (!pdh) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		return SPT_NOMEM;
@@ -365,7 +369,6 @@ int do_insert_first_set(struct cluster_head_t *pclst,
 
 	pcur = (struct spt_vec *)vec_id_2_ptr(pclst, pclst->vec_head);
 	spt_assert(pcur == pinsert->pkey_vec);
-	tmp_vec.val = pinsert->key_val;
 	tmp_vec.rd = dataid;
 	if (!pclst->is_bottom) {
 		pdh_ext = (struct spt_dh_ext *)pdh->pdata;
@@ -379,8 +382,9 @@ int do_insert_first_set(struct cluster_head_t *pclst,
 
 	spt_set_data_not_free(pdh);
     db_free(pclst, dataid);
-	return ret;
+	return SPT_DO_AGAIN;
 }
+
 /**
  * compare with the data corresponding to a right vector,
  * the new data is greater, so insert it above the vector
@@ -402,7 +406,13 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 	
 	chg_pos = 0;
 	pvec_b = NULL;
-    dataid = db_alloc_from_grp(pclst, 0, &pdh);
+	
+	tmp_vec.val = pinsert->key_val;
+	tmp_rd = tmp_vec.rd;
+	if (tmp_vec.scan_lock)
+		return SPT_DO_AGAIN;
+    
+	dataid = db_alloc_from_grp(pclst, 0, &pdh);
 	if (!pdh) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		return SPT_NOMEM;
@@ -410,8 +420,6 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 	pdh->ref = pinsert->ref_cnt;
 	pdh->pdata = new_data;
 
-	tmp_vec.val = pinsert->key_val;
-	tmp_rd = tmp_vec.rd;
 	if (tmp_vec.type != SPT_VEC_DATA)
 		next_vec = (struct spt_vec *)vec_id_2_ptr(pclst, tmp_rd);
 
@@ -469,10 +477,10 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 				pvec_b->scan_lock = 1;
 				new_next_pos = (new_window_hash << SPT_POS_BIT) + (next_vec->pos +1)%32;
 				prev_vec = pvec_b;
+				tmp_vec.scan_lock == 1;
 			}
 		}
 		tmp_vec.type = SPT_VEC_RIGHT;
-		
 		pvec_a->down = vecid_b;
 	} else { 
 		pvec_a->down = tmp_rd;
@@ -481,9 +489,11 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 				pvec_a->scan_lock = 1;
 				new_next_pos = (window_hash << SPT_POS_BIT) + (next_vec->pos +1)%32;
 				prev_vec = pvec_a;
+				tmp_vec.scan_lock == 1;
 			}
 		}
 	}
+	
 	if (!pclst->is_bottom) {
 		pdh_ext = (struct spt_dh_ext *)pdh->pdata;
 		plast_dh = (struct spt_dh *)db_id_2_ptr(pclst, pinsert->dataid);
@@ -491,7 +501,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 		pdh_ext->hang_vec = plast_dh_ext->hang_vec;
 	}
 	smp_mb();/* ^^^ */
-	
+
 	if (pinsert->key_val == atomic64_cmpxchg(
 		(atomic64_t *)pinsert->pkey_vec,
 		pinsert->key_val, tmp_vec.val)) {
@@ -503,7 +513,20 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 			}while (next_vec_val != atomic64_cmpxchg (
 						(atomic64_t *)next_vec, next_vec_val,
 						tmp_vec.val));
-			prev_vec->scan_lock = 0;
+			
+			do {
+				next_vec_val = tmp_vec.val = pinsert->pkey_vec->val;
+				tmp_vec.scan_lock  = 0;
+			}while (next_vec_val != atomic64_cmpxchg (
+						(atomic64_t *)pinsert->pkey_vec, next_vec_val,
+						tmp_vec.val));
+			
+			do {
+				next_vec_val = tmp_vec.val = prev_vec->val;
+				tmp_vec.scan_lock  = 0;
+			}while (next_vec_val != atomic64_cmpxchg (
+						(atomic64_t *)prev_vec, next_vec_val,
+						tmp_vec.val));
 			smp_mb();
 		}
 		if (!pclst->is_bottom)
@@ -516,7 +539,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 	if (pvec_b != NULL)
     	vec_free(pclst, vecid_b);
 	
-	return ret;
+	return SPT_DO_AGAIN;
 }
 /**
  * compare with the data corresponding to a right vector,
@@ -539,7 +562,11 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 	u64 next_vec_val;
 
 	chg_pos = 0;
-    dataid = db_alloc_from_grp(pclst, 0, &pdh);
+	tmp_vec.val = pinsert->key_val;
+	if (tmp_vec.scan_lock)
+		return SPT_DO_AGAIN;
+    
+	dataid = db_alloc_from_grp(pclst, 0, &pdh);
 	if (!pdh) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		return SPT_NOMEM;
@@ -550,7 +577,6 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 	pcur_data = pinsert->pcur_data;
 	pnew_data = pinsert->pnew_data;
 
-	tmp_vec.val = pinsert->key_val;
 	if (tmp_vec.type != SPT_VEC_DATA)
 		next_vec = (struct spt_vec *)vec_id_2_ptr(pclst, tmp_vec.rd);
 
@@ -596,15 +622,15 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 			pvec_a->scan_lock = 1;
 			new_next_pos = (window_hash << SPT_POS_BIT) + (next_vec->pos +1)%32;
 			prev_vec = pvec_a;
+			tmp_vec.scan_lock = 1;
 		}
 	}
 	pvec_a->down = vecid_b;
 
 	tmp_vec.rd = vecid_a;
-	if (tmp_vec.pos == pvec_a->pos && tmp_vec.pos != 0){
-		printf("tmp_vec %p, pvec_a %p\r\n", &tmp_vec, pvec_a);	
+	if (tmp_vec.pos == pvec_a->pos && tmp_vec.pos != 0)
 		spt_assert(0);
-	}
+
 	
 	if (!pclst->is_bottom) {
 		pdh_ext = (struct spt_dh_ext *)pdh->pdata;
@@ -622,7 +648,20 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 			}while (next_vec_val != atomic64_cmpxchg (
 						(atomic64_t *)next_vec, next_vec_val,
 						tmp_vec.val));
-			prev_vec->scan_lock = 0;
+			
+			do {
+				next_vec_val = tmp_vec.val = pinsert->pkey_vec->val;
+				tmp_vec.scan_lock  = 0;
+			}while (next_vec_val != atomic64_cmpxchg (
+						(atomic64_t *)pinsert->pkey_vec, next_vec_val,
+						tmp_vec.val));
+			
+			do {
+				next_vec_val = tmp_vec.val = prev_vec->val;
+				tmp_vec.scan_lock  = 0;
+			}while (next_vec_val != atomic64_cmpxchg (
+						(atomic64_t *)prev_vec, next_vec_val,
+						tmp_vec.val));
 			smp_mb();
 		}
 		pinsert->hang_vec = vecid_a;
@@ -634,7 +673,7 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
     vec_free(pclst, vecid_a);
     vec_free(pclst, vecid_b);
 	
-	return ret;
+	return SPT_DO_AGAIN;
 }
 /**
  * on the comparison path, the last vector's down vector is null,
@@ -653,6 +692,10 @@ int do_insert_last_down(struct cluster_head_t *pclst,
 	unsigned int window_hash, seg_hash;
 	char *pnew_data;
 
+	tmp_vec.val = pinsert->key_val;
+	if (tmp_vec.scan_lock)
+		return SPT_DO_AGAIN;
+
     dataid = db_alloc_from_grp(pclst, 0, &pdh);
 	if (pdh == 0) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
@@ -662,8 +705,6 @@ int do_insert_last_down(struct cluster_head_t *pclst,
 	pdh->pdata = new_data;
 	pre_pos = pinsert->vec_real_pos;
 	pnew_data = pinsert->pnew_data;
-
-	tmp_vec.val = pinsert->key_val;
 
 	calc_hash(pnew_data, &window_hash, &seg_hash, pinsert->fs);
 	vecid_a = vec_alloc(pclst, &pvec_a, seg_hash);
@@ -695,7 +736,7 @@ int do_insert_last_down(struct cluster_head_t *pclst,
 	spt_set_data_not_free(pdh);
     db_free(pclst, dataid);
     vec_free(pclst, vecid_a);
-	return ret;
+	return SPT_DO_AGAIN;
 }
 /**
  * compare with the data corresponding to a down vector,
@@ -717,6 +758,10 @@ int do_insert_up_via_d(struct cluster_head_t *pclst,
 	u64 next_vec_val;
 
 	chg_pos = 0;
+	tmp_vec.val = pinsert->key_val;
+	if (tmp_vec.scan_lock)
+		return SPT_DO_AGAIN;
+
     dataid = db_alloc_from_grp(pclst, 0, &pdh);
 	if (pdh == 0) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
@@ -726,8 +771,6 @@ int do_insert_up_via_d(struct cluster_head_t *pclst,
 	pdh->pdata = new_data;
 	pre_pos = pinsert->vec_real_pos;
 	pnew_data = pinsert->pnew_data;
-
-	tmp_vec.val = pinsert->key_val;
 
 	calc_hash(pnew_data, &window_hash, &seg_hash, pinsert->fs);
 	vecid_a = vec_alloc(pclst, &pvec_a, seg_hash);
@@ -750,6 +793,7 @@ int do_insert_up_via_d(struct cluster_head_t *pclst,
 		pvec_a->scan_lock = 1;
 		new_next_pos = (window_hash << SPT_POS_BIT)+ (next_vec->pos +1)%32;
 		prev_vec = pvec_a;
+		tmp_vec.scan_lock = 1;
 	}
 	
 	if (!pclst->is_bottom) {
@@ -769,7 +813,20 @@ int do_insert_up_via_d(struct cluster_head_t *pclst,
 			}while (next_vec_val != atomic64_cmpxchg (
 						(atomic64_t *)next_vec, next_vec_val,
 						tmp_vec.val));
-			prev_vec->scan_lock = 0;
+			
+			do {
+				next_vec_val = tmp_vec.val = pinsert->pkey_vec->val;
+				tmp_vec.scan_lock  = 0;
+			}while (next_vec_val != atomic64_cmpxchg (
+						(atomic64_t *)pinsert->pkey_vec, next_vec_val,
+						tmp_vec.val));
+			
+			do {
+				next_vec_val = tmp_vec.val = prev_vec->val;
+				tmp_vec.scan_lock  = 0;
+			}while (next_vec_val != atomic64_cmpxchg (
+						(atomic64_t *)prev_vec, next_vec_val,
+						tmp_vec.val));
 			smp_mb();
 		}
 
@@ -791,7 +848,7 @@ int do_insert_up_via_d(struct cluster_head_t *pclst,
 	spt_set_data_not_free(pdh);
     db_free(pclst, dataid);
     vec_free(pclst, vecid_a);
-	return ret;
+	return SPT_DO_AGAIN;
 }
 /**
  * only top level cluster will maintain hang vector
