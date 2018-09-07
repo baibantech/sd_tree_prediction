@@ -165,11 +165,7 @@ void real_pos_back(struct spt_vec *pvec, struct spt_vec *pre_vec)
 {
 	spt_assert(pos_record[g_thrd_id]->cur_index > 0);
 
-	if(pvec->scan_status == SPT_VEC_HVALUE) {
-		if (pre_vec->scan_status == SPT_VEC_HVALUE)
-			return;
-		pos_record[g_thrd_id]->cur_index--;
-	} else {
+	if(pvec->scan_status == SPT_VEC_PVALUE) {
 		pos_record[g_thrd_id]->cur_index--;
 	}	
 }
@@ -204,3 +200,4 @@ int is_need_chg_pos(struct spt_vec *vec, struct spt_vec *next_vec, int type)
 	}
 	return 0;
 }
+

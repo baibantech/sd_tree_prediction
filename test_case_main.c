@@ -349,7 +349,7 @@ int main(int argc,char *argv[])
         spt_debug("spt_thread_init err\r\n");
         return 1;
 	}
-	//pos_stat_mem_init();
+
 #if 0
 	err = pthread_create(&ntid, NULL, test_divid_thread, 3);
 	if (err != 0)
@@ -359,18 +359,15 @@ int main(int argc,char *argv[])
 	g_thrd_id = 0;
 	test_pre_insert_proc(0);
 	test_break_debug();
-	sleep(10);
-	test_pre_insert_proc(0);
-	//test_pre_delete_proc(0);
-	sleep(10);
-#if 0
+#if 1 
 	for(i = 0;  i  < data_set_config_insert_thread_num ; i++)
     {
         err = pthread_create(&ntid, NULL, test_insert_thread, (void *)i);
         if (err != 0)
             printf("can't create thread: %s\n", strerror(err));
     }
-
+#endif
+#if 0
     for(i = 0;  i  < data_set_config_delete_thread_num ; i++)
     {
         err = pthread_create(&ntid, NULL, test_delete_thread, (void *)(data_set_config_insert_thread_num+i));

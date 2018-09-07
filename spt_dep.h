@@ -58,7 +58,7 @@ info-linux <info@baibantech.com.cn>
 #include <pthread.h>
 #include <arpa/inet.h>
 #include "sdtree_perf_stat.h"
-
+extern int spt_trace_switch;
 #define spt_assert(expr) \
             if(!(expr)) \
                 assert(0);
@@ -69,6 +69,10 @@ info-linux <info@baibantech.com.cn>
 					spt_print ("LFORD DEBUG (%s, %d): %s:", \
 						__FILE__, __LINE__, __func__); \
 				  	spt_print (f, ## a); \
+					}
+#define spt_trace(f, a...) {\
+					if (spt_trace_switch)\
+						spt_print(f, ## a);\
 					}
 
 
