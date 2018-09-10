@@ -286,12 +286,7 @@ get_id_start:
 	ppre = NULL;
 	cur_vec.val = pvec->val;
 	pcur = pvec;
-	if (cur_vec.status == SPT_VEC_RAW) {
-		smp_mb();/* ^^^ */
-		cur_vec.val = pvec->val;
-		if (cur_vec.status == SPT_VEC_RAW)
-			return SPT_DO_AGAIN;
-	}
+	
 	if (cur_vec.status == SPT_VEC_INVALID)
 		return SPT_DO_AGAIN;
 
@@ -306,12 +301,6 @@ get_id_start:
 				pcur = pnext;
 				cur_vec.val = next_vec.val;
 				continue;
-			}
-			if (next_vec.status == SPT_VEC_RAW) {
-				smp_mb();/* ^^^ */
-				next_vec.val = pnext->val;
-				if (next_vec.status == SPT_VEC_RAW)
-					goto get_id_start;
 			}
 			if (next_vec.status == SPT_VEC_INVALID) {
 				
@@ -887,12 +876,7 @@ find_lowest_start:
 	ppre = 0;
 	cur_vec.val = pvec->val;
 	pcur = pvec;
-	if (cur_vec.status == SPT_VEC_RAW) {
-		smp_mb();/* ^^^ */
-		cur_vec.val = pvec->val;
-		if (cur_vec.status == SPT_VEC_RAW)
-			return SPT_DO_AGAIN;
-	}
+	
 	if (cur_vec.status == SPT_VEC_INVALID)
 		return SPT_DO_AGAIN;
 
@@ -905,12 +889,7 @@ find_lowest_start:
 			pnext = (struct spt_vec *)vec_id_2_ptr(pclst,
 					cur_vec.down);
 			next_vec.val = pnext->val;
-			if (next_vec.status == SPT_VEC_RAW) {
-				smp_mb();/* ^^^ */
-				next_vec.val = pnext->val;
-				if (next_vec.status == SPT_VEC_RAW)
-					goto find_lowest_start;
-			}
+			
 			if (next_vec.status == SPT_VEC_INVALID) {
 				delete_next_vec(pclst, next_vec, pnext,
 						cur_vec, pcur, SPT_DOWN);
@@ -925,12 +904,7 @@ find_lowest_start:
 			pnext = (struct spt_vec *)vec_id_2_ptr(pclst,
 				cur_vec.rd);
 			next_vec.val = pnext->val;
-			if (next_vec.status == SPT_VEC_RAW) {
-				smp_mb();/* ^^^ */
-				next_vec.val = pnext->val;
-				if (next_vec.status == SPT_VEC_RAW)
-					goto find_lowest_start;
-			}
+			
 			if (next_vec.status == SPT_VEC_INVALID) {
 
 				delete_next_vec(pclst, next_vec, pnext,
@@ -2060,17 +2034,7 @@ int find_data(struct cluster_head_t *pclst, struct query_info_t *pqinfo)
 		startbit = get_real_pos_next(&cur_vec);
 	}
 	endbit = pqinfo->endbit;
-	if (cur_vec.status == SPT_VEC_RAW) {
-		smp_mb();/* ^^^ */
-		cur_vec.val = pcur->val;
-		if (cur_vec.status == SPT_VEC_RAW) {
-			if (pcur == pqinfo->pstart_vec) {
-				finish_key_cb(prdata);
-				return SPT_DO_AGAIN;
-			}
-			goto refind_start;
-		}
-	}
+	
 	if (cur_vec.status == SPT_VEC_INVALID) {
 		if (pcur == pqinfo->pstart_vec) {
 			if (op == SPT_OP_DELETE_FIND){
@@ -2256,12 +2220,7 @@ prediction_right:
 				spt_trace("go right vec-fs_pos:%d,startbit:%d\r\n",fs_pos,startbit);	
 				spt_trace("next rd:%d,next vec:%p\r\n", next_vecid, pnext);
 			}
-			if (next_vec.status == SPT_VEC_RAW) {
-				smp_mb();/* ^^^ */
-				next_vec.val = pnext->val;
-				if (next_vec.status == SPT_VEC_RAW)
-					goto refind_start;
-			}
+			
 			if (next_vec.status == SPT_VEC_INVALID) {
 				delete_next_vec(pclst, next_vec, pnext,
 						cur_vec, pcur, SPT_RIGHT);
@@ -2389,12 +2348,7 @@ prediction_down_continue:
 				spt_trace("down continue fs_pos:%d,startbit:%d, len:%d\r\n",fs_pos,startbit);
 				spt_trace("next down vec id:%d,vec:%p\r\n", next_vecid, pnext);
 			}
-			if (next_vec.status == SPT_VEC_RAW) {
-				smp_mb();/* ^^^ */
-				next_vec.val = pnext->val;
-				if (next_vec.status == SPT_VEC_RAW)
-					goto refind_start;
-			}
+			
 			if (next_vec.status == SPT_VEC_INVALID) {
 				delete_next_vec(pclst, next_vec, pnext,
 						cur_vec, pcur, SPT_DOWN);
@@ -2493,17 +2447,7 @@ prediction_check:
 		startbit = get_real_pos_next(&cur_vec);
 	}
 	endbit = pqinfo->endbit;
-	if (cur_vec.status == SPT_VEC_RAW) {
-		smp_mb();/* ^^^ */
-		cur_vec.val = pcur->val;
-		if (cur_vec.status == SPT_VEC_RAW) {
-			if (pcur == pqinfo->pstart_vec) {
-				finish_key_cb(prdata);
-				return SPT_DO_AGAIN;
-			}
-			goto refind_start;
-		}
-	}
+	
 	if (cur_vec.status == SPT_VEC_INVALID) {
 		if (pcur == pqinfo->pstart_vec) {
 			finish_key_cb(prdata);
@@ -2564,12 +2508,7 @@ go_right:
 					cur_vec.rd);
 			next_vec.val = pnext->val;
 			next_vecid = cur_vec.rd;
-			if (next_vec.status == SPT_VEC_RAW) {
-				smp_mb();/* ^^^ */
-				next_vec.val = pnext->val;
-				if (next_vec.status == SPT_VEC_RAW)
-					goto refind_start;
-			}
+			
 			if (next_vec.status == SPT_VEC_INVALID) {
 				delete_next_vec(pclst, next_vec, pnext,
 						cur_vec, pcur, SPT_RIGHT);
@@ -2673,12 +2612,7 @@ down_continue:
 					cur_vec.down);
 			next_vec.val = pnext->val;
 			next_vecid = cur_vec.down;
-			if (next_vec.status == SPT_VEC_RAW) {
-				smp_mb();/* ^^^ */
-				next_vec.val = pnext->val;
-				if (next_vec.status == SPT_VEC_RAW)
-					goto refind_start;
-			}
+			
 			if (next_vec.status == SPT_VEC_INVALID) {
 				delete_next_vec(pclst, next_vec, pnext,
 						cur_vec, pcur, SPT_DOWN);

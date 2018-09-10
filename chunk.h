@@ -60,7 +60,6 @@
 /* vec status */
 #define SPT_VEC_VALID 0
 #define SPT_VEC_INVALID 1
-#define SPT_VEC_RAW 2
 
 /* vec scan status */
 #define SPT_VEC_PVALUE  0
