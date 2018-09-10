@@ -53,7 +53,6 @@
 #include "splitter.h"
 #include "hash_strategy.h"
 
-int sd_perf_debug = 0;
 struct cluster_head_t *pgclst;
 int spt_trace_switch = 0;
 
