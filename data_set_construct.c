@@ -19,7 +19,7 @@
 #include "xxhash.h"
 
 #define DEFAULT_INS_LEN  256
-#define DEFAULT_INS_NUM  100000
+#define DEFAULT_INS_NUM  2000000
 #define DEFAULT_RANDOM_WAY 1
 #define DEFAULT_FILE_LEN 400*1024*1024
 unsigned long long spt_no_found_num = 0;

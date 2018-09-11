@@ -144,11 +144,19 @@ int get_real_pos_next(struct spt_vec *pvec)
 	struct spt_vec vec;
 	vec.val = pvec->val;	
 	if (pvec->scan_status == SPT_VEC_PVALUE) {
-		cur_index = pos_record[g_thrd_id]->cur_index++;
+		cur_index = pos_record[g_thrd_id]->cur_index;
+		spt_assert(cur_index >= 1);
+		
 		vec.pos = vec.pos + 1;
 		pos_record[g_thrd_id]->pos_array[cur_index] = vec.pos;
-		if (cur_index)
-			spt_assert(vec.pos > pos_record[g_thrd_id]->pos_array[cur_index - 1]);
+		if(vec.pos <= pos_record[g_thrd_id]->pos_array[cur_index - 1]){
+			printf("cur pos :%d, pre pos :%d\r\n", vec.pos, pos_record[g_thrd_id]->pos_array[cur_index-1]);
+			printf("cur_index:%d\r\n", cur_index);
+			spt_assert(0);
+		}
+		
+		pos_record[g_thrd_id]->cur_index++;
+		
 		return vec.pos;
 	} else if(pvec->scan_status == SPT_VEC_HVALUE) {
 		vec.val = pvec->val;
@@ -165,9 +173,12 @@ void real_pos_back(struct spt_vec *pvec, struct spt_vec *pre_vec)
 {
 	spt_assert(pos_record[g_thrd_id]->cur_index > 0);
 
-	if(pvec->scan_status == SPT_VEC_PVALUE) {
+	if(pvec->scan_status == SPT_VEC_PVALUE)
 		pos_record[g_thrd_id]->cur_index--;
-	}	
+
+	if (pre_vec->scan_status == SPT_VEC_PVALUE)
+		pos_record[g_thrd_id]->cur_index--;
+
 }
 
 void set_real_pos(struct spt_vec *pvec, unsigned int real_pos, unsigned int pre_pos, unsigned int real_hash)

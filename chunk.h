@@ -86,9 +86,9 @@
 /* cluster divide info*/
 #define SPT_SORT_ARRAY_SIZE (4096*8)
 #define SPT_DVD_CNT_PER_TIME (100)
-#define SPT_DVD_THRESHOLD_VA (1000000)
+#define SPT_DVD_THRESHOLD_VA (300000)
 #define SPT_DVD_MOVE_TIMES (SPT_DVD_THRESHOLD_VA/(2*SPT_DVD_CNT_PER_TIME))
-#define SPT_DATA_HIGH_WATER_MARK (1600000)
+#define SPT_DATA_HIGH_WATER_MARK (450000)
 
 
 /* data size and bit len*/

@@ -350,7 +350,7 @@ int main(int argc,char *argv[])
         return 1;
 	}
 
-#if 0
+#if 1
 	err = pthread_create(&ntid, NULL, test_divid_thread, 3);
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));

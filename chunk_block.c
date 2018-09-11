@@ -252,7 +252,7 @@ void cluster_add_page(struct cluster_head_t *pclst, char **pglist, int pg_id)
 	} else if ((id - direct_pgs) < indirect_pgs) {
 		id -= direct_pgs;
 		offset = id;
-		old_pg = pclst->pglist_vec[CLST_IND_PG];
+		old_pg = pglist[CLST_IND_PG];
 		if (old_pg == 0){
 			indir_page = (char **)spt_alloc_zero_page();
 			if (indir_page == NULL)
