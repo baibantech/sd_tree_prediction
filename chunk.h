@@ -242,7 +242,6 @@ struct cluster_head_t {
 
 	unsigned int used_vec_cnt;
 	unsigned int used_db_cnt;
-	unsigned int free_vec_cnt;
 	unsigned int spill_grp_id;
 	unsigned int thrd_total;
 	unsigned int last_alloc_id;
@@ -342,6 +341,8 @@ struct insert_info_t {
 struct data_info_t {
 	struct spt_vec cur_vec;
 	struct spt_vec *pcur;
+	struct spt_vec *pnext;
+	int next_pos;
 	int cur_vecid;
 	u32 cur_data_id;
 	char *pnew_data;

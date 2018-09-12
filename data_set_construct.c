@@ -475,18 +475,17 @@ void data_pre_process()
 		}while(cur);
 	return;
 }
-u64 g_mask=0;
-u64 g_wam=0;
+
+int merge_cnt = 0;
+int insert_cnt = 0;
 
 void test_pre_insert_proc(void *args)
 {
 	struct data_set_cache *cur = NULL;
 	struct data_set_cache *next = NULL;
 	void *data = NULL;
-	int insert_cnt = 0;
 	int ret =0;
 	void *ret_data = NULL;
-	unsigned long long merge_cnt = 0;
 	unsigned long long per_cache_time_begin = 0;	
 	unsigned long long per_cache_time_end = 0;	
 	unsigned long long total_time = 0;
@@ -507,40 +506,17 @@ void test_pre_insert_proc(void *args)
 			cnt--;
 			goto next_loop;
 		}
-		insert_cnt =0;
 		spt_thread_start(g_thrd_id);
 		while(data = get_next_data(next))
 		{
 			insert_cnt++;
 			spt_thread_start(g_thrd_id);
-try_again:
+			
 			if(NULL ==(ret_data =  test_insert_data(data)))
             {
                 ret = spt_get_errno();
-                if(ret == SPT_MASKED)
-                {
-                g_mask++;
-                    spt_thread_exit(g_thrd_id);
-                    spt_thread_start(g_thrd_id);
-                    goto try_again;
-                }
-                else if(ret == SPT_WAIT_AMT)
-                {
-                g_wam++;
-                    spt_thread_exit(g_thrd_id);
-                    spt_thread_start(g_thrd_id);
-                    goto try_again;
-                }
-                else if(ret == SPT_NOMEM)
-                {
-                    printf("OOM,%d\t%s\r\n", __LINE__, __FUNCTION__);
-                    break;
-                }
-                else
-                {
-                    printf("INSERT ERROR[%d],%d\t%s\r\n", ret,__LINE__, __FUNCTION__);
-                    break;
-                }
+				printf("INSERT ERROR[%d],%d\t%s\r\n", ret,__LINE__, __FUNCTION__);
+				break;
 			}
 			else
 			{

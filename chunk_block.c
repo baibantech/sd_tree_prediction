@@ -779,7 +779,6 @@ alloc_next_grp:
         if(old.val == atomic64_cmpxchg((atomic64_t *)&grp->val, old.val, tmp.val))
             break;
     }
-    atomic_sub(1, (atomic_t *)&pclst->free_vec_cnt);
     atomic_add(1, (atomic_t *)&pclst->used_vec_cnt);
 	atomic_add(1, (atomic_t *)&spt_pg->bit_used);
 	*vec = (struct spt_vec *)((char *)grp + sizeof(struct spt_grp) + fs*sizeof(struct spt_vec));

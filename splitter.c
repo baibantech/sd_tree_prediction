@@ -496,7 +496,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 		if (chg_pos) {
 			do {
 				next_vec_val = tmp_vec.val = next_vec->val;
-				tmp_vec.scan_status = SPT_VEC_PVALUE;
+				tmp_vec.scan_status = SPT_VEC_HVALUE;
 				tmp_vec.pos = new_next_pos;
 			}while (next_vec_val != atomic64_cmpxchg (
 						(atomic64_t *)next_vec, next_vec_val,
@@ -635,7 +635,7 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 		if (chg_pos) {
 			do {
 				next_vec_val = tmp_vec.val = next_vec->val;
-				tmp_vec.scan_status = SPT_VEC_PVALUE;
+				tmp_vec.scan_status = SPT_VEC_HVALUE;
 				tmp_vec.pos = new_next_pos;
 			}while (next_vec_val != atomic64_cmpxchg (
 						(atomic64_t *)next_vec, next_vec_val,
@@ -798,7 +798,7 @@ int do_insert_up_via_d(struct cluster_head_t *pclst,
 		if (chg_pos) {
 			do {
 				next_vec_val = tmp_vec.val = next_vec->val;
-				tmp_vec.scan_status = SPT_VEC_PVALUE;
+				tmp_vec.scan_status = SPT_VEC_HVALUE;
 				tmp_vec.pos = new_next_pos;
 			}while (next_vec_val != atomic64_cmpxchg (
 						(atomic64_t *)next_vec, next_vec_val,
@@ -2411,6 +2411,8 @@ prediction_down_continue:
 			pinfo.cur_vecid = cur_vecid;
 			pinfo.fs = fs_pos;
 			pinfo.startbit = startbit;
+			pinfo.pnext = pnext;
+			pinfo.next_pos = len;
 
 			spt_trace("down up pcur %p\r\n", pcur);
 			spt_trace("final vec fs:%d\r\n", fs_pos);
@@ -4909,13 +4911,15 @@ void debug_buf_free(struct cluster_head_t *pclst)
 	debug_travl_stack_destroy(pstack);
 }
 unsigned long long lower_cluster_vec_total = 0;
+unsigned long long lower_cluster_data_total = 0;
 void debug_cluster_info_show(struct cluster_head_t *pclst)
 {
 	int data_cnt, vec_cnt;
 
-	spt_print("%p [db_total]:%d [vec_free]:%d [vec_used]:%d\r\n",
-	pclst,pclst->data_total ,pclst->free_vec_cnt, pclst->used_vec_cnt);
+	spt_print("%p [db_total]:%d [vec_used]:%d\r\n",
+	pclst,pclst->data_total , pclst->used_vec_cnt);
 	lower_cluster_vec_total+= pclst->used_vec_cnt;
+	lower_cluster_data_total+= pclst->data_total;
 }
 
 void debug_lower_cluster_info_show(void)
@@ -4925,6 +4929,7 @@ void debug_lower_cluster_info_show(void)
 	int i = 0;
 	
 	lower_cluster_vec_total = 0;
+	lower_cluster_data_total = 0;
 	spt_print("\r\n==========cluster info show=====================\r\n");
 	list_for_each(list_itr, &pgclst->c_list) {
 		pclst = list_entry(list_itr, struct cluster_head_t, c_list);
@@ -4933,6 +4938,7 @@ void debug_lower_cluster_info_show(void)
 		i++;
 	}
 	spt_print("\r\nlower cluster vec total is %lld\r\n",lower_cluster_vec_total);
+	spt_print("\r\nlower cluster data total is %lld\r\n",lower_cluster_data_total);
 	spt_print("\r\n==========cluster info end======================\r\n");
 }
 void clean_lower_cluster_cache(void)
