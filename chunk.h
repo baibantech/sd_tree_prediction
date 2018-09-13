@@ -232,6 +232,7 @@ struct cluster_address_trans_info {
 struct cluster_head_t {
 	struct list_head c_list;
 	int vec_head;
+	int cluster_id;
 
 	struct spt_vec *pstart;
 	u64 startbit;

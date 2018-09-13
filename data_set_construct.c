@@ -451,12 +451,12 @@ extern void* test_insert_data(char *pdata);
 extern void* test_insert_data_entry(char *pdata);
 extern void* test_delete_data(char *pdata);
 
-void data_pre_process()
+void test_find_next_cluster(void *args)
 {
 	struct data_set_cache *cur = NULL;
 	struct data_set_cache *next = NULL;
 	void *data = NULL;
-	u32 hash, hashcode;
+	int cnt = 0;
 	
 	do {
 			next = get_next_data_set_cache(cur);		
@@ -466,12 +466,11 @@ void data_pre_process()
 			}
 			while(data = get_next_data(next))
 			{
-				hash = xxh32(data, data_set_config_instance_len, 0);
-				hashcode = hash | ((1<<3)-1);
-				hashcode = hashcode & 0xfffffffe;
-				
-				*(u32 *)data = htonl(hashcode);
-			}
+				test_find_cluster(data);
+				cnt++;
+				if(cnt >64)
+					break;
+			};
 		}while(cur);
 	return;
 }
@@ -538,6 +537,7 @@ next_loop:
 	}while(cur);
 	printf("pre insert over\r\n");
 }
+
 void test_pre_delete_proc(void *args)
 {
 	struct data_set_cache *cur = NULL;

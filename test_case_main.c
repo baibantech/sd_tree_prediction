@@ -357,7 +357,8 @@ int main(int argc,char *argv[])
 #endif
 
 	g_thrd_id = 0;
-	test_pre_insert_proc(0);
+	//test_pre_insert_proc(0);
+	test_find_next_cluster(0);
 	sleep(10);
 	//test_pre_insert_proc(0);
 #if 0 
@@ -393,6 +394,14 @@ void *test_insert_data(char *pdata)
 void *test_delete_data(char *pdata)
 {
 	return delete_data(pgclst, pdata);
+}
+extern struct cluster_head_t *find_next_cluster(struct cluster_head_t *pclst, char *pdata);
+void test_find_cluster(char *data)
+{
+	struct cluster_head_t *pclst;
+	pclst = find_next_cluster(pgclst, data);
+	printf("cur cluster id %d\r\n", pclst->cluster_id);
+	sleep(1);
 }
 
 #if 0

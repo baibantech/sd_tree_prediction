@@ -3192,6 +3192,7 @@ struct cluster_head_t *spt_cluster_init(u64 startbit,
 	if (pclst == NULL)
 		return NULL;
 	INIT_LIST_HEAD(&pclst->c_list);
+	pclst->cluster_id = 0;
 	/*
 	 * init bottom cluster
 	 */
@@ -3204,6 +3205,7 @@ struct cluster_head_t *spt_cluster_init(u64 startbit,
 		return NULL;
 	}
 
+	plower_clst->cluster_id = 1;
 	pdh_ext = spt_malloc(sizeof(struct spt_dh_ext)+DATA_SIZE);
 	if (pdh_ext == NULL) {
 		cluster_destroy(pclst);
@@ -3229,6 +3231,7 @@ struct cluster_head_t *spt_cluster_init(u64 startbit,
 		return NULL;
 	}
 
+	plower_clst->cluster_id = 2;
 	pdh_ext = spt_malloc(sizeof(struct spt_dh_ext)+DATA_SIZE);
 	if (pdh_ext == NULL) {
 		cluster_destroy(pclst);
@@ -3248,7 +3251,7 @@ struct cluster_head_t *spt_cluster_init(u64 startbit,
 	/*
 	 * The sample space is divided into several parts on average
 	 */
-	for (i = 1; i < 128; i++) {
+	for (i = 1; i < 256; i++) {
 		plower_clst = cluster_init(1, startbit,
 				endbit, thread_num, pf, pf2,
 							pf_free, pf_con);
@@ -3257,6 +3260,8 @@ struct cluster_head_t *spt_cluster_init(u64 startbit,
 			return NULL;
 		}
 
+		plower_clst->cluster_id = 2 + i;
+		
 		pdh_ext = spt_malloc(sizeof(struct spt_dh_ext));
 		if (pdh_ext == NULL) {
 			cluster_destroy(pclst);
