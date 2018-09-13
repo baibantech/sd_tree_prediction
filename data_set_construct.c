@@ -511,7 +511,7 @@ void test_pre_insert_proc(void *args)
 		{
 			insert_cnt++;
 			spt_thread_start(g_thrd_id);
-			
+			PERF_STAT_START(whole_insert);	
 			if(NULL ==(ret_data =  test_insert_data(data)))
             {
                 ret = spt_get_errno();
@@ -524,6 +524,7 @@ void test_pre_insert_proc(void *args)
 				{
 					merge_cnt++;		
 				}	
+				PERF_STAT_END(whole_insert);
 				spt_thread_exit(g_thrd_id);
 			}
 		}

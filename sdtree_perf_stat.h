@@ -47,12 +47,11 @@ typedef struct sd_perf_stat_s
 #define PERF_STAT_DEC(x) \
     extern sd_perf_stat perf_##x
 
-PERF_STAT_DEC(random_cmp);
 PERF_STAT_DEC(whole_insert);
+PERF_STAT_DEC(insert_up_rd);
+PERF_STAT_DEC(insert_down_rd);
+PERF_STAT_DEC(insert_last_down);
+PERF_STAT_DEC(insert_up_down);
+PERF_STAT_DEC(insert_first_set);
 PERF_STAT_DEC(whole_delete);
-PERF_STAT_DEC(get_data_id);
-PERF_STAT_DEC(jhash2_random);
-PERF_STAT_DEC(spt_get_hash_tag);
-PERF_STAT_DEC(find_data);
-
 #endif

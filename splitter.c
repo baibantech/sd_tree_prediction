@@ -346,7 +346,7 @@ int do_insert_first_set(struct cluster_head_t *pclst,
 	if (tmp_vec.scan_lock)
 		return SPT_DO_AGAIN;
 
-	dataid = db_alloc_from_grp(pclst, 0, &pdh);
+	dataid = db_alloc_from_grp(pclst, pinsert->key_id, &pdh);
 	if (!pdh) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		return SPT_NOMEM;
@@ -398,7 +398,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 	if (tmp_vec.scan_lock)
 		return SPT_DO_AGAIN;
     
-	dataid = db_alloc_from_grp(pclst, 0, &pdh);
+	dataid = db_alloc_from_grp(pclst, pinsert->key_id, &pdh);
 	if (!pdh) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		return SPT_NOMEM;
@@ -554,7 +554,7 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 	if (tmp_vec.scan_lock)
 		return SPT_DO_AGAIN;
     
-	dataid = db_alloc_from_grp(pclst, 0, &pdh);
+	dataid = db_alloc_from_grp(pclst, pinsert->key_id, &pdh);
 	if (!pdh) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		return SPT_NOMEM;
@@ -687,7 +687,7 @@ int do_insert_last_down(struct cluster_head_t *pclst,
 	if (tmp_vec.scan_lock)
 		return SPT_DO_AGAIN;
 
-    dataid = db_alloc_from_grp(pclst, 0, &pdh);
+    dataid = db_alloc_from_grp(pclst, pinsert->key_id, &pdh);
 	if (pdh == 0) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		return SPT_NOMEM;
@@ -752,7 +752,7 @@ int do_insert_up_via_d(struct cluster_head_t *pclst,
 	if (tmp_vec.scan_lock)
 		return SPT_DO_AGAIN;
 
-    dataid = db_alloc_from_grp(pclst, 0, &pdh);
+    dataid = db_alloc_from_grp(pclst, pinsert->key_id, &pdh);
 	if (pdh == 0) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		return SPT_NOMEM;
@@ -1873,10 +1873,12 @@ int final_vec_process(struct cluster_head_t *pclst, struct query_info_t *pqinfo 
 			st_insert_info.key_id = pdinfo->cur_vecid;	
 			switch (type) {
 				case SPT_FIRST_SET:
+					PERF_STAT_START(insert_first_set);
 					ret = do_insert_first_set(
 							pclst,
 							&st_insert_info,
 							pqinfo->data);
+					PERF_STAT_END(insert_first_set);
 					if (ret == SPT_DO_AGAIN) {
 						return SPT_DO_AGAIN;
 					} else if (ret >= 0) {
@@ -1891,9 +1893,11 @@ int final_vec_process(struct cluster_head_t *pclst, struct query_info_t *pqinfo 
 					st_insert_info.pcur_data = pdinfo->pcur_data;
 					st_insert_info.pnew_data = pdinfo->pnew_data;
 
+					PERF_STAT_START(insert_up_rd);
 					ret = do_insert_up_via_r(pclst,
 						&st_insert_info,
 						pqinfo->data);
+					PERF_STAT_END(insert_up_rd);
 					if (ret == SPT_DO_AGAIN)
 						return  SPT_DO_AGAIN;
 					else if (ret >= 0) {
@@ -1917,8 +1921,10 @@ int final_vec_process(struct cluster_head_t *pclst, struct query_info_t *pqinfo 
 					else
 						st_insert_info.fs = pdinfo->fs;
 
+					PERF_STAT_START(insert_down_rd);
 					ret = do_insert_down_via_r(pclst,
 							&st_insert_info, pqinfo->data);
+					PERF_STAT_END(insert_down_rd);
 					if (ret == SPT_DO_AGAIN)
 						return SPT_DO_AGAIN;
 
@@ -1934,9 +1940,11 @@ int final_vec_process(struct cluster_head_t *pclst, struct query_info_t *pqinfo 
 					st_insert_info.endbit = pdinfo->endbit;
 					st_insert_info.pnew_data = pdinfo->pnew_data;
 
+					PERF_STAT_START(insert_up_down);
 					ret = do_insert_up_via_d(pclst,
 						&st_insert_info,
 						pqinfo->data);
+					PERF_STAT_END(insert_up_down);
 					if (ret == SPT_DO_AGAIN)
 						return  SPT_DO_AGAIN;
 					else if (ret >= 0) {
@@ -1952,9 +1960,11 @@ int final_vec_process(struct cluster_head_t *pclst, struct query_info_t *pqinfo 
 					st_insert_info.endbit = pdinfo->endbit;
 					st_insert_info.pnew_data = pdinfo->pnew_data;
 					
+					PERF_STAT_START(insert_last_down);
 					ret = do_insert_last_down(pclst,
 						&st_insert_info,
 						pqinfo->data);
+					PERF_STAT_END(insert_last_down);
 					if (ret == SPT_DO_AGAIN)
 						return  SPT_DO_AGAIN;
 					else if (ret >= 0) {
@@ -2371,7 +2381,9 @@ prediction_down_continue:
 				pre_vecid = cur_vecid;
 				cur_vecid = next_vecid;
 				cur_vec.val = next_vec.val;
-				continue;
+				if (startbit != endbit) {
+					continue;
+				}
 			}
 
 			cur_data = get_data_id(pclst, pnext);
@@ -2403,7 +2415,13 @@ prediction_down_continue:
 				
 				spt_trace("checkbit:%d,checkdata_id:%d,checkdata:%p\r\n",check_pos ,check_data_id, check_data);	
 				goto prediction_check;
+			} else {
+				if (startbit == endbit) {
+					spt_trace("find same record\r\n");	
+					goto same_record;
+				}
 			}
+
 			pinfo.cur_vec = cur_vec;
 			pinfo.pcur = pcur;
 			pinfo.pnew_data = prdata;
@@ -3230,7 +3248,7 @@ struct cluster_head_t *spt_cluster_init(u64 startbit,
 	/*
 	 * The sample space is divided into several parts on average
 	 */
-	for (i = 1; i < 256; i++) {
+	for (i = 1; i < 128; i++) {
 		plower_clst = cluster_init(1, startbit,
 				endbit, thread_num, pf, pf2,
 							pf_free, pf_con);

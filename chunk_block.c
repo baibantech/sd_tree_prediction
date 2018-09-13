@@ -385,9 +385,10 @@ struct cluster_head_t *cluster_init(int is_bottom,
 		spt_cb_construct pf_con)
 {
 	struct cluster_head_t *phead;
-	int ptr_bits;
+	int ptr_bits, i;
 	u32 vec;
 	struct spt_vec *pvec;
+	int pg_num = 0;
 
 	phead = (struct cluster_head_t *)spt_alloc_zero_page();
 	if (phead == NULL)
@@ -447,6 +448,11 @@ struct cluster_head_t *cluster_init(int is_bottom,
 
 	phead->vec_head = vec;
 	phead->pstart = pvec;
+	pg_num = (GRP_SPILL_START / GRPS_PER_PG) + 1; 
+	for (i = 0 ; i < pg_num; i++) {
+		get_db_pg_head(phead, i);
+		get_vec_pg_head(phead, i);
+	}
 
 	return phead;
 }

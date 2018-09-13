@@ -83,7 +83,9 @@
 #define GRP_TICK_MASK 0xful
 #define PG_SPILL_WATER_MARK 360
 #define GRP_SPILL_START (32*1024)
+
 /* cluster divide info*/
+
 #define SPT_SORT_ARRAY_SIZE (4096*8)
 #define SPT_DVD_CNT_PER_TIME (100)
 #define SPT_DVD_THRESHOLD_VA (300000)

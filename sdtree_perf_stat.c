@@ -1,25 +1,13 @@
 #include <sdtree_perf_stat.h>
 
 
-PERF_STAT_DEFINE(random_cmp);
 PERF_STAT_DEFINE(whole_insert);
+PERF_STAT_DEFINE(insert_up_rd);
+PERF_STAT_DEFINE(insert_down_rd);
+PERF_STAT_DEFINE(insert_last_down);
+PERF_STAT_DEFINE(insert_up_down);
+PERF_STAT_DEFINE(insert_first_set);
 PERF_STAT_DEFINE(whole_delete);
-PERF_STAT_DEFINE(get_data_id);
-PERF_STAT_DEFINE(jhash2_random);
-PERF_STAT_DEFINE(spt_get_hash_tag);
-PERF_STAT_DEFINE(find_data);
-PERF_STAT_DEFINE(find_data_prediction);
-PERF_STAT_DEFINE(find_data_test);
-PERF_STAT_DEFINE(find_prediction);
-PERF_STAT_DEFINE(find_entry);
-PERF_STAT_DEFINE(find_prediction_ok);
-PERF_STAT_DEFINE(find_prediction_err);
-PERF_STAT_DEFINE(entry_get_data);
-PERF_STAT_DEFINE(entry_get_change_bit);
-PERF_STAT_DEFINE(find_pre_entry);
-PERF_STAT_DEFINE(entry_vec_search);
-PERF_STAT_DEFINE(grp_by_data);
-PERF_STAT_DEFINE(index_by_data);
 
 
 
@@ -27,25 +15,13 @@ PERF_STAT_DEFINE(index_by_data);
 
 sd_perf_stat *sd_perf_stat_array[] =
 {
-    PERF_STAT_PTR(random_cmp),
     PERF_STAT_PTR(whole_insert),
+	PERF_STAT_PTR(insert_up_rd),
+	PERF_STAT_PTR(insert_down_rd),
+	PERF_STAT_PTR(insert_last_down),
+	PERF_STAT_PTR(insert_up_down),
+	PERF_STAT_PTR(insert_first_set),
     PERF_STAT_PTR(whole_delete),
-    PERF_STAT_PTR(get_data_id),
-    PERF_STAT_PTR(jhash2_random),
-    PERF_STAT_PTR(spt_get_hash_tag),
-    PERF_STAT_PTR(find_data),
-    PERF_STAT_PTR(find_data_prediction),
-    PERF_STAT_PTR(find_data_test),
-	PERF_STAT_PTR(find_prediction),
-	PERF_STAT_PTR(find_entry),
-	PERF_STAT_PTR(find_prediction_ok),
-	PERF_STAT_PTR(find_prediction_err),
-	PERF_STAT_PTR(entry_get_data),
-	PERF_STAT_PTR(entry_get_change_bit),
-	PERF_STAT_PTR(find_pre_entry),
-	PERF_STAT_PTR(entry_vec_search),
-	PERF_STAT_PTR(grp_by_data),
-	PERF_STAT_PTR(index_by_data),
 };
 
 void sd_perf_stat_init()
