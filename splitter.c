@@ -1892,7 +1892,7 @@ int final_vec_process(struct cluster_head_t *pclst, struct query_info_t *pqinfo 
 					st_insert_info.endbit = pdinfo->endbit;
 					st_insert_info.pcur_data = pdinfo->pcur_data;
 					st_insert_info.pnew_data = pdinfo->pnew_data;
-
+					st_insert_info.dataid = cur_data;
 					PERF_STAT_START(insert_up_rd);
 					ret = do_insert_up_via_r(pclst,
 						&st_insert_info,
@@ -2386,7 +2386,7 @@ prediction_down_continue:
 				}
 			}
 
-			cur_data = get_data_id(pclst, pnext);
+			cur_data = get_data_id(pclst, pcur);
 			if (cur_data >= 0 && cur_data < SPT_INVALID) {
 				pdh = (struct spt_dh *)db_id_2_ptr(pclst,
 					cur_data);
@@ -2546,6 +2546,16 @@ go_right:
 			if (startbit + len > check_pos) {
 				pcheck_vec = pcur;
 				check_vec = cur_vec;
+				if (cur_data == SPT_INVALID &&
+						cur_vec.type != SPT_VEC_DATA) {
+					cur_data = get_data_id(pclst, pnext);
+					if(cur_data == SPT_DO_AGAIN) {
+						cur_data = SPT_INVALID;
+						goto refind_start;
+					}
+					if (cur_data == SPT_NULL)
+						spt_assert(0);
+				}
 				
 				cmp = diff_identify(prdata, check_data, startbit, len, &cmpres);
 				pinfo.cur_vec = cur_vec;
@@ -2565,6 +2575,7 @@ go_right:
 					spt_assert(0);
 				} else if (cmp > 0) {
 					check_type = SPT_RD_UP;
+					
 					spt_trace("prediction check ok, check type RD UP\r\n");
 				} else {
 					check_type = SPT_RD_DOWN;
@@ -2663,9 +2674,12 @@ down_continue:
 				pre_vecid = cur_vecid;
 				cur_vecid = next_vecid;
 				cur_vec.val = next_vec.val;
-				continue;
+			
+				if (startbit != endbit) {
+					continue;
+				}
 			}
-			cur_data = get_data_id(pclst, pnext);
+			cur_data = get_data_id(pclst, pcur);
 			if (cur_data >= 0 && cur_data < SPT_INVALID) {
 				
 				if (cur_data != check_data_id)
