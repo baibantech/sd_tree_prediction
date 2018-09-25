@@ -2386,7 +2386,7 @@ prediction_down_continue:
 				}
 			}
 
-			cur_data = get_data_id(pclst, pcur);
+			cur_data = get_data_id(pclst, pnext);
 			if (cur_data >= 0 && cur_data < SPT_INVALID) {
 				pdh = (struct spt_dh *)db_id_2_ptr(pclst,
 					cur_data);
@@ -2679,7 +2679,7 @@ down_continue:
 					continue;
 				}
 			}
-			cur_data = get_data_id(pclst, pcur);
+			cur_data = get_data_id(pclst, pnext);
 			if (cur_data >= 0 && cur_data < SPT_INVALID) {
 				
 				if (cur_data != check_data_id)

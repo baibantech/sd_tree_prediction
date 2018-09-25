@@ -357,8 +357,8 @@ int main(int argc,char *argv[])
 #endif
 
 	g_thrd_id = 0;
-	//test_pre_insert_proc(0);
-	test_find_next_cluster(0);
+	test_pre_insert_proc(0);
+	//test_find_next_cluster(0);
 	sleep(10);
 	//test_pre_insert_proc(0);
 #if 0 

@@ -450,8 +450,8 @@ struct cluster_head_t *cluster_init(int is_bottom,
 	phead->pstart = pvec;
 	pg_num = (GRP_SPILL_START / GRPS_PER_PG) + 1; 
 	for (i = 0 ; i < pg_num; i++) {
-		get_db_pg_head(phead, i);
-		get_vec_pg_head(phead, i);
+		//get_db_pg_head(phead, i);
+		//get_vec_pg_head(phead, i);
 	}
 
 	return phead;
