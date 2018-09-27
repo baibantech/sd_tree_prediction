@@ -26,6 +26,7 @@ void* test_pre_insert_thread(void *arg);
 void* test_pre_delete_thread(void *arg);
 void* test_pre_insert_proc(void *arg);
 void* test_pre_delete_proc(void *arg);
+void* test_find_proc(void *arg);
 
 void* test_delete_thread(void *arg);
 void* test_divid_thread(void *arg);
@@ -361,6 +362,7 @@ int main(int argc,char *argv[])
 	//test_find_next_cluster(0);
 	sleep(10);
 	//test_pre_insert_proc(0);
+	test_find_proc(0);
 #if 0 
 	for(i = 0;  i  < data_set_config_insert_thread_num ; i++)
     {
@@ -395,6 +397,7 @@ void *test_delete_data(char *pdata)
 {
 	return delete_data(pgclst, pdata);
 }
+
 extern struct cluster_head_t *find_next_cluster(struct cluster_head_t *pclst, char *pdata);
 void test_find_cluster(char *data)
 {
@@ -403,30 +406,32 @@ void test_find_cluster(char *data)
 	printf("cur cluster id %d\r\n", pclst->cluster_id);
 	sleep(1);
 }
-
-#if 0
-void *test_insert_data_entry(char *pdata)
-{
-	total_data_num++;
-	return insert_data_entry(pgclst, pdata);
-}
-void *test_delete_data_entry(char *pdata)
-{
-	return delete_data_entry(pgclst, pdata);
-}
-#endif
-
+extern char *query_data_by_hash(struct cluster_head_t *pclst, char *pdata);
 void *test_find_data(char *pdata)
 {
-	return query_data(pgclst, pdata);
+	return query_data_by_hash(pgclst, pdata);
 }
-
-#if 0
-int test_find_data_prediction(char *pdata)
+void* test_find_thread(void *arg)
 {
-	return query_data_prediction(pgclst, pdata);
+	int i = (long)arg;
+	cpu_set_t mask;
+	g_thrd_id = i;
+	CPU_ZERO(&mask);
+	CPU_SET(i,&mask);
+	if(sched_setaffinity(0,sizeof(mask),&mask)== -1)
+	{
+		printf("warning: could not set CPU AFFINITY\r\n");
+	}
+
+	test_find_proc(i);
+	if(i != 0)
+	{	
+		while(1)
+		{
+			sleep(10);		
+		}
+	}
 }
-#endif
 
 int test_stop = 1;
 void* test_insert_thread(void *arg)

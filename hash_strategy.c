@@ -89,7 +89,7 @@ void calc_hash(char *data, unsigned int *window_hash, unsigned int *seg_hash, in
 	window_id = (pos/8)/HASH_WINDOW_LEN;
 
 	if (window_id == 0) {
-		*window_hash = 0;
+		*window_hash = djb_hash(data + DATA_SIZE - HASH_WINDOW_LEN , HASH_WINDOW_LEN);
 		*seg_hash = djb_hash(data, HASH_WINDOW_LEN); 
 	} else {
 		*window_hash = djb_hash(data, window_id*HASH_WINDOW_LEN);
@@ -211,4 +211,50 @@ int is_need_chg_pos(struct spt_vec *vec, struct spt_vec *next_vec, int type)
 	}
 	return 0;
 }
+
+int find_start_vec(struct cluster_head_t *pclst, struct spt_vec **vec, int *start_pos, char *data, int window)
+{
+	int gid,fs;
+	struct spt_grp *grp, *next_grp, old_grp;
+	struct spt_pg_h *spt_pg;
+	struct spt_vec cur_vec, *pvec;
+	
+	unsigned int window_hash, seg_hash, allocmap;
+	calc_hash(data, &window_hash, &seg_hash, window);
+	//printf("window hash 0x%x, seg hash 0x%x\r\n",window_hash, seg_hash);
+	
+	gid = seg_hash %GRP_SPILL_START;
+	*vec = NULL;
+re_find:
+	spt_pg = get_vec_pg_head(pclst, gid/GRPS_PER_PG);
+	grp = get_grp_from_page_head(spt_pg, gid);
+	//printf("gid 0x%x, grp %p\r\n", gid, grp);
+	fs = 0;
+	
+	old_grp.val = grp->val;
+	allocmap = old_grp.allocmap;
+	allocmap = ~allocmap;
+	//printf("allocmap 0x%x\r\n", allocmap);
+	while (1) {
+		fs = find_next_bit(&allocmap, 32, fs);
+		if (fs >= 32) {
+			next_grp = grp->next_grp;
+			if ((next_grp == 0) || (next_grp == 0xFFFFF))
+				return -1;
+			gid = next_grp;
+			goto re_find;
+		}
+		pvec = (char *) grp + sizeof(struct spt_grp) + fs *sizeof(struct spt_vec); 
+		cur_vec.val = pvec->val;
+		//printf("check vec %p\r\n", pvec);	
+		if ((cur_vec.scan_status == SPT_VEC_HVALUE) && (cur_vec.status == SPT_VEC_VALID)) {
+			if(spt_get_pos_hash(cur_vec) == (window_hash & SPT_HASH_MASK)) {
+				*vec = pvec;
+				return gid*VEC_PER_GRP + fs;
+			}
+		}
+		fs++;
+	}
+}
+
 

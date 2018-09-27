@@ -59,4 +59,11 @@ void set_real_pos(struct spt_vec *pvec,
 int is_need_chg_pos(struct spt_vec *vec,
 		struct spt_vec *next_vec,
 		int type);
+
+int find_start_vec(struct cluster_head_t *pclst,
+		struct spt_vec **vec,
+		int *start_pos,
+		char *pdata,
+		int window);
+
 #endif

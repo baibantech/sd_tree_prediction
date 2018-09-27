@@ -448,8 +448,8 @@ u64 g_insert_ok = 0;
 u64 g_delete_ok = 0;
 extern 	int test_stop;
 extern void* test_insert_data(char *pdata);
-extern void* test_insert_data_entry(char *pdata);
 extern void* test_delete_data(char *pdata);
+extern void* test_find_data(char *pdata);
 
 void test_find_next_cluster(void *args)
 {
@@ -473,6 +473,59 @@ void test_find_next_cluster(void *args)
 			};
 		}while(cur);
 	return;
+}
+
+void test_find_proc(void *args)
+{
+	struct data_set_cache *cur = NULL;
+	struct data_set_cache *next = NULL;
+	void *data = NULL;
+	int ret =0;
+	void *ret_data = NULL;
+	unsigned long long per_cache_time_begin = 0;	
+	unsigned long long per_cache_time_end = 0;	
+	unsigned long long total_time = 0;
+    u64 *prandom1,*prandom2;
+    u64 start, end;
+	u32 hash;
+	u64 hash64;
+    int idx;
+	int cnt = g_thrd_id;
+	
+	do {
+		next = get_next_data_set_cache(cur);		
+		if(NULL == next)
+		{
+			break;
+		}
+		if(cnt != 0) {
+			cnt--;
+			goto next_loop;
+		}
+		spt_thread_start(g_thrd_id);
+		while(data = get_next_data(next))
+		{
+			spt_thread_start(g_thrd_id);
+			if(NULL ==(ret_data =  test_find_data(data)))
+            {
+                ret = spt_get_errno();
+				printf("find ERROR[%d],%d\t%s\r\n", ret,__LINE__, __FUNCTION__);
+				break;
+			}
+			else
+			{
+				spt_thread_exit(g_thrd_id);
+			}
+		}
+next_loop:
+        if(cur)
+		{
+			free(cur);
+		}
+		cur = next;
+		sleep(0);
+	}while(cur);
+	printf("test find over\r\n");
 }
 
 int merge_cnt = 0;

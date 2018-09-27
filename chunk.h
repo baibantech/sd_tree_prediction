@@ -143,6 +143,7 @@
 #define spt_set_data_not_free(x) ((x)->rsv &= 0xfffe)
 
 #define SPT_HASH_BIT  11
+#define SPT_HASH_MASK 0x3FF
 #define SPT_POS_BIT 5
 #define spt_get_pos_hash(x) ((x).pos >> SPT_POS_BIT)
 #define spt_get_pos_offset(x) ((x).pos & 0x001F)
@@ -293,6 +294,7 @@ struct query_info_t {
 	char *data;                 /* data to be queried */
 	u64 endbit;                 /* data end bit */
 	u32 startid;                /* start vector id */
+	u32 startpos;
 	u8 op;                      /* delete/find/insert */
 	u8 data_type;               /* not used now */
 	/* after deleting the data, whether it need to free by tree */
@@ -305,7 +307,6 @@ struct query_info_t {
 	int multiple;               /* insert/delete data's count*/
 	/* return value,the last compared vector, when find return */
 	u32 vec_id;
-	int res;
 	int originbit;
 	/* if NULL, use the default callback function*/
 	spt_cb_get_key get_key;
