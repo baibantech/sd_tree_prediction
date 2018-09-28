@@ -4117,15 +4117,19 @@ char *query_data_by_hash(struct cluster_head_t *pclst, char *pdata)
 	qinfo.op = SPT_OP_FIND;
 	qinfo.endbit = pnext_clst->endbit;
 	qinfo.data = pdata;
-	
+	PERF_STAT_START(find_startvec);	
 	start_vecid = find_start_vec(pnext_clst, &vec, &start_pos, pdata, 0);
+	PERF_STAT_END(find_startvec);	
 
 	if (start_vecid != -1) {
 		find_start_vec_ok++;
 		qinfo.pstart_vec = vec;
 		qinfo.startid = start_vecid;
 		qinfo.startpos = start_pos;
+
+		PERF_STAT_START(find_data_leaf);	
 		ret = find_data_from_leaf(pnext_clst, &qinfo);
+		PERF_STAT_END(find_data_leaf);	
 		if (ret == 0) {
 			find_leaf_data_ok++;
 			pdh = (struct spt_dh *)db_id_2_ptr(pnext_clst,

@@ -8,6 +8,9 @@ PERF_STAT_DEFINE(insert_last_down);
 PERF_STAT_DEFINE(insert_up_down);
 PERF_STAT_DEFINE(insert_first_set);
 PERF_STAT_DEFINE(whole_delete);
+PERF_STAT_DEFINE(whole_query_by_hash);
+PERF_STAT_DEFINE(find_startvec);
+PERF_STAT_DEFINE(find_data_leaf);
 
 
 
@@ -22,6 +25,9 @@ sd_perf_stat *sd_perf_stat_array[] =
 	PERF_STAT_PTR(insert_up_down),
 	PERF_STAT_PTR(insert_first_set),
     PERF_STAT_PTR(whole_delete),
+    PERF_STAT_PTR(whole_query_by_hash),
+    PERF_STAT_PTR(find_startvec),
+    PERF_STAT_PTR(find_data_leaf),
 };
 
 void sd_perf_stat_init()

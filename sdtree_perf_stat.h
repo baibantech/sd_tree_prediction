@@ -54,4 +54,7 @@ PERF_STAT_DEC(insert_last_down);
 PERF_STAT_DEC(insert_up_down);
 PERF_STAT_DEC(insert_first_set);
 PERF_STAT_DEC(whole_delete);
+PERF_STAT_DEC(whole_query_by_hash);
+PERF_STAT_DEC(find_startvec);
+PERF_STAT_DEC(find_data_leaf);
 #endif

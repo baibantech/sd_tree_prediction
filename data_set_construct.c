@@ -506,6 +506,7 @@ void test_find_proc(void *args)
 		while(data = get_next_data(next))
 		{
 			spt_thread_start(g_thrd_id);
+			PERF_STAT_START(whole_query_by_hash);
 			if(NULL ==(ret_data =  test_find_data(data)))
             {
                 ret = spt_get_errno();
@@ -514,6 +515,7 @@ void test_find_proc(void *args)
 			}
 			else
 			{
+				PERF_STAT_END(whole_query_by_hash);
 				spt_thread_exit(g_thrd_id);
 			}
 		}
