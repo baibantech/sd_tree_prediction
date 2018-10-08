@@ -410,7 +410,7 @@ extern char *query_data_by_hash(struct cluster_head_t *pclst, char *pdata);
 extern char *query_data(struct cluster_head_t *pclst, char *pdata);
 void *test_find_data(char *pdata)
 {
-	return query_data(pgclst, pdata);
+	return query_data_by_hash(pgclst, pdata);
 }
 void* test_find_thread(void *arg)
 {

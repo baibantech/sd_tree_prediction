@@ -1852,7 +1852,21 @@ int final_vec_process(struct cluster_head_t *pclst, struct query_info_t *pqinfo 
 					break;
 				case SPT_RD_DOWN:
 				case SPT_LAST_DOWN:
+					pqinfo->db_id = cur_data;
+					pqinfo->vec_id = pdinfo->cur_vecid;
+					pqinfo->cmp_result = -1;
+					break;
 				case SPT_UP_DOWN:
+					cur_data = get_data_id(pclst,pdinfo->pcur);
+					if (cur_data >= 0
+						&& cur_data < SPT_INVALID) {
+					} else if (cur_data == SPT_DO_AGAIN) {
+						cur_data = SPT_INVALID;
+						return SPT_DO_AGAIN;
+					} else {
+						return cur_data;
+					}
+					
 					pqinfo->db_id = cur_data;
 					pqinfo->vec_id = pdinfo->cur_vecid;
 					pqinfo->cmp_result = -1;
