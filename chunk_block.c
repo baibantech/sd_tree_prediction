@@ -431,6 +431,7 @@ struct cluster_head_t *cluster_init(int is_bottom,
 		spt_free(phead);
 		return NULL;
 	}
+	spt_vec_debug_info_init(phead);
 
     vec = vec_alloc(phead, &pvec, 0);
 	if (pvec == 0) {

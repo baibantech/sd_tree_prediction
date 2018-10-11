@@ -51,7 +51,7 @@ int get_real_pos_next(struct spt_vec *pvec);
 void real_pos_back(struct spt_vec *pvec,
 		struct spt_vec *pre_vec);
 
-void set_real_pos(struct spt_vec *pvec,
+int set_real_pos(struct spt_vec *pvec,
 		unsigned int real_pos,
 		unsigned int pre_pos,
 		unsigned int real_hash);

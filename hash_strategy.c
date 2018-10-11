@@ -181,7 +181,7 @@ void real_pos_back(struct spt_vec *pvec, struct spt_vec *pre_vec)
 
 }
 
-void set_real_pos(struct spt_vec *pvec, unsigned int real_pos, unsigned int pre_pos, unsigned int real_hash)
+int set_real_pos(struct spt_vec *pvec, unsigned int real_pos, unsigned int pre_pos, unsigned int real_hash)
 {
 	int cur_window, last_window;
 	int offset;
@@ -192,10 +192,12 @@ void set_real_pos(struct spt_vec *pvec, unsigned int real_pos, unsigned int pre_
 	if (cur_window != last_window) {
 		pvec->pos = real_pos - 1;
 		pvec->scan_status = SPT_VEC_PVALUE;
+		return SPT_VEC_PVALUE;
 	} else {
 		pvec->scan_status = SPT_VEC_HVALUE;
 		offset = real_pos %(8*HASH_WINDOW_LEN);
 		pvec->pos = (real_hash << 5) + offset;
+		return SPT_VEC_HVALUE;
 	}
 }
 int is_need_chg_pos(struct spt_vec *vec, struct spt_vec *next_vec, int type)

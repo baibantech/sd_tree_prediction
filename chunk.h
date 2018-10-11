@@ -230,6 +230,13 @@ struct cluster_address_trans_info {
 	unsigned int pg_ptr_bits;
 };
 
+
+struct spt_vec_debug {
+	int window_id;
+	int pre_vec_cnt;
+	int hash_vec_cnt;
+};
+
 struct cluster_head_t {
 	struct list_head c_list;
 	int vec_head;
@@ -256,6 +263,7 @@ struct cluster_head_t {
 	spt_cb_end_key get_key_end;
 	spt_cb_end_key get_key_in_tree_end;
 	spt_cb_construct construct_data;
+	struct spt_vec_debug *vec_debug;
 	
 	/* vec id to ptr info */
 	struct cluster_address_trans_info address_info;
@@ -456,6 +464,7 @@ int delete_next_vec(struct cluster_head_t *pclst,
 		struct spt_vec *pnext,
 		struct spt_vec cur_vec,
 		struct spt_vec *pcur,
+		int startbit,
 		int direction );
 
 #endif
