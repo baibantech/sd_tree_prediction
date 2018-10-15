@@ -213,7 +213,8 @@ int is_need_chg_pos(struct spt_vec *vec, struct spt_vec *next_vec, int type)
 	}
 	return 0;
 }
-
+int last_seg_hash_grp;
+int last_window_hash;
 int find_start_vec(struct cluster_head_t *pclst, struct spt_vec **vec, int *start_pos, char *data, int window)
 {
 	int gid,fs;
@@ -226,6 +227,8 @@ int find_start_vec(struct cluster_head_t *pclst, struct spt_vec **vec, int *star
 	//printf("window hash 0x%x, seg hash 0x%x\r\n",window_hash, seg_hash);
 	
 	gid = seg_hash %GRP_SPILL_START;
+	last_window_hash = window_hash;
+	last_seg_hash_grp = gid;
 	*vec = NULL;
 re_find:
 	spt_pg = get_vec_pg_head(pclst, gid/GRPS_PER_PG);
