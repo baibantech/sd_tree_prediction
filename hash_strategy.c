@@ -107,20 +107,16 @@ void calc_hash_by_base(char *data, unsigned int base_hash, int base_pos, unsigne
 	window_id = (pos/8)/HASH_WINDOW_LEN;
 	base_window_id = (base_pos/8)/HASH_WINDOW_LEN;
 
+	if (base_window_id == 0) {
+		return calc_hash(data, window_hash, seg_hash, pos);
+	}
+
 	if (window_id == base_window_id) {
 		*window_hash = base_hash;
-		if (base_window_id == 0)
-			*seg_hash = djb_hash(data, HASH_WINDOW_LEN);
-		else
-			*seg_hash = djb_hash_seg(data + base_window_id*HASH_WINDOW_LEN , base_hash, HASH_WINDOW_LEN);
+		*seg_hash = djb_hash_seg(data + base_window_id*HASH_WINDOW_LEN , base_hash, HASH_WINDOW_LEN);
 	} else {
-		if(base_window_id == 0) {
-			*window_hash = djb_hash(data, window_id*HASH_WINDOW_LEN);
-			*seg_hash = djb_hash_seg(data + window_id*HASH_WINDOW_LEN, *window_hash, HASH_WINDOW_LEN);
-		} else {
-			*window_hash = djb_hash_seg(data + base_window_id*HASH_WINDOW_LEN, base_hash, (window_id - base_window_id)*HASH_WINDOW_LEN);
-			*seg_hash = djb_hash_seg(data + window_id*HASH_WINDOW_LEN, *window_hash, HASH_WINDOW_LEN);
-		}
+		*window_hash = djb_hash_seg(data + base_window_id*HASH_WINDOW_LEN, base_hash, (window_id - base_window_id)*HASH_WINDOW_LEN);
+		*seg_hash = djb_hash_seg(data + window_id*HASH_WINDOW_LEN, *window_hash, HASH_WINDOW_LEN);
 	}
 }
 int get_real_pos_start(struct spt_vec *pvec)
@@ -261,5 +257,14 @@ re_find:
 		fs++;
 	}
 }
+void test_calc_hash(char *data, int pos)
+{
+	unsigned int window_hash, seg_hash, allocmap;
+	calc_hash(data, &window_hash, &seg_hash, pos);
+	printf("window hash %d, seg_hash %d\r\n", window_hash, seg_hash);
+}
+void test_data_grp(unsigned int value)
+{
+	printf("grp is %d\r\n", value%GRP_SPILL_START);
 
-
+}

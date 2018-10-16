@@ -595,8 +595,12 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 			pinsert->cmp_pos,
 			&new_window_hash,
 			&new_seg_hash, pinsert->fs);
+	if((long)(void*)pnew_data == 0x7fa074c0d00ULL) {
+		printf("insert rd down window_hashi:%d, seg_hash:%d, pre_pos:%d ,pos:%d\r\n",
+				new_window_hash, new_seg_hash, pinsert->cmp_pos, pinsert->fs);
+	}
 
-	vecid_b = vec_alloc(pclst, &pvec_b, pinsert->fs);
+	vecid_b = vec_alloc(pclst, &pvec_b, new_seg_hash);
 	if (!pvec_b) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		spt_set_data_not_free(pdh);
@@ -1923,6 +1927,8 @@ int final_vec_process(struct cluster_head_t *pclst, struct query_info_t *pqinfo 
 			return SPT_OK;
 
 		case SPT_OP_INSERT:
+			if ((long)(void*)pqinfo->data == 0x7fa074c0d00ULL)
+				printf("data %p insert type is %d\r\n",pqinfo->data ,type);
 			st_insert_info.pkey_vec = pdinfo->pcur;
 			st_insert_info.key_val = pdinfo->cur_vec.val;
 			st_insert_info.vec_real_pos = pdinfo->startbit;
@@ -5132,7 +5138,7 @@ struct cluster_head_t *spt_cluster_init(u64 startbit,
 	/*
 	 * The sample space is divided into several parts on average
 	 */
-	for (i = 1; i < 1; i++) {
+	for (i = 1; i < 256; i++) {
 		plower_clst = cluster_init(1, startbit,
 				endbit, thread_num, pf, pf2,
 							pf_free, pf_con);
