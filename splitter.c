@@ -595,10 +595,6 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 			pinsert->cmp_pos,
 			&new_window_hash,
 			&new_seg_hash, pinsert->fs);
-	if((long)(void*)pnew_data == 0x7fa074c0d00ULL) {
-		printf("insert rd down window_hashi:%d, seg_hash:%d, pre_pos:%d ,pos:%d\r\n",
-				new_window_hash, new_seg_hash, pinsert->cmp_pos, pinsert->fs);
-	}
 
 	vecid_b = vec_alloc(pclst, &pvec_b, new_seg_hash);
 	if (!pvec_b) {
@@ -1927,8 +1923,6 @@ int final_vec_process(struct cluster_head_t *pclst, struct query_info_t *pqinfo 
 			return SPT_OK;
 
 		case SPT_OP_INSERT:
-			if ((long)(void*)pqinfo->data == 0x7fa074c0d00ULL)
-				printf("data %p insert type is %d\r\n",pqinfo->data ,type);
 			st_insert_info.pkey_vec = pdinfo->pcur;
 			st_insert_info.key_val = pdinfo->cur_vec.val;
 			st_insert_info.vec_real_pos = pdinfo->startbit;
@@ -2147,7 +2141,8 @@ prediction_start:
 	while (startbit < endbit) {
 		/*first bit is 1£¬compare with pcur_vec->right*/
 		spt_trace("pcur vec:%p, curbit:%d\r\n", pcur, startbit);
-
+		PERF_STAT_START(leaf_data_prediction_vec);
+		PERF_STAT_END(leaf_data_prediction_vec);
 		if (fs_pos != startbit) 
 			goto prediction_down;
 
@@ -2348,6 +2343,8 @@ prediction_down:
 		while (fs_pos > startbit) {
 
 			spt_trace("down cur vec:%p, curbit:%d ,fs_pos:%d\r\n", pcur, startbit, fs_pos);
+			PERF_STAT_START(leaf_data_prediction_vec);
+			PERF_STAT_END(leaf_data_prediction_vec);
 
 			if (cur_vec.down != SPT_NULL)
 				goto prediction_down_continue;
@@ -2593,6 +2590,8 @@ prediction_check:
 		/*first bit is 1£¬compare with pcur_vec->right*/
 		if (fs_pos != startbit)
 			goto go_down;
+		PERF_STAT_START(leaf_data_check_vec);
+		PERF_STAT_END(leaf_data_check_vec);
 go_right:
 		if (cur_vec.type == SPT_VEC_DATA) { 
 			len = endbit - startbit;
@@ -2722,6 +2721,8 @@ go_down:
 			pclst->get_key_in_tree_end(pcur_data);
 		}
 		while (fs_pos > startbit) {
+			PERF_STAT_START(leaf_data_check_vec);
+			PERF_STAT_END(leaf_data_check_vec);
 			if (cur_vec.down != SPT_NULL)
 				goto down_continue;
 			if (direction == SPT_RIGHT) {
@@ -5138,7 +5139,7 @@ struct cluster_head_t *spt_cluster_init(u64 startbit,
 	/*
 	 * The sample space is divided into several parts on average
 	 */
-	for (i = 1; i < 256; i++) {
+	for (i = 1; i < 1; i++) {
 		plower_clst = cluster_init(1, startbit,
 				endbit, thread_num, pf, pf2,
 							pf_free, pf_con);

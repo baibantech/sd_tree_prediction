@@ -57,4 +57,8 @@ PERF_STAT_DEC(whole_delete);
 PERF_STAT_DEC(whole_query_by_hash);
 PERF_STAT_DEC(find_startvec);
 PERF_STAT_DEC(find_data_leaf);
+PERF_STAT_DEC(scan_grp_info);
+PERF_STAT_DEC(scan_grp_vec_cnt);
+PERF_STAT_DEC(leaf_data_prediction_vec);
+PERF_STAT_DEC(leaf_data_check_vec);
 #endif

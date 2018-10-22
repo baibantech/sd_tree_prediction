@@ -247,6 +247,8 @@ re_find:
 		}
 		pvec = (char *) grp + sizeof(struct spt_grp) + fs *sizeof(struct spt_vec); 
 		cur_vec.val = pvec->val;
+		PERF_STAT_START(scan_grp_vec_cnt);
+		PERF_STAT_END(scan_grp_vec_cnt);
 		//printf("check vec %p\r\n", pvec);	
 		if ((cur_vec.scan_status == SPT_VEC_HVALUE) && (cur_vec.status == SPT_VEC_VALID)) {
 			if(spt_get_pos_hash(cur_vec) == (window_hash & SPT_HASH_MASK)) {
