@@ -15,6 +15,7 @@ PERF_STAT_DEFINE(scan_grp_info);
 PERF_STAT_DEFINE(scan_grp_vec_cnt);
 PERF_STAT_DEFINE(leaf_data_prediction_vec);
 PERF_STAT_DEFINE(leaf_data_check_vec);
+PERF_STAT_DEFINE(calc_hash_start_vec);
 
 
 
@@ -36,6 +37,7 @@ sd_perf_stat *sd_perf_stat_array[] =
     PERF_STAT_PTR(scan_grp_vec_cnt),
     PERF_STAT_PTR(leaf_data_prediction_vec),
     PERF_STAT_PTR(leaf_data_check_vec),
+    PERF_STAT_PTR(calc_hash_start_vec),
 };
 
 void sd_perf_stat_init()

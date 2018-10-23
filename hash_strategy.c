@@ -261,6 +261,28 @@ re_find:
 	}
 }
 #else
+
+void scan_grp_vec(struct spt_grp *grp, int window_hash)
+{
+	int i = 0;
+	struct spt_vec *pvec, cur_vec, *vec;
+	vec = NULL;
+	for (i = 0 ; i< VEC_PER_GRP; i++) {
+		pvec = (char *) grp + sizeof(struct spt_grp) + i *sizeof(struct spt_vec); 
+		cur_vec.val = pvec->val;
+		if(spt_get_pos_hash(cur_vec) == window_hash) {
+			if ((cur_vec.scan_status == SPT_VEC_HVALUE) && (cur_vec.status == SPT_VEC_VALID)) {
+				if (vec == NULL) {
+					vec = pvec;
+				} else {
+					if (spt_get_pos_offset(cur_vec) > spt_get_pos_offset(*vec)) {
+						vec = pvec;
+					}
+				}
+			}
+		}
+	}
+}
 int find_start_vec(struct cluster_head_t *pclst, struct spt_vec **vec, int *start_pos, char *data, int window)
 {
 	int gid,fs;
@@ -268,43 +290,28 @@ int find_start_vec(struct cluster_head_t *pclst, struct spt_vec **vec, int *star
 	struct spt_pg_h *spt_pg;
 	struct spt_vec cur_vec, *pvec;
 	int ret_vec_id = -1;	
-	unsigned int window_hash, seg_hash, allocmap;
-	calc_hash(data, &window_hash, &seg_hash, window);
-	//printf("window hash 0x%x, seg hash 0x%x\r\n",window_hash, seg_hash);
+	unsigned int window_hash, seg_hash;
 	
+	//PERF_STAT_START(calc_hash_start_vec);
+	calc_hash(data, &window_hash, &seg_hash, window);
+	//PERF_STAT_END(calc_hash_start_vec);
+
+	window_hash = window_hash & SPT_HASH_MASK;	
 	gid = seg_hash %GRP_SPILL_START;
-	last_window_hash = window_hash;
-	last_seg_hash_grp = gid;
 	*vec = NULL;
 re_find:
+	//PERF_STAT_START(calc_hash_start_vec);
 	spt_pg = get_vec_pg_head(pclst, gid/GRPS_PER_PG);
 	grp = get_grp_from_page_head(spt_pg, gid);
-	//printf("gid 0x%x, grp %p\r\n", gid, grp);
+	//PERF_STAT_END(calc_hash_start_vec);
 	fs = 0;
-	
-	old_grp.val = grp->val;
-	allocmap = old_grp.allocmap;
-	allocmap = ~allocmap;
-	//printf("allocmap 0x%x\r\n", allocmap);
-	while (1) {
-		fs = find_next_bit(&allocmap, VEC_PER_GRP, fs);
-		if (fs >= VEC_PER_GRP) {
-			next_grp = grp->next_grp;
-			if ((next_grp == 0) || (next_grp == 0xFFFFF))
-				return ret_vec_id;
-			gid = next_grp;
-			if (*vec != NULL) { 
-				return ret_vec_id;
-			}
-			goto re_find;
-		}
+
+	//PERF_STAT_START(scan_grp_info);
+	for (fs = 0 ; fs < VEC_PER_GRP; fs++) {
 		pvec = (char *) grp + sizeof(struct spt_grp) + fs *sizeof(struct spt_vec); 
 		cur_vec.val = pvec->val;
-		PERF_STAT_START(scan_grp_vec_cnt);
-		PERF_STAT_END(scan_grp_vec_cnt);
-		//printf("check vec %p\r\n", pvec);	
-		if ((cur_vec.scan_status == SPT_VEC_HVALUE) && (cur_vec.status == SPT_VEC_VALID)) {
-			if(spt_get_pos_hash(cur_vec) == (window_hash & SPT_HASH_MASK)) {
+		if(spt_get_pos_hash(cur_vec) == window_hash) {
+			if ((cur_vec.scan_status == SPT_VEC_HVALUE) && (cur_vec.status == SPT_VEC_VALID)) {
 				if (*vec == NULL) {
 					*vec = pvec;
 					ret_vec_id = gid*VEC_PER_GRP + fs;
@@ -316,8 +323,19 @@ re_find:
 				}
 			}
 		}
-		fs++;
 	}
+	//PERF_STAT_END(scan_grp_info);
+			//PERF_STAT_START(scan_grp_info);
+			//scan_grp_vec(grp, window_hash);
+			//PERF_STAT_END(scan_grp_info)
+	next_grp = grp->next_grp;
+	if ((next_grp == 0) || (next_grp == 0xFFFFF))
+		return ret_vec_id;
+	gid = next_grp;
+	if (*vec != NULL) { 
+		return ret_vec_id;
+	}
+	goto re_find;
 }
 #endif
 void test_calc_hash(char *data, int pos)
