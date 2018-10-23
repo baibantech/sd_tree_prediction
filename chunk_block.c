@@ -58,7 +58,7 @@ void grp_init_per_page(char *page)
 		pgrp =(struct spt_grp *) (page + GRP_SIZE*i);
 		pgrp->val = 0;
 		pgrp->control = 0;
-		pgrp->allocmap = 0xFFFFFFFFull;
+		pgrp->allocmap = 0xFFFFull;
 	}
 }
 
@@ -487,12 +487,12 @@ int db_alloc_from_spill(struct cluster_head_t *pclst, struct spt_dh **db, int pg
 					if((va_old.allocmap & GRP_ALLOCMAP_MASK) == 0)
 						break;
 					
-					fs = find_next_bit(&va_old.val, 32, 0);
+					fs = find_next_bit(&va_old.val, VEC_PER_GRP, 0);
 					while(1) {
-						if(fs >= 31)
+						if(fs >= VEC_PER_GRP - 1)
 							break;
 						
-						ns = find_next_bit(&va_old.val, 32, fs+1);
+						ns = find_next_bit(&va_old.val, VEC_PER_GRP, fs+1);
 						if(ns == fs+1) {
 							va_new = va_old;
 							va_new.allocmap  = va_old.allocmap & (~(3 << fs));
@@ -559,10 +559,10 @@ re_alloc:
 			offset=0;
 			goto re_alloc;
 		}
-		fs = find_next_bit(&va_old.val, 32, offset);
+		fs = find_next_bit(&va_old.val, VEC_PER_GRP, offset);
 		while(1)
 		{
-			if(fs >= 31)
+			if(fs >= VEC_PER_GRP -1)
 			{
 				if(gid-gid_t >= GRPS_PER_PG)
 				{
@@ -572,7 +572,7 @@ re_alloc:
 				offset=0;
 				goto re_alloc;
 			}
-			ns = find_next_bit(&va_old.val, 32, fs+1);
+			ns = find_next_bit(&va_old.val, VEC_PER_GRP, fs+1);
 			if(ns == fs+1)
 				break;
 			fs = ns;
@@ -767,7 +767,7 @@ alloc_next_grp:
 			goto re_alloc;
 		}
 		if (alloc_by_index) {	
-			fs = find_next_bit(&old.val, 32, vec_index);
+			fs = find_next_bit(&old.val, VEC_PER_GRP, vec_index);
 			if(fs != vec_index) {
 				old.control = grp->control;
 				old.val = grp->val;
@@ -777,8 +777,8 @@ alloc_next_grp:
 				goto alloc_next_grp;
 			}
 		} else {
-			fs = find_next_bit(&old.val, 32, 0);
-			if(fs >=32)
+			fs = find_next_bit(&old.val, VEC_PER_GRP, 0);
+			if(fs >= VEC_PER_GRP)
 				goto re_alloc;
 		}
 		tmp.allocmap = old.allocmap & (~(1 << fs));

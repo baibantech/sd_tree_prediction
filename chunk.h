@@ -74,15 +74,15 @@
 
 /* vec grp info*/
 #define VBLK_SIZE 8
-#define GRP_SIZE 272	//16+32*8
+#define GRP_SIZE 144	//16+32*8
 #define GRPS_PER_PG  (PG_SIZE/GRP_SIZE)		//15
-#define VEC_PER_GRP 32
+#define VEC_PER_GRP 16
 #define VEC_PER_PG (VEC_PER_GRP*GRPS_PER_PG)
-#define GRP_ALLOCMAP_MASK 0xFFFFFFFFull
+#define GRP_ALLOCMAP_MASK 0xFFFFull
 #define PG_HEAD_OFFSET (GRP_SIZE*GRPS_PER_PG)
 #define GRP_TICK_MASK 0xful
 #define PG_SPILL_WATER_MARK 360
-#define GRP_SPILL_START (32*1024)
+#define GRP_SPILL_START (64*1024)
 
 /* cluster divide info*/
 
@@ -204,8 +204,8 @@ struct spt_grp
 		volatile unsigned long long val;
 		struct
 		{
-			volatile unsigned long long allocmap:		32;
-			volatile unsigned long long freemap:		32;
+			volatile unsigned long long allocmap:		16;
+			volatile unsigned long long freemap:		16;
 		};
 	};
 	union {
