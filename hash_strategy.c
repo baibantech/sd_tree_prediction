@@ -310,6 +310,7 @@ int find_start_vec(struct cluster_head_t *pclst, struct spt_vec **vec, int *star
 
 	window_hash = (window_hash & SPT_HASH_MASK) << 12;	
 	gid = seg_hash %GRP_SPILL_START;
+	*start_pos = window *8;
 	*vec = NULL;
 	tmp_vec.val = 0;
 re_find:
