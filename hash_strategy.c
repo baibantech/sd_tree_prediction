@@ -10,6 +10,9 @@
 #include "hash_strategy.h"
 struct hash_calc_proc *phash_calc[THREAD_NUM_MAX]; 
 struct precise_pos_record  *pos_record[THREAD_NUM_MAX];
+#define likely(x) __builtin_expect(!!(x), 1)
+#define unlikely(x) __builtin_expect(!!(x), 0)
+
 
 int hash_calc_process_init(int thread_num)
 {
@@ -283,58 +286,95 @@ void scan_grp_vec(struct spt_grp *grp, int window_hash)
 		}
 	}
 }
+int scan_vec_cnt;
+int scan_vec_hash_cnt;
+int scan_vec_status_cnt;
+
+unsigned long long scan_grp_vec_cycle1;
+unsigned long long scan_grp_vec_cycle2;
+
 int find_start_vec(struct cluster_head_t *pclst, struct spt_vec **vec, int *start_pos, char *data, int window)
 {
 	int gid,fs;
-	struct spt_grp *grp, *next_grp, old_grp;
+	struct spt_grp *grp, *next_grp;
 	struct spt_pg_h *spt_pg;
-	struct spt_vec cur_vec, *pvec;
-	int ret_vec_id = -1;	
+	struct spt_vec cur_vec, *pvec, tmp_vec;
+	int ret_vec_id = -1;
+	unsigned long long  time_begin,time_end;
+	int base_vec_id;
 	unsigned int window_hash, seg_hash;
 	
 	//PERF_STAT_START(calc_hash_start_vec);
 	calc_hash(data, &window_hash, &seg_hash, window);
 	//PERF_STAT_END(calc_hash_start_vec);
 
-	window_hash = window_hash & SPT_HASH_MASK;	
+	window_hash = (window_hash & SPT_HASH_MASK) << 12;	
 	gid = seg_hash %GRP_SPILL_START;
 	*vec = NULL;
+	tmp_vec.val = 0;
 re_find:
-	//PERF_STAT_START(calc_hash_start_vec);
 	spt_pg = get_vec_pg_head(pclst, gid/GRPS_PER_PG);
 	grp = get_grp_from_page_head(spt_pg, gid);
-	//PERF_STAT_END(calc_hash_start_vec);
-	fs = 0;
+	
+	__builtin_prefetch(grp);
+	scan_vec_cnt++;
+	pvec = (char *) grp + sizeof(struct spt_grp); 
+	base_vec_id = gid << 4;
 
-	//PERF_STAT_START(scan_grp_info);
-	for (fs = 0 ; fs < VEC_PER_GRP; fs++) {
-		pvec = (char *) grp + sizeof(struct spt_grp) + fs *sizeof(struct spt_vec); 
-		cur_vec.val = pvec->val;
-		if(spt_get_pos_hash(cur_vec) == window_hash) {
-			if ((cur_vec.scan_status == SPT_VEC_HVALUE) && (cur_vec.status == SPT_VEC_VALID)) {
-				if (*vec == NULL) {
-					*vec = pvec;
-					ret_vec_id = gid*VEC_PER_GRP + fs;
-				} else {
-					if (spt_get_pos_offset(cur_vec) > spt_get_pos_offset(**vec)) {
-						*vec = pvec;
-						ret_vec_id = gid*VEC_PER_GRP + fs;
-					}
-				}
+	barrier_nospec();	
+	time_begin= rdtsc();
+
+	for (fs = 0 ; fs < VEC_PER_GRP; fs++, pvec++) {
+		cur_vec.val = pvec->val & 0x00000000003FFFE3ULL; 	
+			
+		if(likely((cur_vec.val & 0x00000000003FF000ULL) != window_hash)) 
+			continue;
+#if 1	
+		if ((cur_vec.val & 0x0000000000000021ULL) == 0x0000000000000020ULL) { 
+			if (cur_vec.val > tmp_vec.val) {
+				tmp_vec.val = cur_vec.val;
+				*vec = pvec;
+				ret_vec_id = base_vec_id + fs;
 			}
 		}
+#endif
 	}
+	barrier_nospec();
+	time_end = rdtsc();
+	scan_grp_vec_cycle1 += time_end- time_begin;
+
+#if 0	
+	smp_mb();
+	rmb();
+	wmb();
+	barrier_nospec();
+	time_begin= rdtsc();
+	tmp_vec.val = 0;
+	for (fs = 0 ; fs < VEC_PER_GRP; fs++, pvec++) {
+		cur_vec.val = pvec->val & 0x00000000003FFFE3ULL; 	
+			
+		if(likely((cur_vec.val & 0x00000000003FF000ULL) != window_hash)) 
+			continue;
+#if 1	
+		if ((cur_vec.val & 0x0000000000000021ULL) == 0x0000000000000020ULL) { 
+			if (cur_vec.val > tmp_vec.val) {
+				tmp_vec.val = cur_vec.val;
+				*vec = pvec;
+				ret_vec_id = base_vec_id + fs;
+			}
+		}
+#endif
+	}
+	barrier_nospec();
+	time_end = rdtsc();
+	scan_grp_vec_cycle2 += time_end - time_begin;
 	//PERF_STAT_END(scan_grp_info);
-			//PERF_STAT_START(scan_grp_info);
-			//scan_grp_vec(grp, window_hash);
-			//PERF_STAT_END(scan_grp_info)
+#endif
 	next_grp = grp->next_grp;
-	if ((next_grp == 0) || (next_grp == 0xFFFFF))
-		return ret_vec_id;
-	gid = next_grp;
-	if (*vec != NULL) { 
+	if ((next_grp == 0) || (next_grp == 0xFFFFF)) {
 		return ret_vec_id;
 	}
+	gid = next_grp;
 	goto re_find;
 }
 #endif

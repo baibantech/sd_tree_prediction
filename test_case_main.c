@@ -22,6 +22,7 @@ char test_case_name[64] = {'t','e','s','t','_','c','a','s','e'};
 typedef void (*test_proc_pfn)(void *args);
 
 void* test_insert_thread(void *arg);
+void* test_find_thread(void *arg);
 void* test_pre_insert_thread(void *arg);
 void* test_pre_delete_thread(void *arg);
 void* test_pre_insert_proc(void *arg);
@@ -361,8 +362,12 @@ int main(int argc,char *argv[])
 	test_pre_insert_proc(0);
 	//test_find_next_cluster(0);
 	sleep(10);
-	//test_pre_insert_proc(0);
-	test_find_proc(0);
+	//test_find_proc(0);
+#if 1
+	err = pthread_create(&ntid, NULL, test_find_thread, 2);
+	if (err != 0)
+		printf("can't create thread: %s\n", strerror(err));
+#endif
 #if 0 
 	for(i = 0;  i  < data_set_config_insert_thread_num ; i++)
     {

@@ -385,6 +385,12 @@ struct travl_info {
 	long long signpost;
 };
 
+static inline struct spt_grp *get_grp_from_page_head(char *page_head, unsigned int grp_id)
+{
+	return (page_head - PG_HEAD_OFFSET)+ (grp_id%GRPS_PER_PG) * GRP_SIZE;
+
+}
+
 void vec_free(struct cluster_head_t *pcluster, int id);
 void vec_list_free(struct cluster_head_t *pcluster, int id);
 void db_free(struct cluster_head_t *pcluster, int id);
@@ -443,7 +449,6 @@ int debug_statistic(struct cluster_head_t *pclst);
 void debug_cluster_travl(struct cluster_head_t *pclst);
 void debug_lower_cluster_info_show(void);
 int get_grp_by_data(struct cluster_head_t *pclst, char *data, int pos);
-struct spt_grp *get_grp_from_page_head(char *page, unsigned int grp_id);
 
 struct spt_pg_h *get_vec_pg_head(struct cluster_head_t *pclst, unsigned int pgid);
 struct spt_pg_h *get_db_pg_head(struct cluster_head_t *pclst, unsigned int pgid);

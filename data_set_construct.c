@@ -498,10 +498,6 @@ void test_find_proc(void *args)
 		{
 			break;
 		}
-		if(cnt != 0) {
-			cnt--;
-			goto next_loop;
-		}
 		spt_thread_start(g_thrd_id);
 		while(data = get_next_data(next))
 		{

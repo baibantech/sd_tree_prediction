@@ -124,11 +124,6 @@ struct spt_pg_h  *get_pg_head(struct cluster_head_t *pclst, char **pglist, unsig
 	return (struct spt_pg_h *)(page + PG_HEAD_OFFSET);
 }
 
-struct spt_grp *get_grp_from_page_head(char *page_head, unsigned int grp_id)
-{
-	return (page_head - PG_HEAD_OFFSET)+ (grp_id%GRPS_PER_PG) * GRP_SIZE;
-}
-
 struct spt_pg_h  *get_vec_pg_head(struct cluster_head_t *pclst, unsigned int id)
 {
 	char *page;
