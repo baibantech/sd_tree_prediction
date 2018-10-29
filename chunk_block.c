@@ -124,6 +124,7 @@ struct spt_pg_h  *get_pg_head(struct cluster_head_t *pclst, char **pglist, unsig
 	return (struct spt_pg_h *)(page + PG_HEAD_OFFSET);
 }
 
+#if 0
 struct spt_pg_h  *get_vec_pg_head(struct cluster_head_t *pclst, unsigned int id)
 {
 	char *page;
@@ -144,6 +145,22 @@ struct spt_pg_h  *get_db_pg_head(struct cluster_head_t *pclst, unsigned int id)
 		cluster_db_add_page(pclst, id);
 	}while(1);
 }
+#else
+struct spt_pg_h  *get_vec_pg_head(struct cluster_head_t *pclst, unsigned int id)
+{
+	char *page = pclst->cluster_vec_mem + id * 4096;
+	return (struct spt_pg_h *)(page + PG_HEAD_OFFSET);
+}
+
+
+
+struct spt_pg_h  *get_db_pg_head(struct cluster_head_t *pclst, unsigned int id)
+{
+	char *page = pclst->cluster_db_mem + id * 4096;
+	return (struct spt_pg_h *)(page + PG_HEAD_OFFSET);
+}
+
+#endif
 
 char *cluster_grp_id_2_ptr(struct cluster_head_t *pclst, char **pglist, unsigned int grp_id)
 {
@@ -207,7 +224,7 @@ char *cluster_grp_id_2_ptr(struct cluster_head_t *pclst, char **pglist, unsigned
 	offset = (grp_id%GRPS_PER_PG) * GRP_SIZE;
 	return page + offset;
 }
-
+#if 0
 char *vec_grp_id_2_ptr(struct cluster_head_t *pclst, unsigned int grp_id)
 {
 	return cluster_grp_id_2_ptr(pclst, pclst->pglist_vec, grp_id);
@@ -217,7 +234,20 @@ char *db_grp_id_2_ptr(struct cluster_head_t *pclst, unsigned int grp_id)
 {
 	return cluster_grp_id_2_ptr(pclst, pclst->pglist_db, grp_id);
 }
+#else
+char *vec_grp_id_2_ptr(struct cluster_head_t *pclst, unsigned int grp_id)
+{
+	char *page  = pclst->cluster_vec_mem + (grp_id/GRPS_PER_PG)*4096 ;
+	return page + (grp_id%GRPS_PER_PG) * GRP_SIZE;
+}
 
+char *db_grp_id_2_ptr(struct cluster_head_t *pclst, unsigned int grp_id)
+{
+	char *page  = pclst->cluster_db_mem + (grp_id/GRPS_PER_PG)*4096 ;
+	return page + (grp_id%GRPS_PER_PG) * GRP_SIZE;
+
+}
+#endif
 void cluster_add_page(struct cluster_head_t *pclst, char **pglist, int pg_id)	
 {
 	char *page, **indir_page, ***dindir_page;
@@ -427,6 +457,12 @@ struct cluster_head_t *cluster_init(int is_bottom,
 		return NULL;
 	}
 	spt_vec_debug_info_init(phead);
+	phead->cluster_vec_mem = spt_malloc(CLST_PG_NUM_MAX * 4096);
+	phead->cluster_db_mem = spt_malloc(CLST_PG_NUM_MAX * 4096);
+	for (i = 0 ; i < CLST_PG_NUM_MAX; i++) {
+		grp_init_per_page(phead->cluster_vec_mem + i*4096);	
+		grp_init_per_page(phead->cluster_db_mem + i*4096);	
+	}
 
     vec = vec_alloc(phead, &pvec, 0);
 	if (pvec == 0) {
@@ -444,11 +480,6 @@ struct cluster_head_t *cluster_init(int is_bottom,
 
 	phead->vec_head = vec;
 	phead->pstart = pvec;
-	pg_num = (GRP_SPILL_START / GRPS_PER_PG) + 1; 
-	for (i = 0 ; i < pg_num; i++) {
-		//get_db_pg_head(phead, i);
-		//get_vec_pg_head(phead, i);
-	}
 
 	return phead;
 }

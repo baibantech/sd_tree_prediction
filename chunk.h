@@ -74,7 +74,7 @@
 
 /* vec grp info*/
 #define VBLK_SIZE 8
-#define GRP_SIZE 144	//16+32*8
+#define GRP_SIZE 144	//16+16*8
 #define GRPS_PER_PG  (PG_SIZE/GRP_SIZE)		//15
 #define VEC_PER_GRP 16
 #define VEC_PER_PG (VEC_PER_GRP*GRPS_PER_PG)
@@ -264,7 +264,9 @@ struct cluster_head_t {
 	spt_cb_end_key get_key_in_tree_end;
 	spt_cb_construct construct_data;
 	struct spt_vec_debug *vec_debug;
-	
+	char *cluster_vec_mem;
+	char *cluster_db_mem;
+
 	/* vec id to ptr info */
 	struct cluster_address_trans_info address_info;
 	volatile char **pglist_db;
