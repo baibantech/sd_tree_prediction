@@ -90,7 +90,7 @@
 #define SPT_DVD_CNT_PER_TIME (100)
 #define SPT_DVD_THRESHOLD_VA (300000)
 #define SPT_DVD_MOVE_TIMES (SPT_DVD_THRESHOLD_VA/(2*SPT_DVD_CNT_PER_TIME))
-#define SPT_DATA_HIGH_WATER_MARK (450000)
+#define SPT_DATA_HIGH_WATER_MARK (400000)
 
 
 /* data size and bit len*/
@@ -401,7 +401,7 @@ int spt_get_errno(void);
 extern struct cluster_head_t *pgclst;
 
 unsigned int db_alloc(struct cluster_head_t *pclst,
-		struct spt_dh **db);
+		struct spt_dh **db, unsigned int db_id);
 
 struct cluster_head_t *cluster_init(int is_bottom,
 						u64 startbit,
