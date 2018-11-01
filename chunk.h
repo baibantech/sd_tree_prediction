@@ -60,6 +60,7 @@
 /* vec status */
 #define SPT_VEC_VALID 0
 #define SPT_VEC_INVALID 1
+#define SPT_VEC_DB 3
 
 /* vec scan status */
 #define SPT_VEC_PVALUE  0
@@ -82,15 +83,15 @@
 #define PG_HEAD_OFFSET (GRP_SIZE*GRPS_PER_PG)
 #define GRP_TICK_MASK 0xful
 #define PG_SPILL_WATER_MARK 360
-#define GRP_SPILL_START (64*1024)
+#define GRP_SPILL_START (96*1024)
 
 /* cluster divide info*/
 
 #define SPT_SORT_ARRAY_SIZE (4096*8)
 #define SPT_DVD_CNT_PER_TIME (100)
-#define SPT_DVD_THRESHOLD_VA (300000)
+#define SPT_DVD_THRESHOLD_VA (100000)
 #define SPT_DVD_MOVE_TIMES (SPT_DVD_THRESHOLD_VA/(2*SPT_DVD_CNT_PER_TIME))
-#define SPT_DATA_HIGH_WATER_MARK (400000)
+#define SPT_DATA_HIGH_WATER_MARK (150000)
 
 
 /* data size and bit len*/
@@ -176,9 +177,10 @@ struct spt_sort_info {
 
 struct spt_dh {
 //spt_data_hd
-	volatile int ref;
+	u8 type;
+	u8 rsv;
 	u16 size;
-	u16 rsv;
+	volatile int ref;
 	char *pdata;
 };
 

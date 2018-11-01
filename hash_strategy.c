@@ -337,7 +337,13 @@ re_find:
 				*vec = pvec;
 				ret_vec_id = base_vec_id + fs;
 			}
+		} else {
+			if(cur_vec.status == SPT_VEC_DB) {
+				fs++;
+				pvec++;
+			}
 		}
+
 #endif
 	}
 	barrier_nospec();

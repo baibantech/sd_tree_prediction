@@ -834,7 +834,7 @@ unsigned int db_alloc(struct cluster_head_t *pclst,  struct spt_dh **db, unsigne
 	int vec_index = 0;
 	u32 tick;
 	int alloc_cnt = 0;
-	gid = db_id/VEC_PER_GRP ;
+	gid_t = gid = db_id/VEC_PER_GRP ;
 
 
 re_alloc:
@@ -867,6 +867,7 @@ re_alloc:
 		}
 		if((old.allocmap & GRP_ALLOCMAP_MASK) == 0)
 		{
+#if 0
 alloc_next_grp:
 			if (old.next_grp == 0) {
 				tmp.next_grp = 0xFFFFF;
@@ -893,13 +894,18 @@ alloc_next_grp:
 			if(gid == 0xFFFFF)
 				printf("@@@@@@@old.next_grp is %d\r\n",old.next_grp);
 			goto re_alloc;
+#endif
+			gid++;
+			goto re_alloc;
 		}
 
 
 		fs = find_next_bit(&old.val, VEC_PER_GRP, 0);
 		while(1) {
-			if(fs >= VEC_PER_GRP -1)
-				goto alloc_next_grp;
+			if(fs >= VEC_PER_GRP -1) {
+				gid++;
+				goto re_alloc;
+			}
 			ns = find_next_bit(&old.val, VEC_PER_GRP, fs + 1);
 			if(ns == fs + 1)
 				break;
@@ -915,6 +921,7 @@ alloc_next_grp:
 	atomic_add(2, (atomic_t *)&spt_pg->bit_used);
 	*db = (struct spt_dh *)((char *)grp + sizeof(struct spt_grp) + fs*sizeof(struct spt_vec));
 	(*db)->rsv = 0;
+	(*db)->type = 3;
 	(*db)->pdata = NULL;
 	//printf("cluster %p,vec alloc id %d\r\n",pclst, gid*VEC_PER_GRP +fs);
 	return gid*VEC_PER_GRP + fs;
