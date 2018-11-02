@@ -10,8 +10,6 @@
 #include "hash_strategy.h"
 struct hash_calc_proc *phash_calc[THREAD_NUM_MAX]; 
 struct precise_pos_record  *pos_record[THREAD_NUM_MAX];
-#define likely(x) __builtin_expect(!!(x), 1)
-#define unlikely(x) __builtin_expect(!!(x), 0)
 
 
 int hash_calc_process_init(int thread_num)
@@ -263,7 +261,6 @@ re_find:
 		fs++;
 	}
 }
-#else
 
 void scan_grp_vec(struct spt_grp *grp, int window_hash)
 {
@@ -317,13 +314,13 @@ re_find:
 	spt_pg = get_vec_pg_head(pclst, gid/GRPS_PER_PG);
 	grp = get_grp_from_page_head(spt_pg, gid);
 	
-	__builtin_prefetch(grp);
+	//__builtin_prefetch(grp);
 	scan_vec_cnt++;
 	pvec = (char *) grp + sizeof(struct spt_grp); 
 	base_vec_id = gid << 4;
 
-	barrier_nospec();	
-	time_begin= rdtsc();
+	//barrier_nospec();	
+	//time_begin= rdtsc();
 
 	for (fs = 0 ; fs < VEC_PER_GRP; fs++, pvec++) {
 		cur_vec.val = pvec->val & 0x00000000003FFFE3ULL; 	
@@ -346,37 +343,9 @@ re_find:
 
 #endif
 	}
-	barrier_nospec();
-	time_end = rdtsc();
-	scan_grp_vec_cycle1 += time_end- time_begin;
-
-#if 0	
-	smp_mb();
-	rmb();
-	wmb();
-	barrier_nospec();
-	time_begin= rdtsc();
-	tmp_vec.val = 0;
-	for (fs = 0 ; fs < VEC_PER_GRP; fs++, pvec++) {
-		cur_vec.val = pvec->val & 0x00000000003FFFE3ULL; 	
-			
-		if(likely((cur_vec.val & 0x00000000003FF000ULL) != window_hash)) 
-			continue;
-#if 1	
-		if ((cur_vec.val & 0x0000000000000021ULL) == 0x0000000000000020ULL) { 
-			if (cur_vec.val > tmp_vec.val) {
-				tmp_vec.val = cur_vec.val;
-				*vec = pvec;
-				ret_vec_id = base_vec_id + fs;
-			}
-		}
-#endif
-	}
-	barrier_nospec();
-	time_end = rdtsc();
-	scan_grp_vec_cycle2 += time_end - time_begin;
-	//PERF_STAT_END(scan_grp_info);
-#endif
+	//barrier_nospec();
+	//time_end = rdtsc();
+	//scan_grp_vec_cycle1 += time_end- time_begin;
 	next_grp = grp->next_grp;
 	if ((next_grp == 0) || (next_grp == 0xFFFFF)) {
 		return ret_vec_id;

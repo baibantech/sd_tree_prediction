@@ -52,6 +52,8 @@
 
 #include "spt_dep.h"
 #include "spt_thread.h"
+#define likely(x) __builtin_expect(!!(x), 1)
+#define unlikely(x) __builtin_expect(!!(x), 0)
 
 /* vec type*/
 #define SPT_VEC_RIGHT 0
@@ -139,9 +141,9 @@
 #define spt_set_right_flag(x) (x.type = SPT_VEC_RIGHT)
 #define spt_set_data_flag(x) (x.type = SPT_VEC_DATA)
 
-#define spt_data_free_flag(x) ((x)->rsv&0x1)
-#define spt_set_data_free_flag(x, y) ((x)->rsv |= y)
-#define spt_set_data_not_free(x) ((x)->rsv &= 0xfffe)
+#define spt_data_free_flag(x) ((x)->free)
+#define spt_set_data_free_flag(x, y) ((x)->free = y)
+#define spt_set_data_not_free(x) ((x)->free = 0)
 
 #define SPT_HASH_BIT  11
 #define SPT_HASH_MASK 0x3FF
@@ -161,6 +163,9 @@
 
 #define THREAD_NUM_MAX 64
 
+#define get_data_from_dh(x) ((char*)(void*)(long)((x)<<2))
+#define set_data_to_dh(x) (((unsigned long long)(long)(void*)(x))>>2)
+
 typedef char *(*spt_cb_get_key)(char *);
 typedef void (*spt_cb_free)(char *);
 typedef void (*spt_cb_end_key)(char *);
@@ -175,13 +180,16 @@ struct spt_sort_info {
 };
 
 
-struct spt_dh {
-//spt_data_hd
+struct spt_dh_ref {
 	u8 type;
 	u8 rsv;
-	u16 size;
+	u16 rsv2;
 	volatile int ref;
-	char *pdata;
+};
+struct spt_dh {
+	unsigned long long status  :1;
+	unsigned long long free    :1;
+	unsigned long long pdata   :62;
 };
 
 struct spt_vec {
@@ -221,10 +229,6 @@ struct spt_grp
 	};
 };
 
-struct spt_pg_h
-{
-	unsigned int bit_used;
-};
 struct cluster_address_trans_info {
 	unsigned int pg_num_max;
 	unsigned int pg_vec_num_total;
@@ -389,10 +393,10 @@ struct travl_info {
 	long long signpost;
 };
 
-static inline struct spt_grp *get_grp_from_page_head(char *page_head, unsigned int grp_id)
+static inline struct spt_grp *get_grp_from_grpid(struct cluster_head_t *pclst, unsigned int grp_id)
 {
-	return (page_head - PG_HEAD_OFFSET)+ (grp_id%GRPS_PER_PG) * GRP_SIZE;
-
+	char *page = pclst->cluster_vec_mem + (grp_id/GRPS_PER_PG)*4096; 
+	return page + (grp_id%GRPS_PER_PG) * GRP_SIZE;
 }
 
 void vec_free(struct cluster_head_t *pcluster, int id);
@@ -403,7 +407,7 @@ int spt_get_errno(void);
 extern struct cluster_head_t *pgclst;
 
 unsigned int db_alloc(struct cluster_head_t *pclst,
-		struct spt_dh **db, unsigned int db_id);
+		struct spt_dh **db, struct spt_dh_ref **ref, unsigned int db_id);
 
 struct cluster_head_t *cluster_init(int is_bottom,
 						u64 startbit,
@@ -457,10 +461,12 @@ int get_grp_by_data(struct cluster_head_t *pclst, char *data, int pos);
 struct spt_pg_h *get_vec_pg_head(struct cluster_head_t *pclst, unsigned int pgid);
 struct spt_pg_h *get_db_pg_head(struct cluster_head_t *pclst, unsigned int pgid);
 char  *db_grp_id_2_ptr(struct cluster_head_t *pclst, unsigned int grp_id);
+char  *db_ref_grp_id_2_ptr(struct cluster_head_t *pclst, unsigned int grp_id);
 char  *vec_grp_id_2_ptr(struct cluster_head_t *pclst, unsigned int grp_id);
 
 char* vec_id_2_ptr(struct cluster_head_t * pclst,unsigned int id);
 char* db_id_2_ptr(struct cluster_head_t * pclst,unsigned int id);
+char* db_ref_id_2_ptr(struct cluster_head_t * pclst,unsigned int id);
 
 int db_alloc_from_grp(struct cluster_head_t *pclst, int id, struct spt_dh **db);
 

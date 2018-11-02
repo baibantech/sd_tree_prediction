@@ -342,25 +342,26 @@ int do_insert_first_set(struct cluster_head_t *pclst,
 	u32 dataid;
 	struct spt_vec tmp_vec, *pcur;
 	struct spt_dh *pdh;
+	struct spt_dh_ref *ref;
 	struct spt_dh_ext *pdh_ext;
 
 	tmp_vec.val = pinsert->key_val;
 	if (tmp_vec.scan_lock)
 		return SPT_DO_AGAIN;
 
-	dataid = db_alloc(pclst, &pdh, pinsert->key_id);
+	dataid = db_alloc(pclst, &pdh, &ref, pinsert->key_id);
 	if (!pdh) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		return SPT_NOMEM;
 	}
-	pdh->ref = pinsert->ref_cnt;
-	pdh->pdata = new_data;
+	ref->ref = pinsert->ref_cnt;
+	pdh->pdata = set_data_to_dh(new_data);
 
 	pcur = (struct spt_vec *)vec_id_2_ptr(pclst, pclst->vec_head);
 	spt_assert(pcur == pinsert->pkey_vec);
 	tmp_vec.rd = dataid;
 	if (!pclst->is_bottom) {
-		pdh_ext = (struct spt_dh_ext *)pdh->pdata;
+		pdh_ext = (struct spt_dh_ext *)get_data_from_dh(pdh->pdata);
 		pdh_ext->hang_vec = SPT_NULL;
 	}
 	smp_mb();/* ^^^ */
@@ -385,6 +386,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 	struct spt_vec tmp_vec, *pvec_a, *pvec_b, *next_vec, *prev_vec;
 	u32 dataid, vecid_a, vecid_b, tmp_rd;
 	struct spt_dh *pdh, *plast_dh;
+	struct spt_dh_ref *ref;
 	struct spt_dh_ext *pdh_ext, *plast_dh_ext;
 	int pre_pos;
 	unsigned int window_hash, seg_hash;
@@ -418,14 +420,14 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 	pvec_a->val = 0;
 	pvec_a->type = SPT_VEC_DATA;
 	
-	dataid = db_alloc(pclst, &pdh, vecid_a);
+	dataid = db_alloc(pclst, &pdh, &ref, vecid_a);
 	if (!pdh) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		vec_free(pclst, vecid_a);
 		return SPT_NOMEM;
 	}
-	pdh->ref = pinsert->ref_cnt;
-	pdh->pdata = new_data;
+	ref->ref = pinsert->ref_cnt;
+	pdh->pdata = set_data_to_dh(new_data);
 
 	pvec_a->rd = dataid;
 	pos_type = set_real_pos(pvec_a, pinsert->cmp_pos, pre_pos, window_hash);
@@ -489,9 +491,9 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 	}
 	
 	if (!pclst->is_bottom) {
-		pdh_ext = (struct spt_dh_ext *)pdh->pdata;
+		pdh_ext = (struct spt_dh_ext *)get_data_from_dh(pdh->pdata);
 		plast_dh = (struct spt_dh *)db_id_2_ptr(pclst, pinsert->dataid);
-		plast_dh_ext = (struct spt_dh_ext *)plast_dh->pdata;
+		plast_dh_ext = (struct spt_dh_ext *)get_data_from_dh(plast_dh->pdata);
 		pdh_ext->hang_vec = plast_dh_ext->hang_vec;
 	}
 	smp_mb();/* ^^^ */
@@ -550,6 +552,7 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 	struct spt_vec tmp_vec, *pvec_a, *pvec_b, *next_vec, *prev_vec;
 	u32 dataid, vecid_a, vecid_b;
 	struct spt_dh *pdh;
+	struct spt_dh_ref *ref;
 	struct spt_dh_ext *pdh_ext;
 	int ret;
 	int pre_pos;
@@ -596,15 +599,15 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 	pvec_b->type = SPT_VEC_DATA;
 
 	
-	dataid = db_alloc(pclst, &pdh, vecid_b);
+	dataid = db_alloc(pclst, &pdh, &ref, vecid_b);
 	if (!pdh) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		vec_free(pclst, vecid_a);
 		vec_free(pclst, vecid_b);
 		return SPT_NOMEM;
 	}
-	pdh->ref = pinsert->ref_cnt;
-	pdh->pdata = new_data;
+	ref->ref = pinsert->ref_cnt;
+	pdh->pdata = set_data_to_dh(new_data);
 
 	pos_type = set_real_pos(pvec_b, pinsert->fs, pinsert->cmp_pos, new_window_hash);
 	add_debug_cnt(pclst, pinsert->fs, pos_type);
@@ -638,7 +641,7 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 
 	
 	if (!pclst->is_bottom) {
-		pdh_ext = (struct spt_dh_ext *)pdh->pdata;
+		pdh_ext = (struct spt_dh_ext *)get_data_from_dh(pdh->pdata);
 		pdh_ext->hang_vec = vecid_a;
     }
 	smp_mb();/* ^^^ */
@@ -694,6 +697,7 @@ int do_insert_last_down(struct cluster_head_t *pclst,
 	struct spt_vec tmp_vec, *pvec_a;
 	u32 dataid, vecid_a;
 	struct spt_dh *pdh;
+	struct spt_dh_ref *ref;
 	struct spt_dh_ext *pdh_ext;
 	int pre_pos;
 	unsigned int window_hash, seg_hash;
@@ -716,14 +720,14 @@ int do_insert_last_down(struct cluster_head_t *pclst,
 	pvec_a->val = 0;
 	pvec_a->type = SPT_VEC_DATA;
     
-	dataid = db_alloc(pclst, &pdh, vecid_a);
+	dataid = db_alloc(pclst, &pdh, &ref, vecid_a);
 	if (pdh == 0) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		vec_free(pclst, vecid_a);
 		return SPT_NOMEM;
 	}
-	pdh->ref = pinsert->ref_cnt;
-	pdh->pdata = new_data;
+	ref->ref = pinsert->ref_cnt;
+	pdh->pdata = set_data_to_dh(new_data);
 
 	pos_type = set_real_pos(pvec_a, pinsert->fs, pre_pos, window_hash);
 	add_debug_cnt(pclst, pinsert->fs, pos_type);
@@ -734,7 +738,7 @@ int do_insert_last_down(struct cluster_head_t *pclst,
 	tmp_vec.down = vecid_a;
 	
 	if (!pclst->is_bottom) {
-		pdh_ext = (struct spt_dh_ext *)pdh->pdata;
+		pdh_ext = (struct spt_dh_ext *)get_data_from_dh(pdh->pdata);
 		pdh_ext->hang_vec = pinsert->key_id;
 	}
 	smp_mb();/* ^^^ */
@@ -759,6 +763,7 @@ int do_insert_up_via_d(struct cluster_head_t *pclst,
 	struct spt_vec tmp_vec, *pvec_a, *pvec_down, *next_vec, *prev_vec;
 	u32 dataid, down_dataid, vecid_a;
 	struct spt_dh *pdh;
+	struct spt_dh_ref *ref;
 	struct spt_dh_ext *pdh_ext;
 	int pre_pos;
 	unsigned int window_hash, seg_hash;
@@ -784,14 +789,14 @@ int do_insert_up_via_d(struct cluster_head_t *pclst,
 	pvec_a->val = 0;
 	pvec_a->type = SPT_VEC_DATA;
     
-	dataid = db_alloc(pclst, &pdh, vecid_a);
+	dataid = db_alloc(pclst, &pdh, &ref, vecid_a);
 	if (pdh == 0) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		vec_free(pclst, vecid_a);
 		return SPT_NOMEM;
 	}
-	pdh->ref = pinsert->ref_cnt;
-	pdh->pdata = new_data;
+	ref->ref = pinsert->ref_cnt;
+	pdh->pdata = set_data_to_dh(new_data);
 
 	pos_type = set_real_pos(pvec_a, pinsert->fs, pre_pos, window_hash);
 	add_debug_cnt(pclst, pinsert->fs, pos_type);
@@ -809,7 +814,7 @@ int do_insert_up_via_d(struct cluster_head_t *pclst,
 	}
 	
 	if (!pclst->is_bottom) {
-		pdh_ext = (struct spt_dh_ext *)pdh->pdata;
+		pdh_ext = (struct spt_dh_ext *)get_data_from_dh(pdh->pdata);
 		pdh_ext->hang_vec = pinsert->key_id;
 	}
 	smp_mb();/* ^^^ */
@@ -860,7 +865,7 @@ int do_insert_up_via_d(struct cluster_head_t *pclst,
 				spt_assert(0);
 			}
 			pdh = (struct spt_dh *)db_id_2_ptr(pclst, down_dataid);
-			pdh_ext = (struct spt_dh_ext *)pdh->pdata;
+			pdh_ext = (struct spt_dh_ext *)get_data_from_dh(pdh->pdata);
 			pdh_ext->hang_vec = vecid_a;
 		}
 		return dataid;
@@ -891,8 +896,8 @@ void refresh_db_hang_vec(struct cluster_head_t *pclst,
 		pvec = (struct spt_vec *)vec_id_2_ptr(pclst, pvec->rd);
 	down_data = pvec->rd;
 	pdown_dh = (struct spt_dh *)db_id_2_ptr(pclst, down_data);
-	pdown_ext_h = (struct spt_dh_ext *)pdown_dh->pdata;
-	pext_h = (struct spt_dh_ext *)pdel_dh->pdata;
+	pdown_ext_h = (struct spt_dh_ext *)get_data_from_dh(pdown_dh->pdata);
+	pext_h = (struct spt_dh_ext *)get_data_from_dh(pdel_dh->pdata);
 	pdown_ext_h->hang_vec = pext_h->hang_vec;
 }
 /**
@@ -1069,7 +1074,7 @@ int spt_cluster_sort(struct cluster_head_t *pclst, struct spt_sort_info *psort)
 			if (cur_data != SPT_NULL) {
 				pdh = (struct spt_dh *)db_id_2_ptr(pclst,
 						cur_data);
-				psort->array[psort->idx] = pdh->pdata;
+				psort->array[psort->idx] = get_data_from_dh(pdh->pdata);
 				psort->idx = (psort->idx+1)%psort->size;
 				psort->cnt++;
 				//debug_pdh_data_print(pclst, pdh);
@@ -1216,6 +1221,7 @@ int divide_sub_cluster(struct cluster_head_t *pclst, struct spt_dh_ext *pup)
 	struct spt_dh_ext *pext_head;
 	struct cluster_head_t *plower_clst, *pdst_clst;
 	struct spt_dh *pdh;
+	struct spt_dh_ref  *ref;
 	struct query_info_t qinfo = {0};
 	u64 start;
 	u64 w_start, w_total, w_cnt;
@@ -1317,13 +1323,14 @@ int divide_sub_cluster(struct cluster_head_t *pclst, struct spt_dh_ext *pup)
 			f_total += rdtsc()-f_start;
 			f_cnt++;
 			pdh = (struct spt_dh *)db_id_2_ptr(plower_clst, dataid);
-			ref_cnt = pdh->ref;
+			ref = (struct spt_dh *)db_ref_id_2_ptr(plower_clst, dataid);
+			ref_cnt = ref->ref;
 			start = rdtsc();
 			while (1) {
 				del_start = rdtsc();
 				ret = do_delete_data_no_free_multiple(
 					plower_clst,
-					pdh->pdata,
+					get_data_from_dh(pdh->pdata),
 					ref_cnt,
 					plower_clst->get_key_in_tree,
 					plower_clst->get_key_in_tree_end);
@@ -1425,6 +1432,7 @@ struct cluster_head_t *adjust_mem_sub_cluster(struct cluster_head_t *pclst, stru
 	struct spt_dh_ext *pext_head;
 	struct cluster_head_t *plower_clst, *pdst_clst;
 	struct spt_dh *pdh;
+	struct spt_dh_ref *ref;
 	struct query_info_t qinfo = {0};
 	u64 start;
 	u64 w_start, w_total, w_cnt;
@@ -1528,13 +1536,14 @@ struct cluster_head_t *adjust_mem_sub_cluster(struct cluster_head_t *pclst, stru
 			f_total += rdtsc()-f_start;
 			f_cnt++;
 			pdh = (struct spt_dh *)db_id_2_ptr(plower_clst, dataid);
-			ref_cnt = pdh->ref;
+			ref = (struct spt_dh *)db_ref_id_2_ptr(plower_clst, dataid);
+			ref_cnt = ref->ref;
 			start = rdtsc();
 			while (1) {
 				del_start = rdtsc();
 				ret = do_delete_data_no_free_multiple(
 					plower_clst,
-					pdh->pdata,
+					get_data_from_dh(pdh->pdata),
 					ref_cnt,
 					plower_clst->get_key_in_tree,
 					plower_clst->get_key_in_tree_end);
@@ -1560,7 +1569,7 @@ struct cluster_head_t *adjust_mem_sub_cluster(struct cluster_head_t *pclst, stru
 			start = rdtsc();
 
 			ret = do_insert_data_multiple(pdst_clst,
-				pdh->pdata,
+				get_data_from_dh(pdh->pdata),
 				ref_cnt,
 				pdst_clst->get_key_in_tree,
 				pdst_clst->get_key_in_tree_end);
@@ -2059,6 +2068,7 @@ int find_data_from_leaf(struct cluster_head_t *pclst, struct query_info_t *pqinf
 	struct data_info_t pinfo;
 	char *pdata, *prdata;
 	struct spt_dh *pdh;
+	struct spt_dh_ref  *ref;
 	spt_cb_end_key finish_key_cb;
 	u32 check_data_id, check_pos, check_type;
 	int pre_pos_bit, cur_pos_bit, next_pos_bit;
@@ -2170,7 +2180,7 @@ prediction_right:
 				pdh = (struct spt_dh *)db_id_2_ptr(pclst,
 						cur_data);
 				smp_mb();/* ^^^ */
-				pcur_data = pclst->get_key_in_tree(pdh->pdata);
+				pcur_data = pclst->get_key_in_tree(get_data_from_dh(pdh->pdata));
 				
 				spt_trace("rd data:%p\r\n",pcur_data);	
 #if 0	
@@ -2187,6 +2197,13 @@ prediction_right:
 					cmp = 0;
 					if (cmp == 0) {
 						spt_trace("find same record\r\n");	
+						if (pqinfo->op == SPT_OP_FIND) {
+							pqinfo->db_id = cur_data;
+							pqinfo->vec_id = cur_vecid;
+							pqinfo->cmp_result = 0;
+							finish_key_cb(prdata);
+							return SPT_OK;
+						}
 						goto same_record;
 					} else {
 						pinfo.cur_vec = cur_vec;
@@ -2373,7 +2390,7 @@ prediction_down:
 				pdh = (struct spt_dh *)db_id_2_ptr(pclst,
 					cur_data);
 				smp_mb();/* ^^^ */
-				pcur_data = pclst->get_key_in_tree(pdh->pdata);
+				pcur_data = pclst->get_key_in_tree(get_data_from_dh(pdh->pdata));
 				
 				spt_trace("cur vec down null , cur_data %p \r\n",pcur_data);
 				
@@ -2486,7 +2503,7 @@ prediction_down_continue:
 				pdh = (struct spt_dh *)db_id_2_ptr(pclst,
 					cur_data);
 				smp_mb();/* ^^^ */
-				pcur_data = pclst->get_key_in_tree(pdh->pdata);
+				pcur_data = pclst->get_key_in_tree(get_data_from_dh(pdh->pdata));
 			
 			} else { 
 				cur_data = SPT_INVALID;
@@ -2517,6 +2534,13 @@ prediction_down_continue:
 			} else {
 				if (startbit == endbit) {
 					spt_trace("find same record\r\n");	
+					if (pqinfo->op == SPT_OP_FIND) {
+						pqinfo->db_id = cur_data;
+						pqinfo->vec_id = cur_vecid;
+						pqinfo->cmp_result = 0;
+						finish_key_cb(prdata);
+						return SPT_OK;
+					}
 					goto same_record;
 				}
 			}
@@ -2844,9 +2868,9 @@ same_record:
 
 		pdh = (struct spt_dh *)db_id_2_ptr(pclst, cur_data);
 		smp_mb();/* ^^^ */
-		//pcur_data = pclst->get_key(pdh->pdata);
 	} else
 		pclst->get_key_in_tree_end(pcur_data);
+	ref = db_ref_id_2_ptr(pclst, cur_data);
 
 	switch (op) {
 	case SPT_OP_FIND:
@@ -2860,7 +2884,7 @@ same_record:
 		return ret;
 	case SPT_OP_INSERT:
 		while (1) {
-			va_old = pdh->ref;
+			va_old = ref->ref;
 			if (va_old == 0) {
 				cur_data = SPT_INVALID;
 				ret = SPT_NOT_FOUND;
@@ -2868,7 +2892,7 @@ same_record:
 			} else if (va_old > 0) {
 				va_new = va_old + pqinfo->multiple;
 				if (va_old == atomic_cmpxchg(
-							(atomic_t *)&pdh->ref,
+							(atomic_t *)&ref->ref,
 							va_old, va_new))
 					break;
 			} else
@@ -2882,7 +2906,7 @@ same_record:
 	case SPT_OP_DELETE:
 		pqinfo->db_id = cur_data;
 		while (1) {
-			va_old = pdh->ref;
+			va_old = ref->ref;
 			if (va_old == 0) {
 
 				finish_key_cb(prdata);
@@ -2894,7 +2918,7 @@ same_record:
 				}
 				va_new = va_old-pqinfo->multiple;
 				if (va_old == atomic_cmpxchg(
-							(atomic_t *)&pdh->ref,
+							(atomic_t *)&ref->ref,
 							va_old, va_new))
 					break;
 			} else
@@ -2922,12 +2946,11 @@ same_record:
                 else
                 {
                     cur_data = SPT_INVALID;
-                    //atomic_add_return(1,(atomic_t *)&pdh->ref);
                     while(1)
                     {
-                        va_old = pdh->ref;
+                        va_old = ref->ref;
                         va_new = va_old+pqinfo->multiple;
-                        if(va_old == atomic_cmpxchg((atomic_t *)&pdh->ref, va_old,va_new))
+                        if(va_old == atomic_cmpxchg((atomic_t *)&ref->ref, va_old,va_new))
                             break;
                     }
                     
@@ -2956,12 +2979,11 @@ same_record:
             }
             else
             {
-                //atomic_add_return(1,(atomic_t *)&pdh->ref);
                 while(1)
                 {
-                    va_old = pdh->ref;
+                    va_old = ref->ref;
                     va_new = va_old+pqinfo->multiple;
-                    if(va_old == atomic_cmpxchg((atomic_t *)&pdh->ref, va_old,va_new))
+                    if(va_old == atomic_cmpxchg((atomic_t *)&ref->ref, va_old,va_new))
                         break;
                 }                
                 cur_data = SPT_INVALID;
@@ -2994,6 +3016,7 @@ int find_data_debug_trace(struct cluster_head_t *pclst, struct query_info_t *pqi
 	struct data_info_t pinfo;
 	char *pdata, *prdata;
 	struct spt_dh *pdh;
+	struct spt_dh_ref *ref;
 	spt_cb_end_key finish_key_cb;
 	u32 check_data_id, check_pos, check_type;
 
@@ -3095,7 +3118,7 @@ prediction_right:
 				pdh = (struct spt_dh *)db_id_2_ptr(pclst,
 						cur_data);
 				smp_mb();/* ^^^ */
-				pcur_data = pclst->get_key_in_tree(pdh->pdata);
+				pcur_data = pclst->get_key_in_tree(get_data_from_dh(pdh->pdata));
 				
 				
 				first_chbit = get_first_change_bit(prdata,
@@ -3259,7 +3282,7 @@ prediction_down:
 				pdh = (struct spt_dh *)db_id_2_ptr(pclst,
 					cur_data);
 				smp_mb();/* ^^^ */
-				pcur_data = pclst->get_key_in_tree(pdh->pdata);
+				pcur_data = pclst->get_key_in_tree(get_data_from_dh(pdh->pdata));
 				
 				
 				first_chbit = get_first_change_bit(prdata,
@@ -3347,7 +3370,7 @@ prediction_down_continue:
 				pdh = (struct spt_dh *)db_id_2_ptr(pclst,
 					cur_data);
 				smp_mb();/* ^^^ */
-				pcur_data = pclst->get_key_in_tree(pdh->pdata);
+				pcur_data = pclst->get_key_in_tree(get_data_from_dh(pdh->pdata));
 			
 			} else { 
 				cur_data = SPT_INVALID;
@@ -3668,7 +3691,7 @@ same_record:
 		//pcur_data = pclst->get_key(pdh->pdata);
 	} else
 		pclst->get_key_in_tree_end(pcur_data);
-
+	ref = db_ref_id_2_ptr(pclst, cur_data);
 	switch (op) {
 	case SPT_OP_FIND:
 		if (pqinfo->op == SPT_OP_FIND) {
@@ -3681,7 +3704,7 @@ same_record:
 		return ret;
 	case SPT_OP_INSERT:
 		while (1) {
-			va_old = pdh->ref;
+			va_old = ref->ref;
 			if (va_old == 0) {
 				cur_data = SPT_INVALID;
 				ret = SPT_NOT_FOUND;
@@ -3689,7 +3712,7 @@ same_record:
 			} else if (va_old > 0) {
 				va_new = va_old + pqinfo->multiple;
 				if (va_old == atomic_cmpxchg(
-							(atomic_t *)&pdh->ref,
+							(atomic_t *)&ref->ref,
 							va_old, va_new))
 					break;
 			} else
@@ -3703,7 +3726,7 @@ same_record:
 	case SPT_OP_DELETE:
 		pqinfo->db_id = cur_data;
 		while (1) {
-			va_old = pdh->ref;
+			va_old = ref->ref;
 			if (va_old == 0) {
 
 				finish_key_cb(prdata);
@@ -3715,7 +3738,7 @@ same_record:
 				}
 				va_new = va_old-pqinfo->multiple;
 				if (va_old == atomic_cmpxchg(
-							(atomic_t *)&pdh->ref,
+							(atomic_t *)&ref->ref,
 							va_old, va_new))
 					break;
 			} else
@@ -3743,12 +3766,11 @@ same_record:
                 else
                 {
                     cur_data = SPT_INVALID;
-                    //atomic_add_return(1,(atomic_t *)&pdh->ref);
                     while(1)
                     {
-                        va_old = pdh->ref;
+                        va_old = ref->ref;
                         va_new = va_old+pqinfo->multiple;
-                        if(va_old == atomic_cmpxchg((atomic_t *)&pdh->ref, va_old,va_new))
+                        if(va_old == atomic_cmpxchg((atomic_t *)&ref->ref, va_old,va_new))
                             break;
                     }
                     
@@ -3777,12 +3799,11 @@ same_record:
             }
             else
             {
-                //atomic_add_return(1,(atomic_t *)&pdh->ref);
                 while(1)
                 {
-                    va_old = pdh->ref;
+                    va_old = ref->ref;
                     va_new = va_old+pqinfo->multiple;
-                    if(va_old == atomic_cmpxchg((atomic_t *)&pdh->ref, va_old,va_new))
+                    if(va_old == atomic_cmpxchg((atomic_t *)&ref->ref, va_old,va_new))
                         break;
                 }                
                 cur_data = SPT_INVALID;
@@ -3822,6 +3843,7 @@ int find_data(struct cluster_head_t *pclst, struct query_info_t *pqinfo)
 	struct data_info_t pinfo;
 	char *pdata, *prdata;
 	struct spt_dh *pdh;
+	struct spt_dh_ref *ref;
 	spt_cb_end_key finish_key_cb;
 	u32 check_data_id, check_pos, check_type;
 
@@ -3926,7 +3948,7 @@ prediction_right:
 				pdh = (struct spt_dh *)db_id_2_ptr(pclst,
 						cur_data);
 				smp_mb();/* ^^^ */
-				pcur_data = pclst->get_key_in_tree(pdh->pdata);
+				pcur_data = pclst->get_key_in_tree(get_data_from_dh(pdh->pdata));
 				
 				spt_trace("rd data:%p\r\n",pcur_data);	
 				
@@ -4110,7 +4132,7 @@ prediction_down:
 				pdh = (struct spt_dh *)db_id_2_ptr(pclst,
 					cur_data);
 				smp_mb();/* ^^^ */
-				pcur_data = pclst->get_key_in_tree(pdh->pdata);
+				pcur_data = pclst->get_key_in_tree(get_data_from_dh(pdh->pdata));
 				
 				spt_trace("cur vec down null , cur_data %p \r\n",pcur_data);
 				
@@ -4208,7 +4230,7 @@ prediction_down_continue:
 				pdh = (struct spt_dh *)db_id_2_ptr(pclst,
 					cur_data);
 				smp_mb();/* ^^^ */
-				pcur_data = pclst->get_key_in_tree(pdh->pdata);
+				pcur_data = pclst->get_key_in_tree(get_data_from_dh(pdh->pdata));
 			
 			} else { 
 				cur_data = SPT_INVALID;
@@ -4536,7 +4558,7 @@ same_record:
 		//pcur_data = pclst->get_key(pdh->pdata);
 	} else
 		pclst->get_key_in_tree_end(pcur_data);
-
+	ref = db_ref_id_2_ptr(pclst, cur_data);
 	switch (op) {
 	case SPT_OP_FIND:
 		if (pqinfo->op == SPT_OP_FIND) {
@@ -4549,7 +4571,7 @@ same_record:
 		return ret;
 	case SPT_OP_INSERT:
 		while (1) {
-			va_old = pdh->ref;
+			va_old = ref->ref;
 			if (va_old == 0) {
 				cur_data = SPT_INVALID;
 				ret = SPT_NOT_FOUND;
@@ -4557,7 +4579,7 @@ same_record:
 			} else if (va_old > 0) {
 				va_new = va_old + pqinfo->multiple;
 				if (va_old == atomic_cmpxchg(
-							(atomic_t *)&pdh->ref,
+							(atomic_t *)&ref->ref,
 							va_old, va_new))
 					break;
 			} else
@@ -4571,7 +4593,7 @@ same_record:
 	case SPT_OP_DELETE:
 		pqinfo->db_id = cur_data;
 		while (1) {
-			va_old = pdh->ref;
+			va_old = ref->ref;
 			if (va_old == 0) {
 
 				finish_key_cb(prdata);
@@ -4583,7 +4605,7 @@ same_record:
 				}
 				va_new = va_old-pqinfo->multiple;
 				if (va_old == atomic_cmpxchg(
-							(atomic_t *)&pdh->ref,
+							(atomic_t *)&ref->ref,
 							va_old, va_new))
 					break;
 			} else
@@ -4611,12 +4633,11 @@ same_record:
                 else
                 {
                     cur_data = SPT_INVALID;
-                    //atomic_add_return(1,(atomic_t *)&pdh->ref);
                     while(1)
                     {
-                        va_old = pdh->ref;
+                        va_old = ref->ref;
                         va_new = va_old+pqinfo->multiple;
-                        if(va_old == atomic_cmpxchg((atomic_t *)&pdh->ref, va_old,va_new))
+                        if(va_old == atomic_cmpxchg((atomic_t *)&ref->ref, va_old,va_new))
                             break;
                     }
                     
@@ -4645,12 +4666,11 @@ same_record:
             }
             else
             {
-                //atomic_add_return(1,(atomic_t *)&pdh->ref);
                 while(1)
                 {
-                    va_old = pdh->ref;
+                    va_old = ref->ref;
                     va_new = va_old+pqinfo->multiple;
-                    if(va_old == atomic_cmpxchg((atomic_t *)&pdh->ref, va_old,va_new))
+                    if(va_old == atomic_cmpxchg((atomic_t *)&ref->ref, va_old,va_new))
                         break;
                 }                
                 cur_data = SPT_INVALID;
@@ -4801,7 +4821,7 @@ refind_next:
 	ret = find_data(pclst, &qinfo);
 	if (ret >= 0) {
 		pdh = (struct spt_dh *)db_id_2_ptr(pclst, qinfo.db_id);
-		pdext_h = (struct spt_dh_ext *)pdh->pdata;
+		pdext_h = (struct spt_dh_ext *)get_data_from_dh(pdh->pdata);
 		if (qinfo.cmp_result == 0)
 			return pdext_h->plower_clst;
 		else if (qinfo.cmp_result < 0) {
@@ -4818,7 +4838,7 @@ refind_next:
 			if (ret == SPT_NULL)
 				goto refind_next;
 			pdh = (struct spt_dh *)db_id_2_ptr(pclst, ret);
-			pdext_h = (struct spt_dh_ext *)pdh->pdata;
+			pdext_h = (struct spt_dh_ext *)get_data_from_dh(pdh->pdata);
 			return pdext_h->plower_clst;
 
 		} else {
@@ -4834,7 +4854,7 @@ refind_next:
 					goto refind_next;
 				pdh = (struct spt_dh *)db_id_2_ptr(pclst,
 						vec.rd);
-				pdext_h = (struct spt_dh_ext *)pdh->pdata;
+				pdext_h = (struct spt_dh_ext *)get_data_from_dh(pdh->pdata);
 				return pdext_h->plower_clst;
 			}
 			pvec = (struct spt_vec *)vec_id_2_ptr(pclst, vec.rd);
@@ -4842,7 +4862,7 @@ refind_next:
 			if (ret == SPT_NULL)
 				goto refind_next;
 			pdh = (struct spt_dh *)db_id_2_ptr(pclst, ret);
-			pdext_h = (struct spt_dh_ext *)pdh->pdata;
+			pdext_h = (struct spt_dh_ext *)get_data_from_dh(pdh->pdata);
 			return pdext_h->plower_clst;
 
 		}
@@ -4896,7 +4916,7 @@ char *insert_data(struct cluster_head_t *pclst, char *pdata)
 	ret = find_data(pnext_clst, &qinfo);
 	if (ret >= 0) {
 		pdh = (struct spt_dh *)db_id_2_ptr(pnext_clst, qinfo.db_id);
-		return pdh->pdata;
+		return get_data_from_dh(pdh->pdata);
 	}
 	spt_set_errno(ret);
 	return 0;
@@ -4944,7 +4964,7 @@ char *delete_data(struct cluster_head_t *pclst, char *pdata)
 				qinfo.db_id);
 		if (!pdh->pdata)
 			spt_assert(0);
-		return pdh->pdata;
+		return get_data_from_dh(pdh->pdata);
 	}
 	spt_set_errno(ret);
 	return NULL;
@@ -4979,13 +4999,63 @@ char *query_data(struct cluster_head_t *pclst, char *pdata)
 				qinfo.db_id);
 		if (!pdh->pdata)
 			spt_assert(0);
-		return pdh->pdata;
+		return get_data_from_dh(pdh->pdata);
 	}
 	spt_set_errno(ret);
 	return NULL;
 }
 int find_start_vec_ok;
 int find_leaf_data_ok;
+
+
+int find_start_vec(struct cluster_head_t *pclst, struct spt_vec **vec, int *start_pos, char *data, int window)
+{
+	int gid,fs;
+	struct spt_grp *grp, *next_grp;
+	struct spt_vec cur_vec, *pvec, tmp_vec;
+	int ret_vec_id = -1;
+	int base_vec_id;
+	unsigned int window_hash, seg_hash;
+	
+	calc_hash(data, &window_hash, &seg_hash, window);
+
+	window_hash = (window_hash & SPT_HASH_MASK) << 12;	
+	gid = seg_hash %GRP_SPILL_START;
+	*start_pos = window *8;
+	*vec = NULL;
+	tmp_vec.val = 0;
+re_find:
+	grp = get_grp_from_grpid(pclst, gid);
+	
+	pvec = (char *) grp + sizeof(struct spt_grp); 
+	base_vec_id = gid << 4;
+
+
+	for (fs = 0 ; fs < VEC_PER_GRP; fs++, pvec++) {
+		cur_vec.val = pvec->val & 0x00000000003FFFE3ULL; 	
+			
+		if(likely((cur_vec.val & 0x00000000003FF000ULL) != window_hash)) 
+			continue;
+		if ((cur_vec.val & 0x0000000000000021ULL) == 0x0000000000000020ULL) { 
+			if (cur_vec.val > tmp_vec.val) {
+				tmp_vec.val = cur_vec.val;
+				*vec = pvec;
+				ret_vec_id = base_vec_id + fs;
+				if (cur_vec.type == SPT_VEC_DATA)
+					return ret_vec_id;
+			}
+		}
+
+	}
+	next_grp = grp->next_grp;
+	if ((next_grp == 0) || (next_grp == 0xFFFFF)) {
+		return ret_vec_id;
+	}
+	gid = next_grp;
+	goto re_find;
+}
+
+
 char *query_data_by_hash(struct cluster_head_t *pclst, char *pdata)
 {
 	struct cluster_head_t *pnext_clst;
@@ -5027,7 +5097,7 @@ char *query_data_by_hash(struct cluster_head_t *pclst, char *pdata)
 			if (!pdh->pdata)
 				spt_assert(0);
 			PERF_STAT_END(find_startvec);	
-			return pdh->pdata;
+			return get_data_from_dh(pdh->pdata);
 		}
 	}
 
@@ -5045,7 +5115,7 @@ char *query_data_by_hash(struct cluster_head_t *pclst, char *pdata)
 		if (!pdh->pdata)
 			spt_assert(0);
 		PERF_STAT_END(find_startvec);	
-		return pdh->pdata;
+		return get_data_from_dh(pdh->pdata);
 	}
 	PERF_STAT_END(find_startvec);	
 	spt_set_errno(ret);
@@ -5146,7 +5216,7 @@ struct cluster_head_t *spt_cluster_init(u64 startbit,
 	/*
 	 * The sample space is divided into several parts on average
 	 */
-	for (i = 1; i < 1; i++) {
+	for (i = 1; i < 256; i++) {
 		plower_clst = cluster_init(1, startbit,
 				endbit, thread_num, pf, pf2,
 							pf_free, pf_con);
@@ -6324,9 +6394,9 @@ void debug_pdh_data_print(struct cluster_head_t *pclst, struct spt_dh *pdh)
 	struct spt_dh_ext *pdh_ext;
 
 	if (pclst->is_bottom)
-		debug_data_print(pdh->pdata);
+		debug_data_print(get_data_from_dh(pdh->pdata));
 	else {
-		pdh_ext = (struct spt_dh_ext *)pdh->pdata;
+		pdh_ext = (struct spt_dh_ext *)get_data_from_dh(pdh->pdata);
 		debug_data_print(pdh_ext->data);
 	}
 }
@@ -6376,6 +6446,7 @@ void debug_cluster_travl(struct cluster_head_t *pclst)
 	struct spt_vec *pcur;
 	struct spt_vec_f st_vec_f;
 	struct spt_dh *pdh;
+	struct spt_dh_ref *ref;
 	char *pcur_data = NULL;
 	u64 signpost;
 	struct travl_info *pnode;
@@ -6401,8 +6472,9 @@ void debug_cluster_travl(struct cluster_head_t *pclst)
 	cur_data = st_vec_f.data;
 	if (cur_data != SPT_NULL) {
 		pdh = (struct spt_dh *)db_id_2_ptr(pclst, cur_data);
-		pcur_data = pdh->pdata;
-		ref_total += pdh->ref;
+		ref = (struct spt_dh_ref *)db_ref_id_2_ptr(pclst, cur_data);
+		pcur_data = get_data_from_dh(pdh->pdata);
+		ref_total += ref->ref;
 	}
 	debug_vec_print(&st_vec_f, cur_vecid);
 #if 0
@@ -6468,8 +6540,10 @@ void debug_cluster_travl(struct cluster_head_t *pclst)
 					cur_data = st_vec_f.data;
 					pdh = (struct spt_dh *)
 						db_id_2_ptr(pclst, cur_data);
-					pcur_data = pdh->pdata;
-					ref_total += pdh->ref;
+					pcur_data = get_data_from_dh(pdh->pdata);
+					ref = (struct spt_dh_ref *)
+						db_ref_id_2_ptr(pclst, cur_data);
+					ref_total += ref->ref;
 					spt_print("\r\n@@data[%p],bit:%lld\r\n",
 							pcur_data,
 							st_vec_f.pos);
@@ -6487,242 +6561,6 @@ void debug_cluster_travl(struct cluster_head_t *pclst)
 	spt_print("\r\n@@@@@@@@ data_total:%d\tref_total:%d@@@@@@@@\r\n",
 	pclst->data_total, ref_total);
 }
-#if 0
-int debug_statistic2(struct cluster_head_t *pclst)
-{
-	struct spt_vec **stack;
-	int cur_data, cur_vecid, index;
-	struct spt_vec *pcur, cur_vec;
-	struct spt_dh *pdh;
-	u32 ref_total, buf_vec_total, buf_data_total, data_total;
-	u32 lower_ref;
-	struct cluster_head_t *plower_clst;
-	char *pcur_data = NULL;
-
-	buf_vec_total = 0;
-	buf_data_total = 0;
-	data_total = 0;
-	ref_total = 0;
-	lower_ref = 0;
-
-	stack = (struct spt_vec **)spt_malloc(4096*8*8);
-	if (stack == NULL)
-		return 0;
-	index = 0;
-
-	cur_data = SPT_INVALID;
-
-	cur_vecid = pclst->vec_head;
-	pcur = (struct spt_vec *)vec_id_2_ptr(pclst, pclst->vec_head);
-
-	cur_vec.val = pcur->val;
-	if (cur_vec.down == SPT_NULL && cur_vec.rd == SPT_NULL) {
-		spt_print("cluster is null\r\n");
-		return 0;
-	}
-	stack[index] = pcur;
-	index++;
-
-	while (1) {
-		if (cur_vec.type != SPT_VEC_DATA) {
-			cur_vecid = cur_vec.rd;
-			pcur = (struct spt_vec *)vec_id_2_ptr(pclst, cur_vecid);
-			cur_vec.val = pcur->val;
-
-			stack[index] = pcur;
-			index++;
-		} else {
-			cur_data = cur_vec.rd;
-			if (cur_data != SPT_NULL) {
-				pdh = (struct spt_dh *)db_id_2_ptr(pclst,
-						cur_data);
-				pcur_data = pdh->pdata;
-				ref_total += pdh->ref;
-				if (!pclst->is_bottom) {
-					plower_clst = ((struct spt_dh_ext *)
-							pcur_data)->plower_clst;
-					buf_data_total +=
-					debug_thrd_data_statistic(plower_clst);
-					buf_vec_total +=
-					debug_thrd_vec_statistic(plower_clst);
-					lower_ref +=
-						debug_statistic2(plower_clst);
-					data_total += plower_clst->data_total;
-				}
-
-			}
-
-			if (index == 0)
-				break;
-
-			while (1) {
-				index--;
-				pcur = stack[index];
-				cur_vec.val = pcur->val;
-				if (cur_vec.down != SPT_NULL) {
-					cur_vecid = cur_vec.down;
-					pcur = (struct spt_vec *)
-						vec_id_2_ptr(pclst, cur_vecid);
-					cur_vec.val = pcur->val;
-					stack[index] = pcur;
-					index++;
-					break;
-				}
-				if (index == 0) {
-					//todo
-					goto sort_exit;
-				}
-			}
-		}
-	}
-sort_exit:
-	spt_free(stack);
-	if (!pclst->is_bottom) {
-		spt_debug("\r\n lower_total_ref:%d\r\n", lower_ref);
-		spt_debug("\r\n data_total:%d\r\n", data_total);
-		spt_debug("\r\n buf_data_total:%d\r\n", buf_data_total);
-		spt_debug("\r\n buf_vec_total:%d\r\n", buf_vec_total);
-	}
-	return ref_total;
-}
-
-int debug_statistic(struct cluster_head_t *pclst)
-{
-	struct spt_stack stack = {0};
-	struct spt_stack *pstack = &stack;
-	int cur_data, cur_vecid;
-	struct spt_vec *pcur;
-	struct spt_vec_f st_vec_f;
-	struct spt_dh *pdh;
-	char *pcur_data = NULL;
-	u64 signpost;
-	struct travl_info *pnode;
-	u32 ref_total, buf_vec_total, buf_data_total, data_total;
-	u32 lower_ref;
-	char *data;
-	struct cluster_head_t *plower_clst;
-
-	buf_vec_total = 0;
-	buf_data_total = 0;
-	data_total = 0;
-	ref_total = 0;
-	lower_ref = 0;
-	signpost = 0;
-	spt_stack_init(pstack, 1000);
-	cur_data = SPT_INVALID;
-
-	cur_vecid = pclst->vec_head;
-	pcur = (struct spt_vec *)vec_id_2_ptr(pclst, pclst->vec_head);
-
-	debug_get_final_vec(pclst, pcur, &st_vec_f,
-			signpost, cur_data, SPT_RIGHT);
-	if (pcur->down == SPT_NULL && pcur->rd == SPT_NULL) {
-		debug_travl_stack_destroy(pstack);
-		return ref_total;
-	}
-
-	cur_data = st_vec_f.data;
-	if (cur_data != SPT_NULL) {
-		pdh = (struct spt_dh *)db_id_2_ptr(pclst, cur_data);
-		pcur_data = pdh->pdata;
-		ref_total += pdh->ref;
-	}
-#if 0
-	if (st_vec_r.pos == 0) {
-		printf("only one vec in this cluster\r\n");
-		debug_vec_print(&st_vec_r, cur_vec);
-		debug_data_print(pcur_data);
-		return;
-	}
-#endif
-	debug_travl_stack_push(pstack, &st_vec_f, signpost);
-
-	while (1) {
-		if (pcur->type != SPT_VEC_DATA) {
-			cur_vecid = st_vec_f.right;
-			pcur = (struct spt_vec *)vec_id_2_ptr(pclst,
-					cur_vecid);
-			debug_get_final_vec(pclst, pcur, &st_vec_f,
-					signpost, cur_data, SPT_RIGHT);
-
-			debug_travl_stack_push(pstack, &st_vec_f, signpost);
-		} else {
-			spt_thread_start(g_thrd_id);
-			spt_thread_exit(g_thrd_id);
-			if (pcur_data != NULL) {
-				data = get_real_data(pclst, pcur_data);
-				if (!pclst->is_bottom) {
-					plower_clst = ((struct spt_dh_ext *)
-							pcur_data)->plower_clst;
-
-					buf_data_total +=
-					debug_thrd_data_statistic(plower_clst);
-
-					buf_vec_total +=
-					debug_thrd_vec_statistic(plower_clst);
-
-					lower_ref +=
-						debug_statistic(plower_clst);
-					data_total +=
-						plower_clst->data_total;
-				}
-			}
-
-			if (spt_stack_empty(pstack))
-				break;
-
-			while (1) {
-				pnode = debug_travl_stack_pop(pstack);
-				if (pnode == (struct travl_info *)-1) {
-					debug_travl_stack_destroy(pstack);
-					if (pclst->is_bottom)
-						return ref_total;
-
-					spt_debug("\r\n lower_total_ref:%d\r\n",
-								lower_ref);
-					spt_debug("\r\n data_total:%d\r\n",
-								data_total);
-					spt_debug("\r\n buf_data_total:%d\r\n",
-								buf_data_total);
-					spt_debug("\r\n buf_vec_total:%d\r\n",
-								buf_vec_total);
-					return ref_total;
-				}
-				signpost = pnode->signpost;
-				if (pnode->vec_f.down != SPT_NULL) {
-					cur_vecid = pnode->vec_f.down;
-					pcur = (struct spt_vec *)
-						vec_id_2_ptr(pclst, cur_vecid);
-
-					debug_get_final_vec(pclst, pcur,
-							&st_vec_f, signpost,
-							SPT_INVALID, SPT_DOWN);
-
-					cur_data = st_vec_f.data;
-					pdh = (struct spt_dh *)
-						db_id_2_ptr(pclst, cur_data);
-					pcur_data = pdh->pdata;
-					ref_total += pdh->ref;
-
-					debug_travl_stack_push(pstack,
-							&st_vec_f, signpost);
-					spt_free(pnode);
-					break;
-				}
-				spt_free(pnode);
-			}
-		}
-	}
-	debug_travl_stack_destroy(pstack);
-	if (!pclst->is_bottom) {
-		spt_debug("\r\n lower_total_ref:%d\r\n", lower_ref);
-		spt_debug("\r\n data_total:%d\r\n", data_total);
-		spt_debug("\r\n buf_data_total:%d\r\n", buf_data_total);
-		spt_debug("\r\n buf_vec_total:%d\r\n", buf_vec_total);
-	}
-	return ref_total;
-}
-#endif
 void debug_buf_free(struct cluster_head_t *pclst)
 {
 	struct spt_stack stack = {0};
@@ -6731,6 +6569,7 @@ void debug_buf_free(struct cluster_head_t *pclst)
 	struct spt_vec *pcur;
 	struct spt_vec_f st_vec_f;
 	struct spt_dh *pdh;
+	struct spt_dh_ref *ref;
 	char *pcur_data = NULL;
 	u64 signpost;
 	struct travl_info *pnode;
@@ -6755,7 +6594,7 @@ void debug_buf_free(struct cluster_head_t *pclst)
 	cur_data = st_vec_f.data;
 	if (cur_data != SPT_NULL) {
 		pdh = (struct spt_dh *)db_id_2_ptr(pclst, cur_data);
-		pcur_data = pdh->pdata;
+		pcur_data = get_data_from_dh(pdh->pdata);
 	}
 #if 0
 	if (st_vec_r.pos == 0) {
@@ -6815,8 +6654,10 @@ void debug_buf_free(struct cluster_head_t *pclst)
 					cur_data = st_vec_f.data;
 					pdh = (struct spt_dh *)
 						db_id_2_ptr(pclst, cur_data);
-					pcur_data = pdh->pdata;
-					ref_total += pdh->ref;
+					pcur_data = get_data_from_dh(pdh->pdata);
+					ref = (struct spt_dh_ref *)
+						db_ref_id_2_ptr(pclst, cur_data);
+					ref_total += ref->ref;
 					debug_travl_stack_push(pstack,
 							&st_vec_f, signpost);
 					spt_free(pnode);
