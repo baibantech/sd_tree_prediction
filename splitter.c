@@ -5032,7 +5032,7 @@ re_find:
 
 
 	for (fs = 0 ; fs < VEC_PER_GRP; fs++, pvec++) {
-		cur_vec.val = pvec->val & 0x00000000003FFFE3ULL; 	
+		cur_vec.val = pvec->val & 0x00000000003FFFE7ULL; 	
 			
 		if(likely((cur_vec.val & 0x00000000003FF000ULL) != window_hash)) 
 			continue;
