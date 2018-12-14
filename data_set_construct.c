@@ -17,9 +17,10 @@
 #include "chunk.h"
 #include "sdtree_perf_stat.h"
 #include "xxhash.h"
+#include "rbtree_adp.h"
 
 #define DEFAULT_INS_LEN  256
-#define DEFAULT_INS_NUM  2000000
+#define DEFAULT_INS_NUM  8000000
 #define DEFAULT_RANDOM_WAY 1
 #define DEFAULT_FILE_LEN 400*1024*1024
 unsigned long long spt_no_found_num = 0;
@@ -504,8 +505,12 @@ void test_find_proc(void *args)
 			spt_thread_start(g_thrd_id);
 			PERF_STAT_START(whole_query_by_hash);
 try_again:
+#if 1
 			if(NULL ==(ret_data =  test_find_data(data)))
-            {
+#else
+			if(NULL ==(ret_data =  data_rb_tree_find(data)))
+#endif
+			{
                 ret = spt_get_errno();
 				spt_thread_exit(g_thrd_id);
 				spt_thread_start(g_thrd_id);
@@ -567,8 +572,12 @@ void test_pre_insert_proc(void *args)
 			spt_thread_start(g_thrd_id);
 			PERF_STAT_START(whole_insert);
 try_again:
+#if 1 
 			if(NULL ==(ret_data =  test_insert_data(data)))
-            {
+#else
+			if(NULL ==(ret_data =  data_rb_tree_insert(data)))
+#endif
+			{
                 ret = spt_get_errno();
 				spt_thread_exit(g_thrd_id);
 				spt_thread_start(g_thrd_id);

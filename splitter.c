@@ -2081,6 +2081,7 @@ int find_data_from_leaf(struct cluster_head_t *pclst, struct query_info_t *pqinf
 	int start_vec_pos;
 
 
+	PERF_STAT_START(scan_grp_info);
 	ret = SPT_NOT_FOUND;
 	op = pqinfo->op;
 
@@ -2162,6 +2163,7 @@ prediction_start:
 prediction_right:
 		
 		if (cur_vec.type == SPT_VEC_DATA) { 
+			PERF_STAT_START(leaf_data_prediction_vec);
 			len = endbit - startbit;
 			spt_trace("go right data-fs_pos:%d,curbit:%d,datalen:%d\r\n", fs_pos, startbit, len);	
 			
@@ -2179,7 +2181,7 @@ prediction_right:
 			if (cur_data >= 0 && cur_data < SPT_INVALID) {
 				pdh = (struct spt_dh *)db_id_2_ptr(pclst,
 						cur_data);
-				smp_mb();/* ^^^ */
+				//smp_mb();/* ^^^ */
 				pcur_data = pclst->get_key_in_tree(get_data_from_dh(pdh->pdata));
 				
 				spt_trace("rd data:%p\r\n",pcur_data);	
@@ -2202,6 +2204,8 @@ prediction_right:
 							pqinfo->vec_id = cur_vecid;
 							pqinfo->cmp_result = 0;
 							finish_key_cb(prdata);
+							PERF_STAT_END(leaf_data_prediction_vec);
+							PERF_STAT_END(scan_grp_info);
 							return SPT_OK;
 						}
 						goto same_record;
@@ -2539,6 +2543,7 @@ prediction_down_continue:
 						pqinfo->vec_id = cur_vecid;
 						pqinfo->cmp_result = 0;
 						finish_key_cb(prdata);
+						PERF_STAT_END(scan_grp_info);
 						return SPT_OK;
 					}
 					goto same_record;
@@ -5054,7 +5059,7 @@ re_find:
 	gid = next_grp;
 	goto re_find;
 }
-
+int find_data_leaf_err;
 
 char *query_data_by_hash(struct cluster_head_t *pclst, char *pdata)
 {
@@ -5079,7 +5084,7 @@ char *query_data_by_hash(struct cluster_head_t *pclst, char *pdata)
 	qinfo.data = pdata;
 	PERF_STAT_START(find_startvec);	
 	start_vecid = find_start_vec(pnext_clst, &vec, &start_pos, pdata, 0);
-	//PERF_STAT_END(find_startvec);	
+	PERF_STAT_END(find_startvec);	
 
 	if (start_vecid != -1) {
 		find_start_vec_ok++;
@@ -5087,18 +5092,19 @@ char *query_data_by_hash(struct cluster_head_t *pclst, char *pdata)
 		qinfo.startid = start_vecid;
 		qinfo.startpos = start_pos;
 
-		//PERF_STAT_START(find_data_leaf);	
+		PERF_STAT_START(find_data_leaf);	
 		ret = find_data_from_leaf(pnext_clst, &qinfo);
-		//PERF_STAT_END(find_data_leaf);	
+		PERF_STAT_END(find_data_leaf);	
 		if (ret == 0) {
 			find_leaf_data_ok++;
 			pdh = (struct spt_dh *)db_id_2_ptr(pnext_clst,
 					qinfo.db_id);
 			if (!pdh->pdata)
 				spt_assert(0);
-			PERF_STAT_END(find_startvec);	
+			//PERF_STAT_END(find_startvec);	
 			return get_data_from_dh(pdh->pdata);
 		}
+		find_data_leaf_err++;
 	}
 
 	qinfo.pstart_vec = pnext_clst->pstart;
@@ -5114,10 +5120,10 @@ char *query_data_by_hash(struct cluster_head_t *pclst, char *pdata)
 				qinfo.db_id);
 		if (!pdh->pdata)
 			spt_assert(0);
-		PERF_STAT_END(find_startvec);	
+		//PERF_STAT_END(find_startvec);	
 		return get_data_from_dh(pdh->pdata);
 	}
-	PERF_STAT_END(find_startvec);	
+	//PERF_STAT_END(find_startvec);	
 	spt_set_errno(ret);
 	return NULL;
 }
@@ -6715,3 +6721,5 @@ void clean_lower_cluster_cache(void)
 		}
 	}
 }
+
+
