@@ -77,14 +77,22 @@
 
 /* vec grp info*/
 #define VBLK_SIZE 8
-#define GRP_SIZE 144	//16+16*8
-#define GRPS_PER_PG  (PG_SIZE/GRP_SIZE)		//15
+#define VEC_BITS 3
+
+#define GRP_SIZE 128	//16*8
+#define GRP_BITS 7 
+
+#define GRPS_PER_PG  32		//32
+#define GRPS_PER_PG_BITS 5
+#define GRPS_PER_PG_MASK 0x1F
+
 #define VEC_PER_GRP 16
+#define VEC_PER_GRP_BITS 4
+#define VEC_PER_GRP_MASK 0x0F
+
 #define VEC_PER_PG (VEC_PER_GRP*GRPS_PER_PG)
 #define GRP_ALLOCMAP_MASK 0xFFFFull
-#define PG_HEAD_OFFSET (GRP_SIZE*GRPS_PER_PG)
 #define GRP_TICK_MASK 0xful
-#define PG_SPILL_WATER_MARK 360
 #define GRP_SPILL_START (96*1024)
 
 /* cluster divide info*/
@@ -395,8 +403,8 @@ struct travl_info {
 
 static inline struct spt_grp *get_grp_from_grpid(struct cluster_head_t *pclst, unsigned int grp_id)
 {
-	char *page = pclst->cluster_vec_mem + (grp_id/GRPS_PER_PG)*4096; 
-	return page + (grp_id%GRPS_PER_PG) * GRP_SIZE;
+	char *page = pclst->cluster_vec_mem + ((grp_id >> GRPS_PER_PG_BITS) << PG_BITS); 
+	return page + ((grp_id & GRPS_PER_PG_MASK) << GRP_BITS);
 }
 
 void vec_free(struct cluster_head_t *pcluster, int id);

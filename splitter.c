@@ -5033,10 +5033,10 @@ re_find:
 	grp = get_grp_from_grpid(pclst, gid);
 	
 	pvec = (char *) grp + sizeof(struct spt_grp); 
-	base_vec_id = gid << 4;
+	base_vec_id = (gid << 4) + 2;
 
 
-	for (fs = 0 ; fs < VEC_PER_GRP; fs++, pvec++) {
+	for (fs = 0 ; fs < VEC_PER_GRP - 2; fs++, pvec++) {
 		cur_vec.val = pvec->val & 0x00000000003FFFE7ULL; 	
 			
 		if(likely((cur_vec.val & 0x00000000003FF000ULL) != window_hash)) 
