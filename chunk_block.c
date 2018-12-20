@@ -480,10 +480,11 @@ int vec_alloc(struct cluster_head_t *pclst,  struct spt_vec **vec, unsigned int 
 	int alloc_debug = 0;
 	int next_grp_id = 0;
 	int vec_index = 0;
-	int alloc_by_index = 0;
 	u32 tick;
 	int alloc_cnt = 0;
-	gid = sed % GRP_SPILL_START ;
+	int begin_offset = (((sed/GRP_SPILL_START)&0x0F)%14) + 2;
+	int offset = begin_offset;
+	gid = sed % GRP_SPILL_START;
 
 
 re_alloc:
@@ -516,6 +517,7 @@ re_alloc:
 		if((old.allocmap & GRP_ALLOCMAP_MASK) == 0)
 		{
 alloc_next_grp:
+			offset = begin_offset;
 			if (old.next_grp == 0) {
 				tmp.next_grp = 0xFFFFF;
 				if(old.control == atomic64_cmpxchg((atomic64_t *)&grp->control, old.control, tmp.control)) {
@@ -542,20 +544,11 @@ alloc_next_grp:
 				printf("@@@@@@@old.next_grp is %d\r\n",old.next_grp);
 			goto re_alloc;
 		}
-		if (alloc_by_index) {	
-			fs = find_next_bit(&old.val, VEC_PER_GRP, vec_index);
-			if(fs != vec_index) {
-				old.control = grp->control;
-				old.val = grp->val;
-				tmp = old;
-				alloc_by_index = 0;
-				alloc_cnt++;
-				goto alloc_next_grp;
-			}
-		} else {
-			fs = find_next_bit(&old.val, VEC_PER_GRP, 0);
-			if(fs >= VEC_PER_GRP)
-				goto re_alloc;
+		
+		fs = find_next_bit(&old.val, VEC_PER_GRP,offset);
+		if(fs >= VEC_PER_GRP) {
+			offset = 0;
+			goto re_alloc;
 		}
 		tmp.allocmap = old.allocmap & (~(1 << fs));
 		

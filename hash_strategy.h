@@ -64,6 +64,7 @@ int find_start_vec(struct cluster_head_t *pclst,
 		struct spt_vec **vec,
 		int *start_pos,
 		char *pdata,
-		int window);
+		int window,
+		char **ret_data);
 
 #endif

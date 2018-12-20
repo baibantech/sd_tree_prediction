@@ -2053,6 +2053,55 @@ int final_vec_process(struct cluster_head_t *pclst, struct query_info_t *pqinfo 
 	}
 	return ret;
 }
+
+int find_data_from_data_vec(struct cluster_head_t *pclst, struct spt_vec *pcur_vec, char *pdata, int base_window)
+{
+	int cur_data, first_chbit, startbit, cmp, len;
+	struct spt_dh *pdh;
+	char *prdata, pcur_data;
+	spt_cb_end_key finish_key_cb;
+	int cur_pos_bit = base_window>>3;
+	struct spt_vec cur_vec = *pcur_vec;
+	
+	if (cur_vec.scan_status == SPT_VEC_PVALUE) {
+		startbit = cur_vec.pos + 1;
+		if (cur_pos_bit >= startbit)
+			return SPT_ERR;
+		cur_pos_bit = startbit;
+	} else {
+		startbit = ((cur_pos_bit>>5)<< 5) + spt_get_pos_offset(cur_vec);
+	}
+	
+	prdata = pclst->get_key(pdata);
+	finish_key_cb = pclst->get_key_end;
+	
+	len = pclst->endbit - startbit;
+	cur_data = cur_vec.rd;
+			
+	if (cur_data >= 0 && cur_data < SPT_INVALID) {
+		pdh = (struct spt_dh *)db_id_2_ptr(pclst,
+				cur_data);
+		pcur_data = pclst->get_key_in_tree(get_data_from_dh(pdh->pdata));				
+#if 0	
+		first_chbit = get_first_change_bit(prdata,
+				pcur_data,
+				pqinfo->originbit,
+				startbit);
+#endif
+		first_chbit = -1;
+		if (first_chbit == -1) {
+
+			//cmp = diff_identify(prdata, pcur_data, startbit, len ,&cmpres);
+			cmp = 0;
+			if (cmp == 0) {
+				finish_key_cb(prdata);
+				return get_data_from_dh(pdh->pdata);	
+			}
+		}
+	}
+	return NULL;
+}
+
 int find_data_leaf_check;
 int find_data_from_leaf(struct cluster_head_t *pclst, struct query_info_t *pqinfo)
 {
@@ -5013,44 +5062,48 @@ int find_start_vec_ok;
 int find_leaf_data_ok;
 
 
-int find_start_vec(struct cluster_head_t *pclst, struct spt_vec **vec, int *start_pos, char *data, int window)
+int find_start_vec(struct cluster_head_t *pclst, struct spt_vec **vec, int *start_pos, char *data, int window, char **ret_data)
 {
 	int gid,fs;
 	struct spt_grp *grp, *next_grp;
 	struct spt_vec cur_vec, *pvec, tmp_vec;
 	int ret_vec_id = -1;
 	int base_vec_id;
-	unsigned int window_hash, seg_hash;
+	unsigned int window_hash, seg_hash, offset, cur_offset;
 	
 	calc_hash(data, &window_hash, &seg_hash, window);
 
 	window_hash = (window_hash & SPT_HASH_MASK) << 12;	
 	gid = seg_hash %GRP_SPILL_START;
+	offset = (((seg_hash/GRP_SPILL_START)&0x0F)%14);
+
 	*start_pos = window *8;
 	*vec = NULL;
 	tmp_vec.val = 0;
 re_find:
 	grp = get_grp_from_grpid(pclst, gid);
 	
-	pvec = (char *) grp + sizeof(struct spt_grp); 
-	base_vec_id = (gid << 4) + 2;
-
-
-	for (fs = 0 ; fs < VEC_PER_GRP - 2; fs++, pvec++) {
+	for (fs = 0 ; fs < VEC_PER_GRP - 2; fs++) {
+		cur_offset = ((offset + fs)%14) +2; 
+		pvec = (char *) grp + (cur_offset << 3); 
+		base_vec_id = (gid << 4) + cur_offset ;
 		cur_vec.val = pvec->val & 0x00000000003FFFE7ULL; 	
-			
+		
 		if(likely((cur_vec.val & 0x00000000003FF000ULL) != window_hash)) 
 			continue;
 		if ((cur_vec.val & 0x0000000000000021ULL) == 0x0000000000000020ULL) { 
 			if (cur_vec.val > tmp_vec.val) {
 				tmp_vec.val = cur_vec.val;
 				*vec = pvec;
-				ret_vec_id = base_vec_id + fs;
-				if (cur_vec.type == SPT_VEC_DATA)
-					return ret_vec_id;
+				ret_vec_id = base_vec_id;
+				if (cur_vec.type == SPT_VEC_DATA) {
+					*ret_data = find_data_from_data_vec(pclst, pvec, data, window); 
+					if (*ret_data != NULL)
+						return -2;
+					return -1;
+				}
 			}
 		}
-
 	}
 	next_grp = grp->next_grp;
 	if ((next_grp == 0) || (next_grp == 0xFFFFF)) {
@@ -5069,6 +5122,7 @@ char *query_data_by_hash(struct cluster_head_t *pclst, char *pdata)
 	struct spt_vec *vec;
 	int start_vecid, start_pos;
 	int ret = 0;
+	char *ret_data;
 	/*
 	 *first look up in the top cluster.
 	 *which next level cluster do the data belong.
@@ -5083,10 +5137,14 @@ char *query_data_by_hash(struct cluster_head_t *pclst, char *pdata)
 	qinfo.endbit = pnext_clst->endbit;
 	qinfo.data = pdata;
 	PERF_STAT_START(find_startvec);	
-	start_vecid = find_start_vec(pnext_clst, &vec, &start_pos, pdata, 0);
-	PERF_STAT_END(find_startvec);	
+	start_vecid = find_start_vec(pnext_clst, &vec, &start_pos, pdata, 0, &ret_data);
+	if (start_vecid == -2) {
+		PERF_STAT_END(find_startvec);
+		return ret_data;
+	}
+	PERF_STAT_END(find_startvec);
 
-	if (start_vecid != -1) {
+	if (start_vecid >= 0) {
 		find_start_vec_ok++;
 		qinfo.pstart_vec = vec;
 		qinfo.startid = start_vecid;
