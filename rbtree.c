@@ -637,3 +637,11 @@ struct rb_node *rb_first_postorder(const struct rb_root *root)
 
 	return rb_left_deepest_node(root->rb_node);
 }
+int rb_tree_data_total;
+int scan_rb_tree(struct rb_root *root) {
+	struct rb_node *n;
+	int total_data = 0;
+	for (n = rb_first(root) ; n ; n = rb_next(n)) {
+		rb_tree_data_total++;
+	}
+}

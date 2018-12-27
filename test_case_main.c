@@ -499,3 +499,33 @@ void *test_divid_thread(void *arg)
 		spt_divided_scan(pgclst);
 	}
 }
+void *test_scan_thread(void *arg);
+
+void test_scan_proc(void)
+{
+	int err, ntid;
+	err = pthread_create(&ntid, NULL, test_scan_thread, (void *)2);
+	if (err != 0)
+		printf("can't create thread: %s\n", strerror(err));
+
+}
+extern int spt_cluster_scan(struct cluster_head_t *pclst);
+void *test_scan_thread(void *arg)
+{
+	int i = (long)arg;
+	cpu_set_t mask;
+	g_thrd_id = i;
+	CPU_ZERO(&mask);
+	CPU_SET(i,&mask);
+	if(sched_setaffinity(0,sizeof(mask),&mask)== -1)
+		printf("warning: could not set CPU AFFINITY\r\n");
+	
+	sleep(10);
+#if 1
+	spt_cluster_scan(pgclst);
+#else
+	data_rb_tree_scan();
+#endif
+	while (1)
+		sleep(1);
+}

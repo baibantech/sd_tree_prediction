@@ -1,5 +1,5 @@
 #include "rbtree_adp.h"
-
+#include "sdtree_perf_stat.h"
 struct rb_root data_rb_root = RB_ROOT;
 
 char *data_rb_tree_insert(char *data)
@@ -62,3 +62,11 @@ char *data_rb_tree_find(char *data)
 	}
 	return NULL;
 }
+extern int scan_rb_tree(struct rb_root *root);
+void data_rb_tree_scan(void)
+{
+	PERF_STAT_START(rbtree_scan_perf);
+	scan_rb_tree(&data_rb_root);
+	PERF_STAT_END(rbtree_scan_perf);
+}
+

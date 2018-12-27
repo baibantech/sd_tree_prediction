@@ -1037,6 +1037,7 @@ struct spt_sort_info *spt_order_array_init(struct cluster_head_t *pclst,
 	psort_ar->size = size;
 	return psort_ar;
 }
+int spt_cluster_scan_data_cnt;
 int spt_cluster_sort(struct cluster_head_t *pclst, struct spt_sort_info *psort)
 {
 	struct spt_vec **stack;
@@ -1074,9 +1075,13 @@ int spt_cluster_sort(struct cluster_head_t *pclst, struct spt_sort_info *psort)
 			if (cur_data != SPT_NULL) {
 				pdh = (struct spt_dh *)db_id_2_ptr(pclst,
 						cur_data);
-				psort->array[psort->idx] = get_data_from_dh(pdh->pdata);
-				psort->idx = (psort->idx+1)%psort->size;
-				psort->cnt++;
+				if (psort) {
+					psort->array[psort->idx] = get_data_from_dh(pdh->pdata);
+					psort->idx = (psort->idx+1)%psort->size;
+					psort->cnt++;
+				} else
+					spt_cluster_scan_data_cnt++;
+
 				//debug_pdh_data_print(pclst, pdh);
 			}
 
@@ -6781,3 +6786,63 @@ void clean_lower_cluster_cache(void)
 }
 
 
+int scan_sub_cluster(struct cluster_head_t *pclst, struct spt_dh_ext *pup)
+{
+	int ret;
+	struct spt_sort_info *psort;
+	struct spt_dh_ext *pext_head;
+	struct cluster_head_t *plower_clst;
+	struct spt_dh *pdh;
+	struct spt_dh_ref  *ref;
+
+	pext_head = pup;
+	plower_clst = pext_head->plower_clst;
+	
+	plower_clst->ins_mask = 1;
+	spt_preempt_disable();
+	spt_thread_start(g_thrd_id);
+
+	/* sort the data in the cluster.move the smaller half of the data to
+	 * the new cluster later
+	 */
+	ret = spt_cluster_sort(plower_clst, NULL);
+	if (ret == SPT_ERR) {
+		spt_thread_exit(g_thrd_id);
+		spt_preempt_enable();
+		spt_debug("spt_cluster_sort return ERR\r\n");
+		return SPT_ERR;
+	}
+	spt_thread_exit(g_thrd_id);
+	spt_preempt_enable();
+	return SPT_OK;
+}
+
+int spt_cluster_scan(struct cluster_head_t *pclst)
+{
+	struct spt_sort_info *psort;
+	struct spt_dh_ext *pdh_ext;
+	struct cluster_head_t *plower_clst;
+	int i, ret;
+
+	psort = spt_order_array_init(pclst, pclst->data_total);
+	if (psort == NULL) {
+		spt_debug("spt_order_array_init return NULL\r\n");
+		return SPT_ERR;
+	}
+
+	ret = spt_cluster_sort(pclst, psort);
+	if (ret == SPT_ERR) {
+		spt_debug("psort ERR\r\n");
+		return SPT_ERR;
+	}
+	PERF_STAT_START(spt_cluster_scan_perf);
+	for (i = 0; i < psort->size; i++) {
+		pdh_ext = (struct spt_dh_ext *)psort->array[i];
+		plower_clst = pdh_ext->plower_clst;
+		if (plower_clst->data_total)
+			scan_sub_cluster(pclst, pdh_ext);
+	}
+	PERF_STAT_END(spt_cluster_scan_perf);
+	spt_order_array_free(psort);
+	return SPT_OK;
+}
