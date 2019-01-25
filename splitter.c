@@ -1038,6 +1038,7 @@ struct spt_sort_info *spt_order_array_init(struct cluster_head_t *pclst,
 	return psort_ar;
 }
 int spt_cluster_scan_data_cnt;
+int spt_cluster_vec_stack;
 int spt_cluster_sort(struct cluster_head_t *pclst, struct spt_sort_info *psort)
 {
 	struct spt_vec **stack;
@@ -1062,6 +1063,9 @@ int spt_cluster_sort(struct cluster_head_t *pclst, struct spt_sort_info *psort)
 	}
 	stack[index] = pcur;
 	index++;
+	if (!psort)
+		spt_cluster_vec_stack++;
+
 
 	while (1) {
 		if (cur_vec.type != SPT_VEC_DATA) {
@@ -1070,6 +1074,8 @@ int spt_cluster_sort(struct cluster_head_t *pclst, struct spt_sort_info *psort)
 			cur_vec.val = pcur->val;
 			stack[index] = pcur;
 			index++;
+			if (!psort)
+				spt_cluster_vec_stack++;
 		} else {
 			cur_data = cur_vec.rd;
 			if (cur_data != SPT_NULL) {
@@ -1099,6 +1105,8 @@ int spt_cluster_sort(struct cluster_head_t *pclst, struct spt_sort_info *psort)
 
 					stack[index] = pcur;
 					index++;
+					if (!psort)
+						spt_cluster_vec_stack++;
 					break;
 				}
 				if (index == 0)
@@ -1107,6 +1115,79 @@ int spt_cluster_sort(struct cluster_head_t *pclst, struct spt_sort_info *psort)
 		}
 	}
 sort_exit:
+	spt_free(stack);
+	return SPT_OK;
+}
+int spt_cluster_sort_down(struct cluster_head_t *pclst, struct spt_sort_info *psort)
+{
+	struct spt_vec **stack;
+	int cur_data, cur_vecid, index;
+	struct spt_vec *pcur, cur_vec;
+//	struct spt_vec_f st_vec_f;
+	struct spt_dh *pdh;
+
+	stack = (struct spt_vec **)spt_malloc(4096*8*8);
+	if (stack == NULL)
+		return SPT_ERR;
+	index = 0;
+	cur_data = SPT_INVALID;
+
+	cur_vecid = pclst->vec_head;
+	pcur = (struct spt_vec *)vec_id_2_ptr(pclst, pclst->vec_head);
+
+	cur_vec.val = pcur->val;
+	if (cur_vec.down == SPT_NULL && cur_vec.rd == SPT_NULL) {
+		spt_print("cluster is null\r\n");
+		return SPT_ERR;
+	}
+	if (cur_vec.down != SPT_NULL) {
+		stack[index] = (struct spt_vec *)vec_id_2_ptr(pclst, cur_vec.down);
+		index++;
+		if (!psort)
+			spt_cluster_vec_stack++;
+	}
+
+	while (1) {
+		if (cur_vec.type != SPT_VEC_DATA) {
+			cur_vecid = cur_vec.rd;
+			pcur = (struct spt_vec *)vec_id_2_ptr(pclst, cur_vecid);
+			cur_vec.val = pcur->val;
+			if (cur_vec.down != SPT_NULL) {
+				stack[index] = (struct spt_vec *)vec_id_2_ptr(pclst, cur_vec.down);
+				index++;
+			if (!psort)
+				spt_cluster_vec_stack++;
+			}
+		} else {
+			cur_data = cur_vec.rd;
+			if (cur_data != SPT_NULL) {
+				pdh = (struct spt_dh *)db_id_2_ptr(pclst,
+						cur_data);
+				if (psort) {
+					psort->array[psort->idx] = get_data_from_dh(pdh->pdata);
+					psort->idx = (psort->idx+1)%psort->size;
+					psort->cnt++;
+				} else
+					spt_cluster_scan_data_cnt++;
+
+				//debug_pdh_data_print(pclst, pdh);
+			}
+
+			if (index == 0)
+				break;
+
+			index--;
+			pcur = stack[index];
+			cur_vec.val = pcur->val;
+			if (cur_vec.down != SPT_NULL) {
+				stack[index] = (struct spt_vec *)vec_id_2_ptr(pclst, cur_vec.down);
+				index++;
+				if (!psort)
+					spt_cluster_vec_stack++;
+			}
+		}
+	}
+
 	spt_free(stack);
 	return SPT_OK;
 }
@@ -6830,7 +6911,7 @@ int spt_cluster_scan(struct cluster_head_t *pclst)
 		return SPT_ERR;
 	}
 
-	ret = spt_cluster_sort(pclst, psort);
+	ret = spt_cluster_sort_down(pclst, psort);
 	if (ret == SPT_ERR) {
 		spt_debug("psort ERR\r\n");
 		return SPT_ERR;
