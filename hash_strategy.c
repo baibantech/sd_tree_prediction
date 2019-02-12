@@ -120,6 +120,7 @@ void calc_hash_by_base(char *data, unsigned int base_hash, int base_pos, unsigne
 		*seg_hash = djb_hash_seg(data + window_id*HASH_WINDOW_LEN, *window_hash, HASH_WINDOW_LEN);
 	}
 }
+#if 0
 int get_real_pos_start(struct spt_vec *pvec)
 {
 	struct spt_vec tmp_vec;
@@ -177,7 +178,7 @@ void real_pos_back(struct spt_vec *pvec, struct spt_vec *pre_vec)
 		pos_record[g_thrd_id]->cur_index--;
 
 }
-
+#endif
 int set_real_pos(struct spt_vec *pvec, unsigned int real_pos, unsigned int pre_pos, unsigned int real_hash)
 {
 	int cur_window, last_window;
@@ -197,6 +198,7 @@ int set_real_pos(struct spt_vec *pvec, unsigned int real_pos, unsigned int pre_p
 		return SPT_VEC_HVALUE;
 	}
 }
+
 int is_need_chg_pos(struct spt_vec *vec, struct spt_vec *next_vec, int type)
 {
 	if (type == SPT_OP_INSERT) {

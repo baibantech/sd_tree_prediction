@@ -3774,7 +3774,7 @@ same_record:
                 cur_data = SPT_INVALID;
                 pqinfo->ref_cnt = 0;
 				if (pcur) {
-					real_pos_back(&cur_vec, ppre);
+					cur_pos_bit = pre_pos_bit;
 					goto refind_forward;
 				}
 				pqinfo->pstart_vec = pclst->pstart;
@@ -3831,6 +3831,7 @@ int find_data(struct cluster_head_t *pclst, struct query_info_t *pqinfo)
 	struct spt_dh_ref *ref;
 	spt_cb_end_key finish_key_cb;
 	u32 check_data_id, check_pos, check_type;
+	int pre_pos_bit, cur_pos_bit, next_pos_bit;
 
 	struct spt_vec *pcheck_vec = NULL;
 	struct spt_vec check_vec;
@@ -3858,6 +3859,7 @@ int find_data(struct cluster_head_t *pclst, struct query_info_t *pqinfo)
 	refind_start:
 	pcur = pqinfo->pstart_vec;
 	cur_vecid = pre_vecid = pqinfo->startid;
+	pre_pos_bit = cur_pos_bit = pqinfo->startpos;
 	refind_forward:
 
 	if (pcur == NULL)
@@ -3867,15 +3869,16 @@ int find_data(struct cluster_head_t *pclst, struct query_info_t *pqinfo)
 	pre_vecid = SPT_INVALID;
 	cur_vec.val = pcur->val;
 
-	if (pcur == pclst->pstart) {
-		startbit = pclst->startbit;
-		get_real_pos_start(&cur_vec);
+	if (cur_vec.scan_status == SPT_VEC_PVALUE) {
+		startbit = cur_vec.pos + 1;
+		pre_pos_bit = cur_pos_bit;
+		if (cur_pos_bit >= startbit)
+			return SPT_ERR;
+		cur_pos_bit = startbit;
 	} else {
-		if (pcur == pqinfo->pstart_vec)
-			startbit = get_real_pos_start(&cur_vec);
-		else
-			startbit = get_real_pos_next(&cur_vec);
+		startbit = ((cur_pos_bit>>5)<< 5) + spt_get_pos_offset(cur_vec);
 	}
+
 	endbit = pqinfo->endbit;
 	
 	if (cur_vec.status == SPT_VEC_INVALID) {
@@ -4041,7 +4044,7 @@ prediction_right:
 				if (cur_vec.status != SPT_VEC_VALID) {
 					pcur = ppre;
 					if (pcur)
-						real_pos_back(&cur_vec, ppre);
+						cur_pos_bit = pre_pos_bit;
 					goto refind_forward;
 				}
 				continue;
@@ -4057,12 +4060,21 @@ prediction_right:
 				if (cur_vec.status != SPT_VEC_VALID) {
 					pcur = ppre;
 					if (pcur)
-						real_pos_back(&cur_vec, ppre);
+						cur_pos_bit = pre_pos_bit;
 					goto refind_forward;
 				}
 				continue;
 			}
-			len = get_real_pos_next(&next_vec) - startbit;
+			if (next_vec.scan_status == SPT_VEC_PVALUE) {
+				next_pos_bit = next_vec.pos + 1;
+				pre_pos_bit = cur_pos_bit;
+				if (next_pos_bit <= cur_pos_bit)
+					return SPT_ERR;
+				cur_pos_bit = next_pos_bit;
+			} else {
+				next_pos_bit = ((cur_pos_bit>>5)<< 5) + spt_get_pos_offset(next_vec);
+			}
+			len = next_pos_bit - startbit;
 
 			spt_trace("next rd vec len:%d\r\n", len);	
 			
@@ -4107,7 +4119,7 @@ prediction_down:
 				/*set invalid succ or not, refind from ppre*/
 				pcur = ppre;
 				if (pcur)
-					real_pos_back(&cur_vec, ppre);
+					cur_pos_bit = pre_pos_bit;
 				goto refind_forward;
 			}
 
@@ -4189,13 +4201,23 @@ prediction_down_continue:
 				if (cur_vec.status != SPT_VEC_VALID) {
 					pcur = ppre;
 					if (pcur)
-						real_pos_back(&cur_vec, ppre);
+						cur_pos_bit = pre_pos_bit;
 					goto refind_forward;
 				}
 				continue;
 			}
 
-			len = get_real_pos_next(&next_vec) - startbit;
+			if (next_vec.scan_status == SPT_VEC_PVALUE) {
+				next_pos_bit = next_vec.pos + 1;
+				pre_pos_bit = cur_pos_bit;
+				if (next_pos_bit <= cur_pos_bit)
+					return SPT_ERR;
+				cur_pos_bit = next_pos_bit;
+			} else {
+				next_pos_bit = ((cur_pos_bit>>5)<< 5) + spt_get_pos_offset(next_vec);
+			}
+			len = next_pos_bit - startbit;
+			
 			direction = SPT_DOWN;
 			
 			spt_trace("next down vec len:%d\r\n",len);
@@ -4280,19 +4302,24 @@ prediction_check:
 	cur_data = SPT_INVALID;
 	pcur = pqinfo->pstart_vec;
 	cur_vecid = pre_vecid = pqinfo->startid;
+	pre_pos_bit = cur_pos_bit = pqinfo->startpos;
 	ppre = NULL;
 	cur_vecid = pre_vecid;
 	pre_vecid = SPT_INVALID;
 	cur_vec.val = pcur->val;
-	get_real_pos_start(&cur_vec);
 	pcheck_vec = NULL;
 	check_type = -1;
 
-	if (pcur == pclst->pstart) {
-		startbit = pclst->startbit;
+	if (cur_vec.scan_status == SPT_VEC_PVALUE) {
+		startbit = cur_vec.pos + 1;
+		pre_pos_bit = cur_pos_bit;
+		if (cur_pos_bit >= startbit)
+			return SPT_ERR;
+		cur_pos_bit = startbit;
 	} else {
-		startbit = get_real_pos_next(&cur_vec);
+		startbit = ((cur_pos_bit>>5)<< 5) + spt_get_pos_offset(cur_vec);
 	}
+	
 	endbit = pqinfo->endbit;
 	
 	if (cur_vec.status == SPT_VEC_INVALID) {
@@ -4369,7 +4396,16 @@ go_right:
 						tmp_vec.val);
 				goto refind_start;
 			}
-			len = get_real_pos_next(&next_vec) - startbit;
+			if (next_vec.scan_status == SPT_VEC_PVALUE) {
+				next_pos_bit = next_vec.pos + 1;
+				pre_pos_bit = cur_pos_bit;
+				if (next_pos_bit <= cur_pos_bit)
+					return SPT_ERR;
+				cur_pos_bit = next_pos_bit;
+			} else {
+				next_pos_bit = ((cur_pos_bit>>5)<< 5) + spt_get_pos_offset(next_vec);
+			}
+			len = next_pos_bit - startbit;
 	
 			if (startbit + len > check_pos) {
 				pcheck_vec = pcur;
@@ -4492,7 +4528,16 @@ down_continue:
 
 			}
 
-			len = get_real_pos_next(&next_vec) - startbit;
+			if (next_vec.scan_status == SPT_VEC_PVALUE) {
+				next_pos_bit = next_vec.pos + 1;
+				pre_pos_bit = cur_pos_bit;
+				if (next_pos_bit <= cur_pos_bit)
+					return SPT_ERR;
+				cur_pos_bit = next_pos_bit;
+			} else {
+				next_pos_bit = ((cur_pos_bit>>5)<< 5) + spt_get_pos_offset(next_vec);
+			}
+			len = next_pos_bit - startbit;
 
 			direction = SPT_DOWN;
 			/* signpost not used now*/
@@ -4649,7 +4694,7 @@ same_record:
                 cur_data = SPT_INVALID;
                 pqinfo->ref_cnt = 0;
 				if (pcur) {
-					real_pos_back(&cur_vec, ppre);
+					cur_pos_bit = pre_pos_bit;
 					goto refind_forward;
 				}
 				pqinfo->pstart_vec = pclst->pstart;
