@@ -787,9 +787,10 @@ char *random_data_array[random_data_seg_num];
 int get_random_string(char *str, int len)
 {
 	int i, flag;
+	sleep(1);
 	srand(time(NULL));
 	for (i = 0; i < len; i++) {
-		flag = rand()%4;
+		flag = rand()%3;
 		switch(flag) {
 			case 0:
 				str[i] = rand()%26 + 'a';
@@ -800,76 +801,100 @@ int get_random_string(char *str, int len)
 			case 2:
 				str[i] = rand()%10 +  '0';
 				break;
-			case 3:
-				str[i] = rand()%10 + 1;
 		}
 	}
+	printf("%s\r\n",str);
 }
 
 int make_test_random_data()
 {
 	int i, j ;
 	char *str;
-	for (i = 0; i++; i < random_data_seg_num) {
+	for (i = 0; i < random_data_seg_num; i++) {
 
 		random_data_array[i] = malloc(random_data_seg_len*second_seg_data_num);
 		if (!random_data_array[i])
 			spt_assert(0);
+		memset(random_data_array[i], 0 , random_data_seg_len*second_seg_data_num);
 	}
+
 		
-	for (i = 0; i++; i < random_data_seg_num) {
+	for (i = 0; i < random_data_seg_num; i++) {
 		str = random_data_array[i];
 		if (i == 0) {
-			for (j = 0; j < first_seg_data_num; i++) {
-				str[i] = '/';
-				get_random_string(str++, random_data_seg_len -1);
+			for (j = 0; j < first_seg_data_num; j++) {
+				str[0] = '/';
+				str++;
+				get_random_string(str, random_data_seg_len -1);
 				str = str + random_data_seg_len -1;
 			}
 
 		} else {
-			for (j = 0; j < second_seg_data_num; i++) {
-				str[i] = '/';
-				get_random_string(str++, random_data_seg_len -1);
+			for (j = 0; j < second_seg_data_num; j++) {
+				str[0] = '/';
+				str++;
+				get_random_string(str, random_data_seg_len -1);
 				str = str + random_data_seg_len -1;
 			}
 		}
 	}
 }
 
-
-
 int get_next_random_string(char *str, int len, int flag)
 {
 	static int index1, index2, index3, index4;
 	int data_len = random_data_seg_len;
-	if (flag == 0)
+	int copyed = 0;
+	char *tmp;
+	if (flag)
 		index1= index2 = index3 = index4 = 0;
 	
 	while (index1 < first_seg_data_num) {
-		memcpy(str, random_data_array[0] + index1*data_len, data_len);
-		str = str + data_len;
+		copyed = 0;
 		while (index2 < second_seg_data_num) {
-			memcpy(str, random_data_array[1] + index2*data_len, data_len);
-			str = str + data_len;
+			copyed = 0;
 			while (index3 < second_seg_data_num) {
-				memcpy(str, random_data_array[2] + index3*data_len, data_len);
-				str = str + data_len;
+				copyed = 0;
 				while (index4 < second_seg_data_num) {
-					memcpy(str, random_data_array[3] + index4*data_len, data_len);
-					str = str + data_len;
+					tmp = str + 3*data_len;
+					memcpy(tmp, random_data_array[3] + index4*data_len, data_len);
+					copyed = 1;
 					index4++;
-					return SPT_OK;
-				}	
-				index3++;	
-				return SPT_OK;
+					break;
+				}
+				if (!copyed) {
+					index4 = 0;
+					copyed = 0;
+					index3++;
+					continue;
+				}
+				tmp = str + 2*data_len;
+				memcpy(tmp, random_data_array[2] + index3*data_len, data_len);
+				copyed = 1;
+				break;
 			}	
-			index2++;
-			return SPT_OK;
+			
+			if (!copyed) {
+				index3 = 0;
+				copyed = 0;
+				index2++;
+				continue;
+			}
+			copyed = 1;
+			tmp = str + data_len;
+			memcpy(tmp, random_data_array[1] + index2*data_len, data_len);
+			break;
 		}
-		index1++;
+		if (!copyed) {
+			index2 = 0;
+			copyed = 0;
+			index1++;
+			continue;
+		}
+		memcpy(str, random_data_array[0] + index1*data_len, data_len);
 		return SPT_OK;
 	}
-
+	return SPT_ERR;	
 }
 
 
