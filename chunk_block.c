@@ -411,7 +411,8 @@ struct cluster_head_t *cluster_init(int is_bottom,
 
 void db_free(struct cluster_head_t *pclst, int id)
 {
-	return vec_free(pclst, id);
+	vec_free(pclst, id);
+	atomic_sub(1, (atomic_t *)&pclst->data_total);
 }
 
 void vec_free(struct cluster_head_t *pclst, int vec_id)

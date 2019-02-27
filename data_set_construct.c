@@ -20,7 +20,7 @@
 #include "rbtree_adp.h"
 
 #define DEFAULT_INS_LEN  256
-#define DEFAULT_INS_NUM  8000000
+#define DEFAULT_INS_NUM  2000000
 #define DEFAULT_RANDOM_WAY 1
 #define DEFAULT_FILE_LEN 400*1024*1024
 unsigned long long spt_no_found_num = 0;
@@ -40,6 +40,9 @@ long long data_set_config_map_read_len = -1;
 
 int data_set_config_insert_thread_num = 3;
 int data_set_config_delete_thread_num = 2;
+int get_next_random_string(char *str, int len, int flag);
+int make_test_random_data(void);
+
 
 void set_31bit_zero(char *data)
 {
@@ -88,7 +91,7 @@ struct data_set_file*  get_data_set_file_list()
 			sprintf(instance_num,"%d",data_set_config_instance_num);
 			sprintf(instance_len,"%d",data_set_config_instance_len);
 
-			sprintf(cur->set_name,"test_case_%s_%s_id%d",instance_num,instance_len,i);
+			sprintf(cur->set_name,"random_string_test_case_%s_%s_id%d",instance_num,instance_len,i);
 			//printf("data set file namae is %s\r\n",cur->set_name);	
 			if(i == (data_file_num -1))
 			{
@@ -169,6 +172,7 @@ int construct_data_set(struct data_set_file *list)
 	int instance_size = 0;
 	struct data_set_file *cur = NULL;
 	int dev_random_id = -1;
+	int flag = 1;
 	if(NULL == list){
 		return -1;
 	}
@@ -204,7 +208,7 @@ int construct_data_set(struct data_set_file *list)
 				return -1;
 			}
 		}
-		
+		make_test_random_data();	
 		stream = fopen(cur->set_name,"wb");
 		if(stream)
 		{
@@ -216,17 +220,21 @@ int construct_data_set(struct data_set_file *list)
 				fclose(stream);
 				return -1;
 			}
+			flag = 1;
 			for(i = 0 ; i < cur->set_num ; i++)
 			{
-#if 1
+#if 0
 				if(-1 == get_random_instance(dev_random_id,instance_mem,instance_size))
 				{
 					close(dev_random_id);
 					fclose(stream);
 					free(instance_mem);
 					return -1;
-				}	
+				}
 #endif
+
+				get_next_random_string(instance_mem, instance_size, flag);
+				flag = 0;
 				fwrite(instance_mem,instance_size,1,stream);
 			}
 
@@ -803,10 +811,10 @@ int get_random_string(char *str, int len)
 				break;
 		}
 	}
-	printf("%s\r\n",str);
+	//printf("%s\r\n",str);
 }
 
-int make_test_random_data()
+int make_test_random_data(void)
 {
 	int i, j ;
 	char *str;

@@ -3861,10 +3861,14 @@ int find_data(struct cluster_head_t *pclst, struct query_info_t *pqinfo)
 	cur_vec.val = pcur->val;
 
 	if (cur_vec.scan_status == SPT_VEC_PVALUE) {
-		startbit = cur_vec.pos + 1;
+		if (pcur = pclst->pstart)
+			startbit = 0;
+		else {
+			startbit = cur_vec.pos + 1;
+			if (cur_pos_bit >= startbit)
+				return SPT_ERR;
+		}
 		pre_pos_bit = cur_pos_bit;
-		if (cur_pos_bit >= startbit)
-			return SPT_ERR;
 		cur_pos_bit = startbit;
 	} else {
 		startbit = ((cur_pos_bit>>5)<< 5) + spt_get_pos_offset(cur_vec);
@@ -3892,7 +3896,7 @@ int find_data(struct cluster_head_t *pclst, struct query_info_t *pqinfo)
 		pclst->get_key_in_tree_end(pcur_data);
 	}
 
-	
+	printf("%d,%d\r\n",startbit, endbit);	
 	fs_pos = find_fs(prdata, startbit, endbit-startbit);
 	spt_trace("refind_start or forword new_data:%p, startbit:%d, len:%d, fs_pos:%d\r\n",
 			prdata, startbit, endbit-startbit, fs_pos);
@@ -4302,10 +4306,14 @@ prediction_check:
 	check_type = -1;
 
 	if (cur_vec.scan_status == SPT_VEC_PVALUE) {
-		startbit = cur_vec.pos + 1;
+		if (pcur = pclst->pstart)
+			startbit = 0;
+		else {
+			startbit = cur_vec.pos + 1;
+			if (cur_pos_bit >= startbit)
+				return SPT_ERR;
+		}
 		pre_pos_bit = cur_pos_bit;
-		if (cur_pos_bit >= startbit)
-			return SPT_ERR;
 		cur_pos_bit = startbit;
 	} else {
 		startbit = ((cur_pos_bit>>5)<< 5) + spt_get_pos_offset(cur_vec);

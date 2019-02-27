@@ -363,7 +363,7 @@ int main(int argc,char *argv[])
 	//test_find_next_cluster(0);
 	sleep(10);
 	//test_find_proc(0);
-#if 1
+#if 0
 	err = pthread_create(&ntid, NULL, test_find_thread, 2);
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));
