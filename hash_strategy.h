@@ -9,33 +9,6 @@
 
 #define HASH_WINDOW_LEN  4
 
-#define HASH_MODE_SEEK 1
-#define HASH_MODE_END 2
-
-#define HASH_RECORD_WINDOW 4
-struct hash_calc_result {
-	struct hash_calc_result *next;
-	int window_id;
-	int result;
-};
-
-struct hash_calc_proc {
-	int alloc_id;
-	int max_item;
-	struct hash_calc_result *next;
-	struct hash_calc_result hresult[0];
-};
-
-struct hash_window_state {
-	char *pdata;
-	unsigned int real_pos;
-};
-
-struct precise_pos_record {
-	int cur_index;
-	int pos_array[0];
-};
-
 void calc_hash(char *data, unsigned int *window_hash,
 		unsigned int *seg_hash, int pos);
 

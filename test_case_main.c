@@ -330,7 +330,6 @@ int main(int argc,char *argv[])
 	//init cluster head
 	thread_num = data_set_config_insert_thread_num + data_set_config_delete_thread_num + 1;	
     printf("thread_num is %d\r\n",thread_num);
-	hash_calc_process_init(thread_num);
 
     sd_perf_stat_init();
 

@@ -8,60 +8,7 @@
 #include<stdio.h>
 #include "chunk.h"
 #include "hash_strategy.h"
-struct hash_calc_proc *phash_calc[THREAD_NUM_MAX]; 
-struct precise_pos_record  *pos_record[THREAD_NUM_MAX];
 
-
-int hash_calc_process_init(int thread_num)
-{
-	int i;
-	struct hash_calc_proc *ptr;
-	struct precise_pos_record *pos;
-	if (thread_num > THREAD_NUM_MAX)
-		return -1;
-
-	for (i =0; i < thread_num; i++) {
-		ptr = (struct hash_calc_proc *)spt_alloc_zero_page();
-		if (ptr) {
-			ptr->max_item = (PG_SIZE - sizeof(struct hash_calc_proc)) /sizeof (struct hash_calc_result);
-			phash_calc[i] = ptr;
-		}
-		else
-			return -1;
-
-		pos = (struct precise_pos_record *)spt_alloc_zero_page();
-		
-		if (pos) {
-			pos->cur_index = 0;
-			pos_record[i] = pos;
-		}
-		else
-			return -1;
-	}
-	return 0;
-}
-struct hash_calc_result *alloc_hash_result(struct hash_calc_proc *thread)
-{
-	int index;
-	struct hash_calc_result *result, *tmp;
-
-	index = thread->alloc_id++;
-	if (index <= thread->max_item) {
-		index--;
-		return &(thread->hresult[index]);
-	} else {
-		result = spt_malloc(sizeof(struct hash_calc_result));
-		if (result) {
-			result->window_id = -1;
-			result->result = -1;
-			tmp = thread->next;
-			thread->next = result;
-			result->next = tmp;
-			return result;
-		}
-	}
-	return NULL;		
-}
 unsigned int djb_hash(char *data, int len)
 {
 	unsigned int hash = 5381;

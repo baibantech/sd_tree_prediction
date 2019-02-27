@@ -1431,8 +1431,11 @@ int divide_sub_cluster(struct cluster_head_t *pclst, struct spt_dh_ext *pup)
 					w_total += rdtsc() - w_start;
 					w_cnt++;
 					spt_thread_start(g_thrd_id);
-				} else
-					spt_debug("divide delete error\r\n");
+				} else  {
+					if (ret == SPT_DO_AGAIN)
+						continue;
+					//spt_debug("divide delete error\r\n");
+				}
 			}
 			if (dataid == ins_dvb_id) {
 				ref_cnt--;
@@ -1442,7 +1445,7 @@ int divide_sub_cluster(struct cluster_head_t *pclst, struct spt_dh_ext *pup)
 			start = rdtsc();
 
 			ret = do_insert_data_multiple(pdst_clst,
-				pdh->pdata,
+				get_data_from_dh(pdh->pdata),
 				ref_cnt,
 				pdst_clst->get_key_in_tree,
 				pdst_clst->get_key_in_tree_end);
@@ -1792,6 +1795,7 @@ int delete_next_vec(struct cluster_head_t *pclst,
 	int new_next_pos, next_pos;
 	u32 vecid;
 	u64 tmp_val;
+	int ret = SPT_OK;
 	struct spt_vec *the_next_vec,tmp_vec, tmp_delete_vec;
 	
 	if (next_vec.scan_status == SPT_VEC_PVALUE)
@@ -1832,26 +1836,52 @@ int delete_next_vec(struct cluster_head_t *pclst,
 					tmp_val = tmp_delete_vec.val = cur_vec.val;
 					if (tmp_delete_vec.scan_lock != 1)
 						tmp_delete_vec.scan_lock = 1;
-					else
+					else {
+						printf("line %d,do again\r\n",__LINE__);
 						return SPT_DO_AGAIN;	
+					}
 					
 					if (tmp_val != atomic64_cmpxchg(
 							(atomic64_t *)pcur,
 							tmp_val,
-							tmp_delete_vec.val))
+							tmp_delete_vec.val)) {
+						
+						printf("line %d,do again\r\n",__LINE__);
 						return SPT_DO_AGAIN;
-					
+					}
+					cur_vec.scan_lock = 1;
+
 					tmp_val = tmp_delete_vec.val = next_vec.val;
 					if (tmp_delete_vec.scan_lock != 1)
 						tmp_delete_vec.scan_lock = 1;
-					else
+					else {
+						do {	
+							tmp_val = tmp_delete_vec.val = pcur->val;
+							tmp_delete_vec.scan_lock = 0;
+						}while(tmp_val != atomic64_cmpxchg(
+								(atomic64_t *)pcur,
+								tmp_val,
+								tmp_delete_vec.val));
+						printf("line %d,do again\r\n",__LINE__);
 						return SPT_DO_AGAIN;	
-					
+					}
 					if (tmp_val != atomic64_cmpxchg(
 							(atomic64_t *)pnext,
 							tmp_val,
-							tmp_delete_vec.val))
+							tmp_delete_vec.val)) {
+						
+						do {	
+							tmp_val = tmp_delete_vec.val = pcur->val;
+							tmp_delete_vec.scan_lock = 0;
+						}while(tmp_val != atomic64_cmpxchg(
+								(atomic64_t *)pcur,
+								tmp_val,
+								tmp_delete_vec.val));
+						
+						printf("line %d,do again\r\n",__LINE__);
+
 						return SPT_DO_AGAIN;	
+					}
 				}
 			}
 			if (cur_vec.val == atomic64_cmpxchg(
@@ -1861,7 +1891,6 @@ int delete_next_vec(struct cluster_head_t *pclst,
 				
 				vec_free(pclst, vecid);
 				sub_debug_cnt(pclst, next_pos, next_vec.scan_status);	
-
 				if (chg_pos) {
 					do {
 						tmp_val = tmp_vec.val = the_next_vec->val;
@@ -1872,10 +1901,33 @@ int delete_next_vec(struct cluster_head_t *pclst,
 								tmp_vec.val));
 					sub_debug_cnt(pclst, new_next_pos, SPT_VEC_HVALUE);
 					add_debug_cnt(pclst, new_next_pos, SPT_VEC_PVALUE);
-				
-					pcur->scan_lock = 0;
-					smp_mb();
+					do {	
+						tmp_val = tmp_delete_vec.val = pcur->val;
+						tmp_delete_vec.scan_lock = 0;
+					}while(tmp_val != atomic64_cmpxchg(
+							(atomic64_t *)pcur,
+							tmp_val,
+							tmp_delete_vec.val));
 				}
+				return SPT_OK;	
+			} else 
+				ret = SPT_DO_AGAIN;
+
+			printf("line %d,do again\r\n",__LINE__);
+			if (chg_pos) {
+				do {
+					tmp_val = tmp_vec.val = pnext->val;
+					tmp_vec.scan_lock = 0;
+				}while (tmp_val != atomic64_cmpxchg (
+							(atomic64_t *)pnext, tmp_val,
+							tmp_vec.val));
+				do {	
+					tmp_val = tmp_delete_vec.val = pcur->val;
+					tmp_delete_vec.scan_lock = 0;
+				}while(tmp_val != atomic64_cmpxchg(
+						(atomic64_t *)pcur,
+						tmp_val,
+						tmp_delete_vec.val));
 			}
 			break;
 
@@ -1912,26 +1964,50 @@ int delete_next_vec(struct cluster_head_t *pclst,
 				tmp_val = tmp_delete_vec.val = cur_vec.val;
 				if (tmp_delete_vec.scan_lock != 1)
 					tmp_delete_vec.scan_lock = 1;
-				else
+				else {
+					printf("line %d,do again\r\n",__LINE__);
 					return SPT_DO_AGAIN;
+				}
 				
 				if (tmp_val != atomic64_cmpxchg(
 						(atomic64_t *)pcur,
 						tmp_val,
-						tmp_delete_vec.val))
+						tmp_delete_vec.val)) {
+					printf("line %d,do again\r\n",__LINE__);
 					return SPT_DO_AGAIN;
-				
+				}
+				cur_vec.scan_lock = 1;	
 				tmp_val = tmp_delete_vec.val = next_vec.val;
 				if (tmp_delete_vec.scan_lock != 1)
 					tmp_delete_vec.scan_lock = 1;
-				else
+				else {
+					do {	
+						tmp_val = tmp_delete_vec.val = pcur->val;
+						tmp_delete_vec.scan_lock = 0;
+					}while(tmp_val != atomic64_cmpxchg(
+							(atomic64_t *)pcur,
+							tmp_val,
+							tmp_delete_vec.val));
+					printf("line %d,do again\r\n",__LINE__);
 					return SPT_DO_AGAIN;
 				
+				}
 				if (tmp_val != atomic64_cmpxchg(
 						(atomic64_t *)pnext,
 						tmp_val,
-						tmp_delete_vec.val))
+						tmp_delete_vec.val)) {
+					do {	
+						tmp_val = tmp_delete_vec.val = pcur->val;
+						tmp_delete_vec.scan_lock = 0;
+					}while(tmp_val != atomic64_cmpxchg(
+							(atomic64_t *)pcur,
+							tmp_val,
+							tmp_delete_vec.val));
+					
+					printf("line %d,do again\r\n",__LINE__);
+
 					return SPT_DO_AGAIN;
+				}
 			}
 
 			if (cur_vec.val == atomic64_cmpxchg(
@@ -1953,14 +2029,38 @@ int delete_next_vec(struct cluster_head_t *pclst,
 					sub_debug_cnt(pclst, new_next_pos, SPT_VEC_HVALUE);
 					add_debug_cnt(pclst, new_next_pos, SPT_VEC_PVALUE);
 
-					pcur->scan_lock = 0;
-					smp_mb();
+					do {	
+						tmp_val = tmp_delete_vec.val = pcur->val;
+						tmp_delete_vec.scan_lock = 0;
+					}while(tmp_val != atomic64_cmpxchg(
+							(atomic64_t *)pcur,
+							tmp_val,
+							tmp_delete_vec.val));
 				}
+				return SPT_OK;
+			} else
+				ret = SPT_DO_AGAIN;
+			printf("line %d,do again\r\n",__LINE__);
+			printf("chgpos is %d, pcur %p, pnext %p\r\n", chg_pos,pcur, pnext);
+			if (chg_pos) {
+				do {
+					tmp_val = tmp_vec.val = pnext->val;
+					tmp_vec.scan_lock = 0;
+				}while (tmp_val != atomic64_cmpxchg (
+							(atomic64_t *)pnext, tmp_val,
+							tmp_vec.val));
+				do {	
+					tmp_val = tmp_delete_vec.val = pcur->val;
+					tmp_delete_vec.scan_lock = 0;
+				}while(tmp_val != atomic64_cmpxchg(
+						(atomic64_t *)pcur,
+						tmp_val,
+						tmp_delete_vec.val));
 			}
 		break;
 
 	}
-	return SPT_OK;
+	return ret;
 }
 
 int final_vec_process(struct cluster_head_t *pclst, struct query_info_t *pqinfo ,
@@ -3896,7 +3996,6 @@ int find_data(struct cluster_head_t *pclst, struct query_info_t *pqinfo)
 		pclst->get_key_in_tree_end(pcur_data);
 	}
 
-	printf("%d,%d\r\n",startbit, endbit);	
 	fs_pos = find_fs(prdata, startbit, endbit-startbit);
 	spt_trace("refind_start or forword new_data:%p, startbit:%d, len:%d, fs_pos:%d\r\n",
 			prdata, startbit, endbit-startbit, fs_pos);
