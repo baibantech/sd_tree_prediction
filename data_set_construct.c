@@ -42,7 +42,7 @@ int data_set_config_insert_thread_num = 3;
 int data_set_config_delete_thread_num = 2;
 int get_next_random_string(char *str, int len, int flag);
 int make_test_random_data(void);
-
+extern int test_insert_stop;
 
 void set_31bit_zero(char *data)
 {
@@ -576,10 +576,14 @@ void test_pre_insert_proc(void *args)
 		spt_thread_start(g_thrd_id);
 		while(data = get_next_data(next))
 		{
+			
 			insert_cnt++;
 			spt_thread_start(g_thrd_id);
 			PERF_STAT_START(whole_insert);
 try_again:
+			while(test_insert_stop) {
+				sleep(10);
+			}
 #if 1 
 			if(NULL ==(ret_data =  test_insert_data(data)))
 #else

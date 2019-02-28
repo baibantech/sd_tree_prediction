@@ -52,7 +52,7 @@
 #include "spt_thread.h"
 #include "splitter.h"
 #include "hash_strategy.h"
-
+int test_insert_stop = 0;
 struct cluster_head_t *pgclst;
 int spt_trace_switch = 0;
 
@@ -473,7 +473,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 				pvec_b->scan_lock = 1;
 				new_next_pos = (new_window_hash << SPT_POS_BIT) + (next_vec->pos +1)%32;
 				prev_vec = pvec_b;
-				tmp_vec.scan_lock == 1;
+				tmp_vec.scan_lock = 1;
 			}
 		}
 		tmp_vec.type = SPT_VEC_RIGHT;
@@ -485,7 +485,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 				pvec_a->scan_lock = 1;
 				new_next_pos = (window_hash << SPT_POS_BIT) + (next_vec->pos +1)%32;
 				prev_vec = pvec_a;
-				tmp_vec.scan_lock == 1;
+				tmp_vec.scan_lock = 1;
 			}
 		}
 	}
@@ -1297,6 +1297,9 @@ int spt_divided_info_init(struct spt_divided_info *pdvd_info,
  * When the number of data in a cluster exceeds SPT_DVD_THRESHOLD_VA
  * divide the cluster into two
  */
+struct spt_dh *debug_dh = NULL;
+unsigned long long dh_value;
+char *test_pdata ;
 int divide_sub_cluster(struct cluster_head_t *pclst, struct spt_dh_ext *pup)
 {
 	int loop, dataid, ins_dvb_id, ret, total, sched, ref_cnt;
@@ -1409,11 +1412,16 @@ int divide_sub_cluster(struct cluster_head_t *pclst, struct spt_dh_ext *pup)
 			f_total += rdtsc()-f_start;
 			f_cnt++;
 			pdh = (struct spt_dh *)db_id_2_ptr(plower_clst, dataid);
-			ref = (struct spt_dh *)db_ref_id_2_ptr(plower_clst, dataid);
+			debug_dh = pdh;
+			dh_value = pdh->pdata;
+			ref = (struct spt_dh_ref *)db_ref_id_2_ptr(plower_clst, dataid);
 			ref_cnt = ref->ref;
 			start = rdtsc();
 			while (1) {
 				del_start = rdtsc();
+				if (((unsigned long long)(void*)get_data_from_dh(pdh->pdata)) == 0x7fa09712d00ULL)
+					test_insert_stop = 1;
+				test_pdata = get_data_from_dh(pdh->pdata);
 				ret = do_delete_data_no_free_multiple(
 					plower_clst,
 					get_data_from_dh(pdh->pdata),
@@ -1434,7 +1442,10 @@ int divide_sub_cluster(struct cluster_head_t *pclst, struct spt_dh_ext *pup)
 				} else  {
 					if (ret == SPT_DO_AGAIN)
 						continue;
+					test_insert_stop = 1;
 					//spt_debug("divide delete error\r\n");
+					printf("test value is %p\r\n",get_data_from_dh(pdh->pdata));
+					continue;
 				}
 			}
 			if (dataid == ins_dvb_id) {
@@ -1625,7 +1636,7 @@ struct cluster_head_t *adjust_mem_sub_cluster(struct cluster_head_t *pclst, stru
 			f_total += rdtsc()-f_start;
 			f_cnt++;
 			pdh = (struct spt_dh *)db_id_2_ptr(plower_clst, dataid);
-			ref = (struct spt_dh *)db_ref_id_2_ptr(plower_clst, dataid);
+			ref = (struct spt_dh_ref *)db_ref_id_2_ptr(plower_clst, dataid);
 			ref_cnt = ref->ref;
 			start = rdtsc();
 			while (1) {
@@ -1783,6 +1794,14 @@ int spt_divided_scan(struct cluster_head_t *pclst)
 	}
 	spt_order_array_free(psort);
 	return SPT_OK;
+}
+int debug_test_bug(struct spt_vec *next_vec,
+		struct spt_vec *pnext,
+		struct spt_vec *cur_vec,
+		struct spt_vec *pcur) 
+{
+	printf("test ok\r\n");
+	return 0;
 }
 
 int delete_next_vec(struct cluster_head_t *pclst,
@@ -2042,6 +2061,7 @@ int delete_next_vec(struct cluster_head_t *pclst,
 				ret = SPT_DO_AGAIN;
 			printf("line %d,do again\r\n",__LINE__);
 			printf("chgpos is %d, pcur %p, pnext %p\r\n", chg_pos,pcur, pnext);
+			debug_test_bug(&next_vec, pnext, &cur_vec, pcur);
 			if (chg_pos) {
 				do {
 					tmp_val = tmp_vec.val = pnext->val;
@@ -3935,7 +3955,7 @@ int find_data(struct cluster_head_t *pclst, struct query_info_t *pqinfo)
 	op = pqinfo->op;
 
 	pdata = pqinfo->data;
-
+	spt_trace("go one find_data process\r\n");
 	if (pqinfo->get_key == NULL)
 		prdata = pclst->get_key(pqinfo->data);
 	else
@@ -3961,7 +3981,7 @@ int find_data(struct cluster_head_t *pclst, struct query_info_t *pqinfo)
 	cur_vec.val = pcur->val;
 
 	if (cur_vec.scan_status == SPT_VEC_PVALUE) {
-		if (pcur = pclst->pstart)
+		if (pcur == pclst->pstart)
 			startbit = 0;
 		else {
 			startbit = cur_vec.pos + 1;
@@ -4405,7 +4425,7 @@ prediction_check:
 	check_type = -1;
 
 	if (cur_vec.scan_status == SPT_VEC_PVALUE) {
-		if (pcur = pclst->pstart)
+		if (pcur == pclst->pstart)
 			startbit = 0;
 		else {
 			startbit = cur_vec.pos + 1;

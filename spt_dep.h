@@ -71,7 +71,7 @@ extern int spt_trace_switch;
 						__FILE__, __LINE__, __func__); \
 				  	spt_print (f, ## a); \
 					}
-#if 0
+#if 1
 #define spt_trace(f, a...) {\
 					if (spt_trace_switch)\
 						spt_print(f, ## a);\
