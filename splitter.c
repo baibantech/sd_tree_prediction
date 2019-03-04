@@ -476,6 +476,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 				tmp_vec.scan_lock = 1;
 			}
 		}
+
 		tmp_vec.type = SPT_VEC_RIGHT;
 		pvec_a->down = vecid_b;
 	} else { 
@@ -1118,6 +1119,70 @@ sort_exit:
 	spt_free(stack);
 	return SPT_OK;
 }
+int spt_cluster_sort_from_vec(struct cluster_head_t *pclst, struct spt_vec *start_vec)
+{
+	struct spt_vec **stack;
+	int cur_data, cur_vecid, index;
+	struct spt_vec *pcur, cur_vec;
+//	struct spt_vec_f st_vec_f;
+	struct spt_dh *pdh;
+
+	stack = (struct spt_vec **)spt_malloc(4096*8*8);
+	if (stack == NULL)
+		return SPT_ERR;
+	index = 0;
+	cur_data = SPT_INVALID;
+
+	pcur = start_vec;
+
+	cur_vec.val = pcur->val;
+	if (cur_vec.down == SPT_NULL && cur_vec.rd == SPT_NULL) {
+		spt_print("start vec  is end\r\n");
+		return SPT_ERR;
+	}
+	stack[index] = pcur;
+	index++;
+
+	while (1) {
+		if (cur_vec.type != SPT_VEC_DATA) {
+			cur_vecid = cur_vec.rd;
+			pcur = (struct spt_vec *)vec_id_2_ptr(pclst, cur_vecid);
+			cur_vec.val = pcur->val;
+			stack[index] = pcur;
+			index++;
+		} else {
+			cur_data = cur_vec.rd;
+			if (cur_data != SPT_NULL) {
+				pdh = (struct spt_dh *)db_id_2_ptr(pclst,
+						cur_data);
+				printf("get data ptr %p\r\n", get_data_from_dh(pdh->pdata));
+			}
+
+			if (index == 0)
+				break;
+			while (1) {
+				index--;
+				pcur = stack[index];
+				cur_vec.val = pcur->val;
+				if (cur_vec.down != SPT_NULL) {
+					cur_vecid = cur_vec.down;
+					pcur = (struct spt_vec *)
+						vec_id_2_ptr(pclst, cur_vecid);
+					cur_vec.val = pcur->val;
+
+					stack[index] = pcur;
+					index++;
+					break;
+				}
+				if (index == 0)
+					goto sort_exit;
+			}
+		}
+	}
+sort_exit:
+	spt_free(stack);
+	return SPT_OK;
+}
 int spt_cluster_sort_down(struct cluster_head_t *pclst, struct spt_sort_info *psort)
 {
 	struct spt_vec **stack;
@@ -1444,7 +1509,7 @@ int divide_sub_cluster(struct cluster_head_t *pclst, struct spt_dh_ext *pup)
 						continue;
 					test_insert_stop = 1;
 					//spt_debug("divide delete error\r\n");
-					printf("test value is %p\r\n",get_data_from_dh(pdh->pdata));
+					//printf("test value is %p\r\n",get_data_from_dh(pdh->pdata));
 					continue;
 				}
 			}
@@ -1851,7 +1916,7 @@ int delete_next_vec(struct cluster_head_t *pclst,
 						the_next_vec, SPT_OP_DELETE); 
 				}
 				if (chg_pos) {
-					new_next_pos = (next_vec.pos /32)*32 + spt_get_pos_offset(*the_next_vec); 
+					new_next_pos = (((next_vec.pos + 1) >> 5) << 5) + spt_get_pos_offset(*the_next_vec) - 1; 
 					tmp_val = tmp_delete_vec.val = cur_vec.val;
 					if (tmp_delete_vec.scan_lock != 1)
 						tmp_delete_vec.scan_lock = 1;
@@ -1978,7 +2043,7 @@ int delete_next_vec(struct cluster_head_t *pclst,
 					SPT_OP_DELETE); 
 			}
 			if (chg_pos) {
-				new_next_pos = (next_vec.pos /32)*32 + spt_get_pos_offset(*the_next_vec); 
+				new_next_pos = (((next_vec.pos  + 1) >> 5 ) << 5) + spt_get_pos_offset(*the_next_vec) - 1; 
 				
 				tmp_val = tmp_delete_vec.val = cur_vec.val;
 				if (tmp_delete_vec.scan_lock != 1)
@@ -2146,7 +2211,7 @@ int final_vec_process(struct cluster_head_t *pclst, struct query_info_t *pqinfo 
 			st_insert_info.vec_real_pos = pdinfo->startbit;
 			st_insert_info.cmp_pos = pdinfo->cmp_pos;	
 			st_insert_info.ref_cnt = pqinfo->multiple;
-			st_insert_info.key_id = pdinfo->cur_vecid;	
+			st_insert_info.key_id = pdinfo->cur_vecid;
 			switch (type) {
 				case SPT_FIRST_SET:
 					PERF_STAT_START(insert_first_set);
