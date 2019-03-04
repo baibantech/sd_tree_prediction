@@ -150,8 +150,10 @@ int is_need_chg_pos(struct spt_vec *vec, struct spt_vec *next_vec, int type)
 {
 	if (type == SPT_OP_INSERT) {
 			if ((vec->scan_status == SPT_VEC_PVALUE)&&
-					(next_vec->scan_status == SPT_VEC_PVALUE))
-				return 1;
+					(next_vec->scan_status == SPT_VEC_PVALUE)) {
+				if (next_vec->pos - vec->pos < 32)
+					return 1;
+			}
 	} else if (type == SPT_OP_DELETE){
 			if ((vec->scan_status == SPT_VEC_PVALUE)&&
 					(next_vec->scan_status == SPT_VEC_HVALUE))
