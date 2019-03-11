@@ -4069,8 +4069,8 @@ int find_data(struct cluster_head_t *pclst, struct query_info_t *pqinfo)
 			startbit = 0;
 		else {
 			startbit = cur_vec.pos + 1;
-			if (cur_pos_bit >= startbit) {
-				printf("err \r\n");
+			if (cur_pos_bit > startbit) {
+				printf("err cur_pos bit %d, startbit %d\r\n", cur_pos_bit, startbit);
 				return SPT_ERR;
 			}
 		}
@@ -4098,7 +4098,7 @@ int find_data(struct cluster_head_t *pclst, struct query_info_t *pqinfo)
 					goto refind_start;
 				}
 			}
-					if ((unsigned long long )(long)(void *)delete_vec == 0x7ffff6c90f28)
+				if ((unsigned long long )(long)(void *)delete_vec == 0x7ffff6c90f28)
 				printf("delete vec line %d\r\n", __LINE__);
 			finish_key_cb(prdata);
 			return SPT_DO_AGAIN;
