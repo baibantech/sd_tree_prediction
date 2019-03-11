@@ -1365,7 +1365,6 @@ int spt_divided_info_init(struct spt_divided_info *pdvd_info,
 struct spt_dh *debug_dh = NULL;
 unsigned long long dh_value;
 char *test_pdata ;
-extern int insert_cnt;
 int divide_sub_cluster(struct cluster_head_t *pclst, struct spt_dh_ext *pup)
 {
 	int loop, dataid, ins_dvb_id, ret, total, sched, ref_cnt;
@@ -1583,7 +1582,6 @@ int divide_sub_cluster(struct cluster_head_t *pclst, struct spt_dh_ext *pup)
 	spt_print("insert succ %llu times, av cycle:%llu\r\n",
 		ins_cnt, (ins_cnt != 0?ins_total/ins_cnt:0));
 	spt_print("==============================================\r\n");
-	insert_cnt = 0;
 	return SPT_OK;
 }
 
@@ -1877,7 +1875,6 @@ int debug_test_bug1(struct spt_vec *next_vec,
 	printf("test ok1 \r\n");
 	return 0;
 }
-struct spt_vec debug_vec;
 int delete_next_vec(struct cluster_head_t *pclst,
 		struct spt_vec next_vec,
 		struct spt_vec *pnext,
@@ -2011,10 +2008,6 @@ int delete_next_vec(struct cluster_head_t *pclst,
 			} else 
 				ret = SPT_DO_AGAIN;
 
-			printf("line %d,do again\r\n",__LINE__);
-			printf("chgpos is %d, pcur %p, pnext %p\r\n", chg_pos,pcur, pnext);
-			debug_test_bug(&next_vec, pnext, &cur_vec, pcur);
-			debug_vec = cur_vec;
 			if (chg_pos) {
 				do {
 					tmp_val = tmp_vec.val = pnext->val;
@@ -2141,10 +2134,6 @@ int delete_next_vec(struct cluster_head_t *pclst,
 				return SPT_OK;
 			} else
 				ret = SPT_DO_AGAIN;
-			printf("line %d,do again\r\n",__LINE__);
-			printf("chgpos is %d, pcur %p, pnext %p\r\n", chg_pos,pcur, pnext);
-			debug_vec = cur_vec;
-			debug_test_bug(&next_vec, pnext, &cur_vec, pcur);
 			if (chg_pos) {
 				do {
 					tmp_val = tmp_vec.val = pnext->val;
@@ -4081,34 +4070,22 @@ int find_data(struct cluster_head_t *pclst, struct query_info_t *pqinfo)
 	}
 
 	endbit = pqinfo->endbit;
-	if (((unsigned long long )(long)(void *)delete_vec == 0x7ffff6c90f28) && (op == SPT_OP_DELETE_FIND))
-		printf("delete vec line %d\r\n", __LINE__);
 	
 	if (cur_vec.status == SPT_VEC_INVALID) {
 		
-	if (((unsigned long long )(long)(void *)delete_vec == 0x7ffff6c90f28) && (op == SPT_OP_DELETE_FIND))
-			printf("delete vec line %d\r\n", __LINE__);
 		if (pcur == pqinfo->pstart_vec) {
 			if (op == SPT_OP_DELETE_FIND){
 				if (pqinfo->pstart_vec != pclst->pstart) {
 					pqinfo->pstart_vec = pclst->pstart;
 					pqinfo->startid = pclst->vec_head;
-		if ((unsigned long long )(long)(void *)delete_vec == 0x7ffff6c90f28)
-						printf("delete vec line %d\r\n", __LINE__);
 					goto refind_start;
 				}
 			}
-				if ((unsigned long long )(long)(void *)delete_vec == 0x7ffff6c90f28)
-				printf("delete vec line %d\r\n", __LINE__);
 			finish_key_cb(prdata);
 			return SPT_DO_AGAIN;
 		}
-			if ((unsigned long long )(long)(void *)delete_vec == 0x7ffff6c90f28)
-						printf("delete vec line %d\r\n", __LINE__);
 		goto refind_start;
 	}
-	if (((unsigned long long )(long)(void *)delete_vec == 0x7ffff6c90f28) && (op == SPT_OP_DELETE_FIND))
-		printf("delete vec line %d\r\n", __LINE__);
 	direction = SPT_DIR_START;
 	if (cur_data != SPT_INVALID) {
 		cur_data = SPT_INVALID;
@@ -4120,8 +4097,6 @@ int find_data(struct cluster_head_t *pclst, struct query_info_t *pqinfo)
 	spt_trace("refind_start or forword new_data:%p, startbit:%d, len:%d, fs_pos:%d\r\n",
 			prdata, startbit, endbit-startbit, fs_pos);
 
-	if ((unsigned long long )(long)(void *)delete_vec == 0x7ffff6c90f28)
-		printf("delete vec line %d\r\n", __LINE__);
 prediction_start:
 
 	while (startbit < endbit) {
@@ -4132,8 +4107,6 @@ prediction_start:
 		spt_trace("pcur vec:%p, cur_vecid:0x%x, vec_type:%d,  grp id:%d, hash :%d ,curpos:%d\r\n",
 				pcur, cur_vecid, pcur->scan_status, cur_vecid/VEC_PER_GRP, spt_get_pos_hash(cur_vec), startbit);
 		
-		if ((unsigned long long )(long)(void *)delete_vec == 0x7ffff6c90f28)
-			printf("delete vec line %d\r\n", __LINE__);
 prediction_right:
 		
 		if (cur_vec.type == SPT_VEC_DATA) { 
@@ -4250,8 +4223,6 @@ prediction_right:
 					cur_vec.rd);
 			next_vec.val = pnext->val;
 			next_vecid = cur_vec.rd;
-		if ((unsigned long long )(long)(void *)delete_vec == 0x7ffff6c90f28)
-			printf("delete vec line %d\r\n", __LINE__);
 			
 			spt_trace("go right vec-fs_pos:%d,startbit:%d\r\n",fs_pos,startbit);	
 			spt_trace("next rd:%d,next vec:%p\r\n", next_vecid, pnext);
@@ -4331,8 +4302,6 @@ prediction_down:
 			cur_data = SPT_INVALID;
 			pclst->get_key_in_tree_end(pcur_data);
 		}
-		if ((unsigned long long )(long)(void *)delete_vec == 0x7ffff6c90f28)
-			printf("delete vec line %d\r\n", __LINE__);
 		while (fs_pos > startbit) {
 
 			spt_trace("pcur vec:%p, cur_vecid:0x%x, vec_type:%d,  grp id:%d, hash :%d ,curpos:%d\r\n",
