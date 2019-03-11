@@ -114,18 +114,13 @@ int get_real_pos_next(struct spt_vec *pvec)
 	spt_assert(0);
 	return -1;
 }
-void real_pos_back(struct spt_vec *pvec, struct spt_vec *pre_vec)
-{
-	spt_assert(pos_record[g_thrd_id]->cur_index > 0);
-
-	if(pvec->scan_status == SPT_VEC_PVALUE)
-		pos_record[g_thrd_id]->cur_index--;
-
-	if (pre_vec->scan_status == SPT_VEC_PVALUE)
-		pos_record[g_thrd_id]->cur_index--;
-
-}
 #endif
+int roll_pos_back(struct spt_vec *pvec, struct spt_vec *pre_vec)
+{
+	if ((pvec->scan_status == SPT_VEC_PVALUE) || (pre_vec->scan_status == SPT_VEC_PVALUE))
+		return 1;
+	return 0;
+}
 int set_real_pos(struct spt_vec *pvec, unsigned int real_pos, unsigned int pre_pos, unsigned int real_hash)
 {
 	int cur_window, last_window;

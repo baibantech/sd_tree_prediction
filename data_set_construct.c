@@ -581,11 +581,15 @@ void test_pre_insert_proc(void *args)
 			spt_thread_start(g_thrd_id);
 			PERF_STAT_START(whole_insert);
 try_again:
+#if 1
 			if(insert_cnt > 100000){
 				spt_thread_exit(g_thrd_id);
-				while(1)
-					sleep(10);
+				while (insert_cnt > 100000) 
+					sleep(1);
+				spt_thread_start(g_thrd_id);
+				insert_cnt++;
 			}
+#endif
 #if 1 
 			if(NULL ==(ret_data =  test_insert_data(data)))
 #else

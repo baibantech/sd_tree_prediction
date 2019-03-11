@@ -21,7 +21,7 @@ int get_real_pos_start(struct spt_vec *pvec);
 
 int get_real_pos_next(struct spt_vec *pvec);
 
-void real_pos_back(struct spt_vec *pvec,
+int roll_pos_back(struct spt_vec *pvec,
 		struct spt_vec *pre_vec);
 
 int set_real_pos(struct spt_vec *pvec,
