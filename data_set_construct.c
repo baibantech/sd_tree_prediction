@@ -39,7 +39,7 @@ long long data_set_config_map_read_start = -1;
 long long data_set_config_map_read_len = -1;
 
 int data_set_config_insert_thread_num = 1;
-int data_set_config_delete_thread_num = 1;
+int data_set_config_delete_thread_num = 2;
 int get_next_random_string(char *str, int len, int flag);
 int make_test_random_data(void);
 extern int test_insert_stop;
