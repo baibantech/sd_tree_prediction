@@ -38,8 +38,8 @@ long data_set_config_map_address = 0;
 long long data_set_config_map_read_start = -1;
 long long data_set_config_map_read_len = -1;
 
-int data_set_config_insert_thread_num = 3;
-int data_set_config_delete_thread_num = 2;
+int data_set_config_insert_thread_num = 1;
+int data_set_config_delete_thread_num = 1;
 int get_next_random_string(char *str, int len, int flag);
 int make_test_random_data(void);
 extern int test_insert_stop;
@@ -623,7 +623,7 @@ next_loop:
 	}while(cur);
 	printf("pre insert over\r\n");
 }
-
+int delete_cnt;
 void test_pre_delete_proc(void *args)
 {
 	struct data_set_cache *cur = NULL;
@@ -631,7 +631,7 @@ void test_pre_delete_proc(void *args)
 	void *data = NULL;
     int ret;
 	void *ret_data;
-	int delete_cnt = 0;
+	//int delete_cnt = 0;
 	unsigned long long per_cache_time_begin = 0;	
 	unsigned long long per_cache_time_end = 0;	
 	unsigned long long total_time = 0;
@@ -642,10 +642,9 @@ void test_pre_delete_proc(void *args)
 		{
 			break;
 		}
-		delete_cnt = 0;
 		while(data = get_next_data(next))
 		{
-			delete_cnt++;
+			delete_cnt++;	
 			spt_thread_start(g_thrd_id);
 
 try_again:

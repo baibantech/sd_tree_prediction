@@ -1525,6 +1525,12 @@ int divide_sub_cluster(struct cluster_head_t *pclst, struct spt_dh_ext *pup)
 				ref_cnt,
 				pdst_clst->get_key_in_tree,
 				pdst_clst->get_key_in_tree_end);
+			
+			if ((unsigned long long )(long)(void*)get_data_from_dh(pdh->pdata) == 0x7fa0aeb1d00ULL){
+
+				printf("data 0x7fa0aeb1d00 , in pdstclst is %p\r\n", pdst_clst);
+			}
+
 			if (ret != SPT_OK)
 				spt_debug("divide insert error\r\n");
 			ins_total += rdtsc()-start;
@@ -1892,7 +1898,8 @@ int delete_next_vec(struct cluster_head_t *pclst,
 		//printf("delete vec pcur %p, pnext %p ,direct %d, thread id %d\r\n", pcur, pnext, direction, g_thrd_id);
 		//debug_test_bug1(&next_vec, pnext, &cur_vec, pcur);
 	}
-
+	if ((unsigned long long)(long)(void*)pnext == 0x7ffdb91da68ULL)
+		debug_test_bug(NULL, NULL, NULL, NULL);
 	if (next_vec.scan_status == SPT_VEC_PVALUE)
 		next_pos = next_vec.pos;
 	else
@@ -1919,13 +1926,11 @@ int delete_next_vec(struct cluster_head_t *pclst,
 			if (next_vec.type != SPT_VEC_DATA ||
 					(next_vec.type == SPT_VEC_DATA &&
 					 next_vec.down != SPT_NULL)) {
-				if (next_vec.type != SPT_VEC_DATA) {
-					the_next_vec = (struct spt_vec *)
-						vec_id_2_ptr(pclst, tmp_vec.rd);
-					chg_pos = is_need_chg_pos(
-						&next_vec,
-						the_next_vec, SPT_OP_DELETE); 
-				}
+				the_next_vec = (struct spt_vec *)
+					vec_id_2_ptr(pclst, tmp_vec.rd);
+				chg_pos = is_need_chg_pos(
+					&next_vec,
+					the_next_vec, SPT_OP_DELETE); 
 				if (chg_pos) {
 					new_next_pos = (((next_vec.pos + 1) >> 5) << 5) + spt_get_pos_offset(*the_next_vec) - 1; 
 					tmp_val = tmp_delete_vec.val = cur_vec.val;
@@ -5183,6 +5188,7 @@ char *insert_data(struct cluster_head_t *pclst, char *pdata)
  * return the duplicate count in sd tree if delete successful
  * if there is no data match in the tree ,return value < 0
  */
+int delete_data_cnt ;
 char *delete_data(struct cluster_head_t *pclst, char *pdata)
 {
 	struct cluster_head_t *pnext_clst;
@@ -5193,12 +5199,15 @@ char *delete_data(struct cluster_head_t *pclst, char *pdata)
 	 *first look up in the top cluster.
 	 *which next level cluster do the data belong.
 	 */
+	if ((unsigned long long )(long)(void*)pdata == 0x7fa25475500ULL){
+		debug_test_bug(NULL,NULL,NULL,NULL);
+	}
 	pnext_clst = find_next_cluster(pclst, pdata);
 	if (pnext_clst == NULL) {
 		spt_set_errno(SPT_MASKED);
 		return NULL;
 	}
-
+	delete_data_cnt++;
 	qinfo.op = SPT_OP_DELETE;
 	qinfo.pstart_vec = pnext_clst->pstart;
 	qinfo.startid = pnext_clst->vec_head;
@@ -5218,6 +5227,7 @@ char *delete_data(struct cluster_head_t *pclst, char *pdata)
 			spt_assert(0);
 		return get_data_from_dh(pdh->pdata);
 	}
+	printf("delete data err %p, cluster %p ,ret %d, cnt %d\r\n", pdata, pnext_clst, ret,delete_data_cnt);
 	spt_set_errno(ret);
 	return NULL;
 }

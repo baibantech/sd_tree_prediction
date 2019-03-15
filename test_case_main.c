@@ -375,7 +375,7 @@ int main(int argc,char *argv[])
             printf("can't create thread: %s\n", strerror(err));
     }
 #endif
-#if 0
+#if 1
     for(i = 0;  i  < data_set_config_delete_thread_num ; i++)
     {
         err = pthread_create(&ntid, NULL, test_delete_thread, (void *)(data_set_config_insert_thread_num+i));
