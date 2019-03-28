@@ -115,9 +115,9 @@ int get_real_pos_next(struct spt_vec *pvec)
 	return -1;
 }
 #endif
-int roll_pos_back(struct spt_vec *pvec, struct spt_vec *pre_vec)
+int roll_pos_back(struct spt_vec cur_vec)
 {
-	if ((pvec->scan_status == SPT_VEC_PVALUE) || (pre_vec->scan_status == SPT_VEC_PVALUE))
+	if (cur_vec.scan_status == SPT_VEC_PVALUE)
 		return 1;
 	return 0;
 }
@@ -125,9 +125,13 @@ int set_real_pos(struct spt_vec *pvec, unsigned int real_pos, unsigned int pre_p
 {
 	int cur_window, last_window;
 	int offset;
+	if (real_pos <= pre_pos)
+		spt_assert(0);
+	if (pre_pos > 2048)
+		spt_assert(0);
 
-	cur_window = (real_pos/8)/HASH_WINDOW_LEN;
-	last_window = (pre_pos/8)/HASH_WINDOW_LEN;
+	cur_window =  real_pos/32;
+	last_window = pre_pos/32;
 
 	if (cur_window != last_window) {
 		pvec->pos = real_pos - 1;
@@ -146,7 +150,7 @@ int is_need_chg_pos(struct spt_vec *vec, struct spt_vec *next_vec, int type)
 	if (type == SPT_OP_INSERT) {
 			if ((vec->scan_status == SPT_VEC_PVALUE)&&
 					(next_vec->scan_status == SPT_VEC_PVALUE)) {
-				if (next_vec->pos - vec->pos < 32)
+				if ((next_vec->pos /32) == (vec->pos / 32))
 					return 1;
 			}
 	} else if (type == SPT_OP_DELETE){
@@ -156,6 +160,26 @@ int is_need_chg_pos(struct spt_vec *vec, struct spt_vec *next_vec, int type)
 	}
 	return 0;
 }
+
+void add_real_pos_record(struct cluster_head_t *pclst, struct spt_vec *pvec,int real_pos)
+{
+	char *pos_mem = pclst->cluster_pos_mem;
+
+	char * record_ptr = pos_mem + ((unsigned long long )(long)(void*)pvec - (unsigned long long)(long)(void*)pclst->cluster_vec_mem);
+
+	*((int *)record_ptr) = real_pos;
+}
+
+int get_real_pos_record(struct cluster_head_t *pclst, struct spt_vec *pvec)
+{
+	char *pos_mem = pclst->cluster_pos_mem;
+
+	char * record_ptr = pos_mem + ((unsigned long long )(long)(void*)pvec - (unsigned long long)(long)(void*)pclst->cluster_vec_mem);
+
+	return *((int *)record_ptr);
+}
+
+
 int last_seg_hash_grp;
 int last_window_hash;
 #if 0 

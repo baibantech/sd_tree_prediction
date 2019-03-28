@@ -569,10 +569,12 @@ void test_pre_insert_proc(void *args)
 		{
 			break;
 		}
-		if(cnt != 0) {
+#if 0
+		while (cnt) {
 			cnt--;
 			goto next_loop;
 		}
+#endif
 		spt_thread_start(g_thrd_id);
 		while(data = get_next_data(next))
 		{
@@ -635,6 +637,7 @@ void test_pre_delete_proc(void *args)
 	unsigned long long per_cache_time_begin = 0;	
 	unsigned long long per_cache_time_end = 0;	
 	unsigned long long total_time = 0;
+	int cnt = 10000;
 	u32 hash;
 	do {
 		next = get_next_data_set_cache(cur);		
@@ -650,11 +653,12 @@ void test_pre_delete_proc(void *args)
 try_again:
 			if(NULL == (ret_data = test_delete_data(data)))
             {
+				spt_trace("data delete error %p\r\n", data);
 				ret = spt_get_errno();
 				if (ret == SPT_NOT_FOUND) {
 					atomic64_add(1,(atomic64_t*)&spt_no_found_num);
 					spt_thread_exit(g_thrd_id);
-					break;
+					continue;
 				} else if(ret == SPT_MASKED) {
 					spt_thread_exit(g_thrd_id);
 					spt_thread_start(g_thrd_id);

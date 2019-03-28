@@ -289,7 +289,7 @@ int main(int argc,char *argv[])
 	int err;
 	pthread_t ntid;
 	int thread_num = 0;
-
+	int cnt = 0;
 	if(parse_cmdline(argc,argv))
 	{
 		return 0;
@@ -333,7 +333,7 @@ int main(int argc,char *argv[])
 
     sd_perf_stat_init();
 
-	pgclst = spt_cluster_init(0,DATA_BIT_MAX, thread_num, 
+	pgclst = spt_cluster_init(0,DATA_BIT_MAX, 12, 
                               tree_get_key_from_data,
                               tree_free_key,
                               tree_free_data,
@@ -352,7 +352,7 @@ int main(int argc,char *argv[])
 	}
 
 #if 1
-	err = pthread_create(&ntid, NULL, test_divid_thread, 3);
+	err = pthread_create(&ntid, NULL, test_divid_thread, 7);
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));
 #endif
@@ -367,22 +367,37 @@ int main(int argc,char *argv[])
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));
 #endif
-#if 1
+#if 0
 	for(i = 0;  i  < data_set_config_insert_thread_num ; i++)
     {
-        err = pthread_create(&ntid, NULL, test_insert_thread, (void *)i);
+        err = pthread_create(&ntid, NULL, test_insert_thread, (void *)(data_set_config_delete_thread_num + i +1));
         if (err != 0)
             printf("can't create thread: %s\n", strerror(err));
     }
 #endif
-#if 1
+#if 0
+	while (cnt < 5000)
+	{
+		cnt++;
+	}
     for(i = 0;  i  < data_set_config_delete_thread_num ; i++)
     {
-        err = pthread_create(&ntid, NULL, test_delete_thread, (void *)(data_set_config_insert_thread_num+i));
+        err = pthread_create(&ntid, NULL, test_delete_thread, (void *) (i+1));
         if (err != 0)
             printf("can't create thread: %s\n", strerror(err));
     }
 #endif
+	err = pthread_create(&ntid, NULL, test_delete_thread, 2);
+	if (err != 0)
+		printf("can't create thread: %s\n", strerror(err));
+
+	err = pthread_create(&ntid, NULL, test_insert_thread, 3);
+	if (err != 0)
+		printf("can't create thread: %s\n", strerror(err));
+
+	err = pthread_create(&ntid, NULL, test_delete_thread, 4);
+	if (err != 0)
+		printf("can't create thread: %s\n", strerror(err));
 
 	while(1)
 	{
@@ -452,12 +467,9 @@ void* test_insert_thread(void *arg)
 	}
 	//while(test_stop == 0)
 	    test_pre_insert_proc(i);
-	if(i != 0)
-	{	
-		while(1)
-		{
-			sleep(10);		
-}
+	while(1)
+	{
+		sleep(10);		
 	}
 }
 
@@ -468,6 +480,7 @@ void* test_delete_thread(void *arg)
 	g_thrd_id = i;
 	CPU_ZERO(&mask);
 	CPU_SET(i,&mask);
+	printf("delete thead cpu %d, %p\r\n", i, arg);
 	if(sched_setaffinity(0,sizeof(mask),&mask)== -1)
 	{
 		printf("warning: could not set CPU AFFINITY\r\n");
@@ -527,4 +540,14 @@ void *test_scan_thread(void *arg)
 #endif
 	while (1)
 		sleep(1);
+}
+
+
+void test_delete_data_thread(int cpu)
+{
+	int err, ntid;
+	err = pthread_create(&ntid, NULL, test_delete_thread, cpu);
+	if (err != 0)
+		printf("can't create thread: %s\n", strerror(err));
+
 }

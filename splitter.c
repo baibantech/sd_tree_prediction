@@ -281,6 +281,9 @@ int get_data_id(struct cluster_head_t *pclst, struct spt_vec *pvec, int startbit
 	struct spt_vec *pcur, *pnext, *ppre;
 	struct spt_vec tmp_vec, cur_vec, next_vec;
 
+	if (get_real_pos_record(pclst, pvec) != startbit)
+		spt_assert(0);
+
 get_id_start:
 	ppre = NULL;
 	cur_vec.val = pvec->val;
@@ -291,6 +294,9 @@ get_id_start:
 
 	while (1) {
 		if (cur_vec.type == SPT_VEC_RIGHT) {
+			if (cur_vec.scan_status == SPT_VEC_PVALUE)
+				startbit = cur_vec.pos + 1;
+
 			pnext = (struct spt_vec *)vec_id_2_ptr(pclst,
 					cur_vec.rd);
 			next_vec.val = pnext->val;
@@ -327,8 +333,6 @@ get_id_start:
 			return cur_vec.rd;
 		ppre = pcur;
 		pcur = pnext;
-		if (pnext->scan_status == SPT_VEC_PVALUE)
-			startbit = pnext->pos;
 		cur_vec.val = next_vec.val;
 	}
 
@@ -431,13 +435,16 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 	pdh->pdata = set_data_to_dh(new_encapdata);
 
 	pvec_a->rd = dataid;
+	if ((pinsert->cmp_pos <= pre_pos) || (pinsert->fs < pinsert->cmp_pos))
+		spt_assert(0);
 	pos_type = set_real_pos(pvec_a, pinsert->cmp_pos, pre_pos, window_hash);
+	add_real_pos_record(pclst, pvec_a, pinsert->cmp_pos);
 	add_debug_cnt(pclst, pinsert->cmp_pos, pos_type);
 
 	tmp_vec.rd = vecid_a;
 	if (tmp_vec.pos == pvec_a->pos && tmp_vec.pos != 0) {
 		if (tmp_vec.scan_status == pvec_a->scan_status) {
-			printf("pvec %p, pre_pos %d, cmp_pos %d\r\n", pvec_a, pre_pos, pinsert->cmp_pos);
+			printf("pcur %p, pvec %p, pre_pos %d, cmp_pos %d\r\n",pinsert->pkey_vec, pvec_a, pre_pos, pinsert->cmp_pos);
 			spt_assert(0);
 		}
 	}
@@ -466,6 +473,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 		pvec_b->down = SPT_NULL;
 
 		pos_type = set_real_pos(pvec_b, pinsert->fs, pinsert->cmp_pos, new_window_hash);
+		add_real_pos_record(pclst, pvec_b, pinsert->fs);
 		
 		add_debug_cnt(pclst, pinsert->fs, pos_type);
 		
@@ -477,6 +485,9 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 				new_next_pos = (new_window_hash << SPT_POS_BIT) + (next_vec->pos +1)%32;
 				prev_vec = pvec_b;
 				tmp_vec.scan_lock = 1;
+				if (pvec_b->pos >= next_vec->pos)
+					spt_assert(0);
+
 			}
 		}
 
@@ -490,6 +501,10 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 				new_next_pos = (window_hash << SPT_POS_BIT) + (next_vec->pos +1)%32;
 				prev_vec = pvec_a;
 				tmp_vec.scan_lock = 1;
+				if (pvec_a->pos >=  next_vec->pos) {
+					printf("pvec_a %p, pvec_a pos %d, next vec pos %d,next_vec %p\r\n", pvec_a, pvec_a->pos, next_vec->pos, next_vec);
+					spt_assert(0);
+				}
 			}
 		}
 	}
@@ -584,8 +599,11 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		return SPT_NOMEM;
 	}
+	if ((pinsert->cmp_pos <= pre_pos) || (pinsert->fs < pinsert->cmp_pos))
+		spt_assert(0);
 	pvec_a->val = 0;
 	pos_type = set_real_pos(pvec_a, pinsert->cmp_pos, pre_pos, window_hash);
+	add_real_pos_record(pclst, pvec_a, pinsert->cmp_pos);
 	add_debug_cnt(pclst, pinsert->cmp_pos, pos_type);
 
 	calc_hash_by_base(pnew_data, window_hash,
@@ -614,6 +632,7 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 	pdh->pdata = set_data_to_dh(new_encapdata);
 
 	pos_type = set_real_pos(pvec_b, pinsert->fs, pinsert->cmp_pos, new_window_hash);
+	add_real_pos_record(pclst, pvec_b, pinsert->fs);
 	add_debug_cnt(pclst, pinsert->fs, pos_type);
 	pvec_b->rd = dataid;
 	pvec_b->down = SPT_NULL;
@@ -734,6 +753,7 @@ int do_insert_last_down(struct cluster_head_t *pclst,
 	pdh->pdata = set_data_to_dh(new_encapdata);
 
 	pos_type = set_real_pos(pvec_a, pinsert->fs, pre_pos, window_hash);
+	add_real_pos_record(pclst, pvec_a, pinsert->fs);
 	add_debug_cnt(pclst, pinsert->fs, pos_type);
 
 	pvec_a->rd = dataid;
@@ -803,6 +823,7 @@ int do_insert_up_via_d(struct cluster_head_t *pclst,
 	pdh->pdata = set_data_to_dh(new_encapdata);
 
 	pos_type = set_real_pos(pvec_a, pinsert->fs, pre_pos, window_hash);
+	add_real_pos_record(pclst, pvec_a, pinsert->fs);
 	add_debug_cnt(pclst, pinsert->fs, pos_type);
 	pvec_a->rd = dataid;
 
@@ -859,7 +880,7 @@ int do_insert_up_via_d(struct cluster_head_t *pclst,
 			pvec_down = (struct spt_vec *)vec_id_2_ptr(pclst,
 				pvec_a->down);
 			if (pvec_down->scan_status == SPT_VEC_PVALUE)
-				pvec_down_pos = pvec_down->pos;
+				pvec_down_pos = pvec_down->pos + 1;
 			else
 				pvec_down_pos = ((pinsert->fs >> 5) << 5) + spt_get_pos_offset(*pvec_down);
 
@@ -1887,21 +1908,33 @@ int delete_next_vec(struct cluster_head_t *pclst,
 {
 	int chg_pos = 0;
 	int new_next_pos, next_pos;
+	int real_cur_pos;
 	u32 vecid;
 	u64 tmp_val;
 	int ret = SPT_OK;
-	struct spt_vec *the_next_vec,tmp_vec, tmp_delete_vec;
+	int old_next_pos;
+	struct spt_vec *the_next_vec,tmp_vec, tmp_delete_vec, chg_vec;
 	
-	if (!pclst->is_bottom) {
-		//printf("delete vec pcur %p, pnext %p ,direct %d, thread id %d\r\n", pcur, pnext, direction, g_thrd_id);
-		//debug_test_bug1(&next_vec, pnext, &cur_vec, pcur);
-	}
-	if ((unsigned long long)(long)(void*)pnext == 0x7ffdb91da68ULL)
-		debug_test_bug(NULL, NULL, NULL, NULL);
 	if (next_vec.scan_status == SPT_VEC_PVALUE)
-		next_pos = next_vec.pos;
+		next_pos = next_vec.pos + 1;
 	else
 		next_pos = ((cur_pos >>5) << 5) + spt_get_pos_offset(next_vec);
+
+	real_cur_pos =  get_real_pos_record(pclst, pcur);
+	if (cur_vec.scan_status == SPT_VEC_PVALUE) {
+		if (cur_pos != real_cur_pos)
+			spt_assert(0);
+	} else {
+		if ((cur_pos /32) != (real_cur_pos /32))
+			spt_assert(0);
+	}
+	
+	if( next_pos != get_real_pos_record(pclst, pnext)) {
+		printf("pnext is %p ,next_pos is %d, real next pos is %d,next status %d\r\n", pnext, next_pos, get_real_pos_record(pclst, pnext), next_vec.scan_status);
+		spt_assert(0);
+	}
+	if (cur_vec.status == SPT_VEC_INVALID)
+		spt_assert(0);
 
 	switch (direction) {
 		case SPT_RIGHT: 
@@ -1926,60 +1959,53 @@ int delete_next_vec(struct cluster_head_t *pclst,
 					 next_vec.down != SPT_NULL)) {
 				the_next_vec = (struct spt_vec *)
 					vec_id_2_ptr(pclst, tmp_vec.rd);
+				chg_vec.val = the_next_vec->val;
+
 				chg_pos = is_need_chg_pos(
 					&next_vec,
-					the_next_vec, SPT_OP_DELETE); 
+					&chg_vec, SPT_OP_DELETE); 
 				if (chg_pos) {
-					new_next_pos = (((next_vec.pos + 1) >> 5) << 5) + spt_get_pos_offset(*the_next_vec) - 1; 
 					tmp_val = tmp_delete_vec.val = cur_vec.val;
 					if (tmp_delete_vec.scan_lock != 1)
 						tmp_delete_vec.scan_lock = 1;
-					else {
-						//printf("line %d,do again\r\n",__LINE__);
+					else
 						return SPT_DO_AGAIN;	
-					}
 					
 					if (tmp_val != atomic64_cmpxchg(
 							(atomic64_t *)pcur,
 							tmp_val,
-							tmp_delete_vec.val)) {
-						
-						//printf("line %d,do again\r\n",__LINE__);
+							tmp_delete_vec.val))
 						return SPT_DO_AGAIN;
-					}
+
 					cur_vec.scan_lock = 1;
 
 					tmp_val = tmp_delete_vec.val = next_vec.val;
 					if (tmp_delete_vec.scan_lock != 1)
 						tmp_delete_vec.scan_lock = 1;
-					else {
-						do {	
-							tmp_val = tmp_delete_vec.val = pcur->val;
-							tmp_delete_vec.scan_lock = 0;
-						}while(tmp_val != atomic64_cmpxchg(
-								(atomic64_t *)pcur,
-								tmp_val,
-								tmp_delete_vec.val));
-						//printf("line %d,do again\r\n",__LINE__);
-						return SPT_DO_AGAIN;	
-					}
+					else
+						goto free_cur_lock;
+					
 					if (tmp_val != atomic64_cmpxchg(
 							(atomic64_t *)pnext,
 							tmp_val,
-							tmp_delete_vec.val)) {
-						
-						do {	
-							tmp_val = tmp_delete_vec.val = pcur->val;
-							tmp_delete_vec.scan_lock = 0;
-						}while(tmp_val != atomic64_cmpxchg(
-								(atomic64_t *)pcur,
-								tmp_val,
+							tmp_delete_vec.val))
+						goto free_cur_lock;
+					
+					new_next_pos = (((next_vec.pos + 1) >> 5) << 5) + spt_get_pos_offset(chg_vec) - 1; 
+					old_next_pos = chg_vec.pos;	
+					
+					if (get_real_pos_record(pclst, the_next_vec) != new_next_pos + 1)
+						spt_assert(0);
+					
+					do {
+						tmp_delete_vec.val = tmp_val = the_next_vec->val;
+						if (tmp_delete_vec.scan_status != SPT_VEC_HVALUE || tmp_delete_vec.pos != old_next_pos)
+							goto free_next_lock;
+						tmp_delete_vec.scan_status = SPT_VEC_PVALUE;
+						tmp_delete_vec.pos = new_next_pos;
+					}while (tmp_val != atomic64_cmpxchg (
+								(atomic64_t *)the_next_vec, tmp_val,
 								tmp_delete_vec.val));
-						
-						//printf("line %d,do again\r\n",__LINE__);
-
-						return SPT_DO_AGAIN;	
-					}
 				}
 			}
 			if (cur_vec.val == atomic64_cmpxchg(
@@ -1990,13 +2016,6 @@ int delete_next_vec(struct cluster_head_t *pclst,
 				vec_free(pclst, vecid);
 				sub_debug_cnt(pclst, next_pos, next_vec.scan_status);	
 				if (chg_pos) {
-					do {
-						tmp_val = tmp_vec.val = the_next_vec->val;
-						tmp_vec.scan_status = SPT_VEC_PVALUE;
-						tmp_vec.pos = new_next_pos;
-					}while (tmp_val != atomic64_cmpxchg (
-								(atomic64_t *)the_next_vec, tmp_val,
-								tmp_vec.val));
 					sub_debug_cnt(pclst, new_next_pos, SPT_VEC_HVALUE);
 					add_debug_cnt(pclst, new_next_pos, SPT_VEC_PVALUE);
 					do {	
@@ -2008,23 +2027,12 @@ int delete_next_vec(struct cluster_head_t *pclst,
 							tmp_delete_vec.val));
 				}
 				return SPT_OK;	
-			} else 
-				ret = SPT_DO_AGAIN;
-
+			} 
+			
 			if (chg_pos) {
-				do {
-					tmp_val = tmp_vec.val = pnext->val;
-					tmp_vec.scan_lock = 0;
-				}while (tmp_val != atomic64_cmpxchg (
-							(atomic64_t *)pnext, tmp_val,
-							tmp_vec.val));
-				do {	
-					tmp_val = tmp_delete_vec.val = pcur->val;
-					tmp_delete_vec.scan_lock = 0;
-				}while(tmp_val != atomic64_cmpxchg(
-						(atomic64_t *)pcur,
-						tmp_val,
-						tmp_delete_vec.val));
+				printf("pcur %p,revert vec %p cur_vec %p, next_vec %p\r\n",pcur, the_next_vec, &cur_vec, &next_vec);
+				spt_assert(0);
+				goto revert_pos;
 			}
 			break;
 
@@ -2051,60 +2059,52 @@ int delete_next_vec(struct cluster_head_t *pclst,
 			if (tmp_vec.down != SPT_NULL){
 				the_next_vec = (struct spt_vec *)
 					vec_id_2_ptr(pclst, tmp_vec.down);
+				chg_vec.val = the_next_vec->val;
 				chg_pos = is_need_chg_pos(&next_vec,
-					the_next_vec,
+					&chg_vec,
 					SPT_OP_DELETE); 
 			}
 			if (chg_pos) {
-				new_next_pos = (((next_vec.pos  + 1) >> 5 ) << 5) + spt_get_pos_offset(*the_next_vec) - 1; 
-				
 				tmp_val = tmp_delete_vec.val = cur_vec.val;
 				if (tmp_delete_vec.scan_lock != 1)
 					tmp_delete_vec.scan_lock = 1;
-				else {
-					//printf("line %d,do again\r\n",__LINE__);
+				else
 					return SPT_DO_AGAIN;
-				}
 				
 				if (tmp_val != atomic64_cmpxchg(
 						(atomic64_t *)pcur,
 						tmp_val,
-						tmp_delete_vec.val)) {
-					//printf("line %d,do again\r\n",__LINE__);
+						tmp_delete_vec.val))
 					return SPT_DO_AGAIN;
-				}
+
 				cur_vec.scan_lock = 1;	
 				tmp_val = tmp_delete_vec.val = next_vec.val;
 				if (tmp_delete_vec.scan_lock != 1)
 					tmp_delete_vec.scan_lock = 1;
-				else {
-					do {	
-						tmp_val = tmp_delete_vec.val = pcur->val;
-						tmp_delete_vec.scan_lock = 0;
-					}while(tmp_val != atomic64_cmpxchg(
-							(atomic64_t *)pcur,
-							tmp_val,
-							tmp_delete_vec.val));
-					//printf("line %d,do again\r\n",__LINE__);
-					return SPT_DO_AGAIN;
-				
-				}
+				else
+					goto free_cur_lock;
+
 				if (tmp_val != atomic64_cmpxchg(
 						(atomic64_t *)pnext,
 						tmp_val,
-						tmp_delete_vec.val)) {
-					do {	
-						tmp_val = tmp_delete_vec.val = pcur->val;
-						tmp_delete_vec.scan_lock = 0;
-					}while(tmp_val != atomic64_cmpxchg(
-							(atomic64_t *)pcur,
-							tmp_val,
-							tmp_delete_vec.val));
-					
-					//printf("line %d,do again\r\n",__LINE__);
+						tmp_delete_vec.val))
+					goto free_cur_lock;
 
-					return SPT_DO_AGAIN;
-				}
+				new_next_pos = (((next_vec.pos  + 1) >> 5 ) << 5) + spt_get_pos_offset(chg_vec) - 1; 
+				old_next_pos = chg_vec.pos;	
+				
+				if (get_real_pos_record(pclst, the_next_vec) != new_next_pos + 1)
+					spt_assert(0);
+				
+				do {
+					tmp_delete_vec.val = tmp_val = the_next_vec->val;
+					if (tmp_delete_vec.scan_status != SPT_VEC_HVALUE || tmp_delete_vec.pos != old_next_pos)
+						goto free_next_lock;
+					tmp_delete_vec.scan_status = SPT_VEC_PVALUE;
+					tmp_delete_vec.pos = new_next_pos;
+				}while (tmp_val != atomic64_cmpxchg (
+							(atomic64_t *)the_next_vec, tmp_val,
+							tmp_delete_vec.val));
 			}
 
 			if (cur_vec.val == atomic64_cmpxchg(
@@ -2116,16 +2116,9 @@ int delete_next_vec(struct cluster_head_t *pclst,
 				sub_debug_cnt(pclst, next_pos, next_vec.scan_status);	
 			//delete_succ
 				if (chg_pos) {
-					do {
-						tmp_val = tmp_vec.val = the_next_vec->val;
-						tmp_vec.scan_status = SPT_VEC_PVALUE;
-						tmp_vec.pos = new_next_pos;
-					}while (tmp_val != atomic64_cmpxchg (
-								(atomic64_t *)the_next_vec, tmp_val,
-								tmp_vec.val));
+					
 					sub_debug_cnt(pclst, new_next_pos, SPT_VEC_HVALUE);
 					add_debug_cnt(pclst, new_next_pos, SPT_VEC_PVALUE);
-
 					do {	
 						tmp_val = tmp_delete_vec.val = pcur->val;
 						tmp_delete_vec.scan_lock = 0;
@@ -2135,27 +2128,52 @@ int delete_next_vec(struct cluster_head_t *pclst,
 							tmp_delete_vec.val));
 				}
 				return SPT_OK;
-			} else
-				ret = SPT_DO_AGAIN;
-			if (chg_pos) {
-				do {
-					tmp_val = tmp_vec.val = pnext->val;
-					tmp_vec.scan_lock = 0;
-				}while (tmp_val != atomic64_cmpxchg (
-							(atomic64_t *)pnext, tmp_val,
-							tmp_vec.val));
-				do {	
-					tmp_val = tmp_delete_vec.val = pcur->val;
-					tmp_delete_vec.scan_lock = 0;
-				}while(tmp_val != atomic64_cmpxchg(
-						(atomic64_t *)pcur,
-						tmp_val,
-						tmp_delete_vec.val));
 			}
-		break;
+			if (chg_pos) {
+				printf("pcur %p,revert vec %p \r\n",pcur, the_next_vec);
+				spt_assert(0);
+				goto revert_pos;
+			}
+		
+			break;
 
-	}
-	return ret;
+		}
+	return SPT_DO_AGAIN;
+
+revert_pos:
+	do {
+		tmp_delete_vec.val = tmp_val = the_next_vec->val;
+		if (tmp_delete_vec.scan_status != SPT_VEC_PVALUE || tmp_delete_vec.pos != new_next_pos)
+			spt_assert(0);
+		tmp_delete_vec.scan_status = SPT_VEC_HVALUE;
+		tmp_delete_vec.pos = old_next_pos;
+	}while (tmp_val != atomic64_cmpxchg (
+				(atomic64_t *)the_next_vec, tmp_val,
+				tmp_delete_vec.val));
+	printf("pcur %p,revert vec %p \r\n",pcur, the_next_vec);
+	spt_assert(0);
+free_next_lock:
+
+	do {
+		tmp_val = tmp_vec.val = pnext->val;
+		if (tmp_vec.scan_lock == 0)
+			spt_assert(0);
+		tmp_vec.scan_lock = 0;
+	}while (tmp_val != atomic64_cmpxchg (
+				(atomic64_t *)pnext, tmp_val,
+				tmp_vec.val));
+free_cur_lock:
+
+	do {	
+		tmp_val = tmp_vec.val = pcur->val;
+		if (tmp_vec.scan_lock == 0)
+			spt_assert(0);
+		tmp_vec.scan_lock = 0;
+	}while(tmp_val != atomic64_cmpxchg(
+			(atomic64_t *)pcur,
+			tmp_val,
+			tmp_vec.val));
+	return SPT_DO_AGAIN;	
 }
 
 int final_vec_process(struct cluster_head_t *pclst, struct query_info_t *pqinfo ,
@@ -4025,6 +4043,7 @@ int find_data(struct cluster_head_t *pclst, struct query_info_t *pqinfo)
 	char *check_data = NULL;
 	int op_type;
 	int first_chbit;
+	int step ;
 
 
 	ret = SPT_NOT_FOUND;
@@ -4061,12 +4080,11 @@ int find_data(struct cluster_head_t *pclst, struct query_info_t *pqinfo)
 	if (cur_vec.scan_status == SPT_VEC_PVALUE) {
 		if (pcur == pclst->pstart)
 			startbit = 0;
-		else {
+		else
 			startbit = cur_vec.pos + 1;
-			if (cur_pos_bit > startbit) {
-				printf("err cur_pos bit %d, startbit %d\r\n", cur_pos_bit, startbit);
-				return SPT_ERR;
-			}
+		if (cur_pos_bit != startbit) {
+			printf("cur_pos_bit %d, startbit %d\r\n", cur_pos_bit, startbit);
+			spt_assert(0);
 		}
 		pre_pos_bit = cur_pos_bit;
 		cur_pos_bit = startbit;
@@ -4106,6 +4124,10 @@ prediction_start:
 
 	while (startbit < endbit) {
 		/*first bit is 1£¬compare with pcur_vec->right*/
+		if (get_real_pos_record(pclst, pcur)!= startbit || (startbit /32 != cur_pos_bit /32)) {
+			printf("pcur %p, startbit is %d, pos record %d,step %d\r\n", pcur, startbit, get_real_pos_record(pclst, pcur), step);
+			spt_assert(0);
+		}
 
 		if (fs_pos != startbit) 
 			goto prediction_down;
@@ -4126,7 +4148,7 @@ prediction_right:
 				}
 			}
 			cur_data = cur_vec.rd;
-			
+			step = 1;	
 			spt_trace("rd id:%d\r\n",cur_data);	
 
 			if (cur_data >= 0 && cur_data < SPT_INVALID) {
@@ -4161,6 +4183,8 @@ prediction_right:
 						pinfo.cmp_pos = cmpres.pos;
 						pinfo.startbit = startbit;
 						pinfo.endbit = startbit + len;
+						if (pinfo.cmp_pos <= startbit || pinfo.fs <= pinfo.cmp_pos)
+							spt_assert(0);
 						if (cmp > 0)
 							op_type = SPT_RD_UP;
 						else
@@ -4226,6 +4250,7 @@ prediction_right:
 		} else {
 			pnext = (struct spt_vec *)vec_id_2_ptr(pclst,
 					cur_vec.rd);
+			smp_mb();
 			next_vec.val = pnext->val;
 			next_vecid = cur_vec.rd;
 			
@@ -4237,9 +4262,10 @@ prediction_right:
 						cur_vec, pcur, startbit, SPT_RIGHT);
 				
 				cur_vec.val = pcur->val;
+				step = 3;	
 				if (cur_vec.status != SPT_VEC_VALID) {
 					if (ppre) {
-						if (roll_pos_back(pcur, ppre))
+						if (roll_pos_back(cur_vec))
 							cur_pos_bit = pre_pos_bit;
 					}
 					pcur = ppre;
@@ -4259,9 +4285,10 @@ prediction_right:
 					printf("next down null  pcur %p, pnext %p, threadid %d\r\n",pcur, pnext, g_thrd_id);
 				#endif
 				cur_vec.val = pcur->val;
+				step = 4;	
 				if (cur_vec.status != SPT_VEC_VALID) {
 					if (ppre) {
-						if (roll_pos_back(pcur, ppre))
+						if (roll_pos_back(cur_vec))
 							cur_pos_bit = pre_pos_bit;
 					}
 					pcur = ppre;
@@ -4273,14 +4300,22 @@ prediction_right:
 				next_pos_bit = next_vec.pos + 1;
 				pre_pos_bit = cur_pos_bit;
 				if (next_pos_bit <= cur_pos_bit)
-					return SPT_ERR;
+					spt_assert(0);
 				cur_pos_bit = next_pos_bit;
+				step = 10;
 			} else {
 				next_pos_bit = ((cur_pos_bit>>5)<< 5) + spt_get_pos_offset(next_vec);
+				step = 11;
 			}
 			len = next_pos_bit - startbit;
 
 			spt_trace("next rd vec len:%d\r\n", len);	
+			if (get_real_pos_record(pclst, pnext)!= next_pos_bit) {
+				printf("next pos bit is %d, next record %d, pnext %p,next_vec %p\r\n", next_pos_bit, get_real_pos_record(pclst,pnext), pnext, &next_vec);
+				printf("cur_pos bit %d,startbit is %d, pcur record is %d, step is %d\r\n", cur_pos_bit,startbit, get_real_pos_record(pclst, pcur), step);
+				printf("pcur %p cur_vec %p \r\n", pcur, &cur_vec);
+				spt_assert(0);
+			}
 			
 			startbit += len;
 			if (startbit >= endbit)
@@ -4291,6 +4326,7 @@ prediction_right:
 			cur_vecid = next_vecid;
 			cur_vec.val = next_vec.val;
 			direction = SPT_RIGHT;
+
 			///TODO:startbit already >= DATA_BIT_MAX
 			fs_pos = find_fs(prdata,
 				startbit,
@@ -4322,10 +4358,11 @@ prediction_down:
 						cur_vec.val, tmp_vec.val);
 				/*set invalid succ or not, refind from ppre*/
 				if (ppre) {
-					if (roll_pos_back(pcur, ppre))
+					if (roll_pos_back(cur_vec))
 						cur_pos_bit = pre_pos_bit;
 				}
 				pcur = ppre;
+				step = 7;
 				goto refind_forward;
 			}
 
@@ -4404,9 +4441,10 @@ prediction_down_continue:
 						cur_vec, pcur, startbit, SPT_DOWN);
 
 				cur_vec.val = pcur->val;
+				step = 8;
 				if (cur_vec.status != SPT_VEC_VALID) {
 					if (ppre) {
-						if (roll_pos_back(pcur, ppre))
+						if (roll_pos_back(cur_vec))
 							cur_pos_bit = pre_pos_bit;
 					}
 					pcur = ppre;
@@ -4437,12 +4475,14 @@ prediction_down_continue:
 				pre_vecid = cur_vecid;
 				cur_vecid = next_vecid;
 				cur_vec.val = next_vec.val;
+				step = 9;
 				if (startbit != endbit) {
 					continue;
 				}
+				//printf("fs is %d, startbit is %d\r\n", fs_pos, startbit);
 			}
 
-			cur_data = get_data_id(pclst, pnext, startbit + len);
+			cur_data = get_data_id(pclst, pnext, next_pos_bit);
 			if (cur_data >= 0 && cur_data < SPT_INVALID) {
 				pdh = (struct spt_dh *)db_id_2_ptr(pclst,
 					cur_data);
@@ -4521,11 +4561,11 @@ prediction_check:
 	if (cur_vec.scan_status == SPT_VEC_PVALUE) {
 		if (pcur == pclst->pstart)
 			startbit = 0;
-		else {
+		else
 			startbit = cur_vec.pos + 1;
-			if (cur_pos_bit > startbit)
-				return SPT_ERR;
-		}
+		
+		if (cur_pos_bit != startbit)
+			spt_assert(0);
 		pre_pos_bit = cur_pos_bit;
 		cur_pos_bit = startbit;
 	} else {
@@ -4553,6 +4593,8 @@ prediction_check:
 			prdata, startbit, endbit-startbit, fs_pos);
 	
 	while (startbit < endbit) {
+		if (get_real_pos_record(pclst, pcur)!= startbit)
+			spt_assert(0);
 		/*first bit is 1£¬compare with pcur_vec->right*/
 		if (fs_pos != startbit)
 			goto go_down;
@@ -4644,6 +4686,8 @@ go_right:
 				pinfo.cmp_pos = cmpres.pos;
 				pinfo.startbit = startbit;
 				pinfo.endbit = startbit + len;
+				if (pinfo.cmp_pos <= startbit || pinfo.fs <= pinfo.cmp_pos)
+					spt_assert(0);
 				
 				spt_trace("prediction check ok, check pos:%d, check_vec:%p\r\n", check_pos, pcheck_vec);
 
@@ -4710,6 +4754,8 @@ go_down:
 					goto refind_start;
 				
 				spt_trace("prediction check ok, down end \r\n");
+				if (check_type == -1)
+					spt_assert(0);
 
 				ret = final_vec_process(pclst, pqinfo, &pinfo, check_type);
 				if (ret == SPT_DO_AGAIN)
@@ -4746,7 +4792,7 @@ down_continue:
 				next_pos_bit = next_vec.pos + 1;
 				pre_pos_bit = cur_pos_bit;
 				if (next_pos_bit <= cur_pos_bit)
-					return SPT_ERR;
+					spt_assert(0);
 				cur_pos_bit = next_pos_bit;
 			} else {
 				next_pos_bit = ((cur_pos_bit>>5)<< 5) + spt_get_pos_offset(next_vec);
@@ -4769,7 +4815,7 @@ down_continue:
 					continue;
 				}
 			}
-			cur_data = get_data_id(pclst, pnext , startbit + len);
+			cur_data = get_data_id(pclst, pnext , next_pos_bit);
 			if (cur_data >= 0 && cur_data < SPT_INVALID) {
 				
 				if (cur_data != check_data_id)
@@ -4778,6 +4824,8 @@ down_continue:
 					goto refind_start;
 
 				spt_trace("prediction check ok, down continue \r\n");
+				if (check_type == -1)
+					spt_assert(0);
 
 				ret = final_vec_process(pclst, pqinfo, &pinfo, check_type);
 				if (ret == SPT_DO_AGAIN)
@@ -4917,7 +4965,7 @@ same_record:
                 cur_data = SPT_INVALID;
                 pqinfo->ref_cnt = 0;
 				if (ppre) {
-					if (roll_pos_back(pcur, ppre))
+					if (roll_pos_back(cur_vec))
 						cur_pos_bit = pre_pos_bit;
 					pcur = ppre;
 					goto refind_forward;
@@ -4952,6 +5000,959 @@ same_record:
     finish_key_cb(prdata);
     return SPT_ERR;
 }
+int find_data_debug(struct cluster_head_t *pclst, struct query_info_t *pqinfo)
+{
+	int cur_data, vecid, cmp, op, cur_vecid, pre_vecid, next_vecid, cnt;
+	struct spt_vec *pcur, *pnext, *ppre;
+	struct spt_vec tmp_vec, cur_vec, next_vec;
+	char *pcur_data;
+	u64 originbit, startbit, endbit, len, fs_pos, signpost;
+	int va_old, va_new;
+	u8 direction;
+	int ret;
+	struct vec_cmpret_t cmpres;
+	struct data_info_t pinfo;
+	char *pdata, *prdata;
+	struct spt_dh *pdh;
+	struct spt_dh_ref *ref;
+	spt_cb_end_key finish_key_cb;
+	u32 check_data_id, check_pos, check_type;
+	int pre_pos_bit, cur_pos_bit, next_pos_bit;
+
+	struct spt_vec *pcheck_vec = NULL;
+	struct spt_vec check_vec;
+	struct  spt_vec *delete_vec;
+	char *check_data = NULL;
+	int op_type;
+	int first_chbit;
+
+
+	ret = SPT_NOT_FOUND;
+	op = pqinfo->op;
+	delete_vec = NULL;
+	pdata = pqinfo->data;
+	printf("go one find_data process\r\n");
+	if (pqinfo->get_key == NULL)
+		prdata = pclst->get_key(pqinfo->data);
+	else
+		prdata = pqinfo->get_key(pqinfo->data);
+	if (pqinfo->get_key_end == NULL)
+		finish_key_cb = pclst->get_key_end;
+	else
+		finish_key_cb = pqinfo->get_key_end;
+
+	cur_data = SPT_INVALID;
+
+	refind_start:
+	pcur = pqinfo->pstart_vec;
+	cur_vecid = pre_vecid = pqinfo->startid;
+	pre_pos_bit = cur_pos_bit = pqinfo->startpos;
+	/*startpos mainly is zero, find_start vec can input another value, startpos
+	 * is equal to the start cur_vec real pos*/
+	refind_forward:
+
+	if (pcur == NULL)
+		goto refind_start;
+	ppre = NULL;
+	cur_vecid = pre_vecid;
+	pre_vecid = SPT_INVALID;
+	cur_vec.val = pcur->val;
+
+	if (cur_vec.scan_status == SPT_VEC_PVALUE) {
+		if (pcur == pclst->pstart)
+			startbit = 0;
+		else {
+			startbit = cur_vec.pos + 1;
+			if (cur_pos_bit > startbit) {
+				printf("err cur_pos bit %d, startbit %d\r\n", cur_pos_bit, startbit);
+				return SPT_ERR;
+			}
+		}
+		pre_pos_bit = cur_pos_bit;
+		cur_pos_bit = startbit;
+	} else {
+		startbit = ((cur_pos_bit>>5)<< 5) + spt_get_pos_offset(cur_vec);
+	}
+
+	endbit = pqinfo->endbit;
+	
+	if (cur_vec.status == SPT_VEC_INVALID) {
+		
+		if (pcur == pqinfo->pstart_vec) {
+			if (op == SPT_OP_DELETE_FIND){
+				if (pqinfo->pstart_vec != pclst->pstart) {
+					pqinfo->pstart_vec = pclst->pstart;
+					pqinfo->startid = pclst->vec_head;
+					goto refind_start;
+				}
+			}
+			finish_key_cb(prdata);
+			return SPT_DO_AGAIN;
+		}
+		goto refind_start;
+	}
+	direction = SPT_DIR_START;
+	if (cur_data != SPT_INVALID) {
+		cur_data = SPT_INVALID;
+		pclst->get_key_in_tree_end(pcur_data);
+	}
+	if (endbit <= startbit)
+		printf("error\r\n");
+	fs_pos = find_fs(prdata, startbit, endbit-startbit);
+	printf("refind_start or forword new_data:%p, startbit:%d, len:%d, fs_pos:%d\r\n",
+			prdata, startbit, endbit-startbit, fs_pos);
+
+prediction_start:
+
+	while (startbit < endbit) {
+		/*first bit is 1£¬compare with pcur_vec->right*/
+
+		if (fs_pos != startbit) 
+			goto prediction_down;
+			printf("pcur vec:%p, cur_vecid:0x%x, vec_type:%d,  grp id:%d, hash :%d ,curpos:%d\r\n",
+				pcur, cur_vecid, pcur->scan_status, cur_vecid/VEC_PER_GRP, spt_get_pos_hash(cur_vec), startbit);
+		
+prediction_right:
+		
+		if (cur_vec.type == SPT_VEC_DATA) { 
+			len = endbit - startbit;
+			printf("go right data-fs_pos:%d,curbit:%d,datalen:%d\r\n", fs_pos, startbit, len);	
+			
+			if (cur_data != SPT_INVALID) {
+				pclst->get_key_in_tree_end(pcur_data);
+				if (cur_vec.rd != cur_data) {
+					cur_data = SPT_INVALID;
+					goto refind_start;
+				}
+			}
+			cur_data = cur_vec.rd;
+			
+			printf("rd id:%d\r\n",cur_data);	
+
+			if (cur_data >= 0 && cur_data < SPT_INVALID) {
+				pdh = (struct spt_dh *)db_id_2_ptr(pclst,
+						cur_data);
+				smp_mb();/* ^^^ */
+				pcur_data = pclst->get_key_in_tree(get_data_from_dh(pdh->pdata));
+				
+				printf("rd data:%p\r\n",pcur_data);	
+				
+				first_chbit = get_first_change_bit(prdata,
+						pcur_data,
+						pqinfo->originbit,
+						startbit);
+				
+				printf("check chbit-startbit:%d,endbit:%d,changebit:%d\r\n",pqinfo->originbit,startbit,first_chbit);	
+				
+				if (first_chbit == -1) {
+
+					cmp = diff_identify(prdata, pcur_data, startbit, len ,&cmpres);
+					if (cmp == 0) {
+						printf("find same record\r\n");	
+						goto same_record;
+					} else {
+						pinfo.cur_vec = cur_vec;
+						pinfo.pcur = pcur;
+						pinfo.pnew_data = prdata;
+						pinfo.pcur_data = pcur_data;
+						pinfo.cur_data_id = cur_data;
+						pinfo.cur_vecid = cur_vecid;
+						pinfo.fs = cmpres.smallfs;
+						pinfo.cmp_pos = cmpres.pos;
+						pinfo.startbit = startbit;
+						pinfo.endbit = startbit + len;
+						if (cmp > 0)
+							op_type = SPT_RD_UP;
+						else
+							op_type = SPT_RD_DOWN;
+
+						if (cmp > 0) {
+							printf("final vec process type: RD UP\r\n");
+						} else {
+							printf("final vec process type: RD DOWN\r\n");
+						}
+						
+						printf("final vec cmp_pos:%d,fs:%d\r\n", cmpres.pos, cmpres.smallfs);
+						
+						ret = final_vec_process(pclst, pqinfo, &pinfo, op_type);
+						if (ret == SPT_DO_AGAIN)
+							goto refind_start;
+						
+						finish_key_cb(prdata);
+
+						if (cur_data != SPT_INVALID)
+							pclst->get_key_in_tree_end(pcur_data);
+						return ret;
+					}
+
+				} else { 
+					check_pos = first_chbit;
+					check_data_id = cur_data;
+					check_data = pcur_data;
+					
+					printf("checkbit:%d,checkdata_id:%d,checkdata:%p\r\n",check_pos ,check_data_id, check_data);	
+					goto prediction_check;
+				}
+			} else if (cur_data == SPT_NULL) {
+				if (ppre != NULL) {
+			/*delete data rd = NULL*/
+					finish_key_cb(prdata);
+					cur_data = SPT_INVALID;
+					goto refind_start;
+				
+				}	
+				pinfo.cur_vec = cur_vec;
+				pinfo.pcur = pcur;
+				pinfo.cur_vecid = cur_vecid;
+				pinfo.pnew_data = prdata;
+				pinfo.pcur_data = pcur_data;
+				pinfo.cur_data_id = cur_data;
+				pinfo.startbit = startbit;
+
+				printf("first set pcur is %p\r\n",pcur);	
+				
+				ret = final_vec_process(pclst, pqinfo, &pinfo, SPT_FIRST_SET);
+				if (ret == SPT_DO_AGAIN)
+					goto refind_start;
+				
+				finish_key_cb(prdata);
+
+				if (cur_data != SPT_INVALID)
+					pclst->get_key_in_tree_end(pcur_data);
+				return ret;
+
+			} else 
+				spt_assert(0);
+		} else {
+			pnext = (struct spt_vec *)vec_id_2_ptr(pclst,
+					cur_vec.rd);
+			next_vec.val = pnext->val;
+			next_vecid = cur_vec.rd;
+			
+			printf("go right vec-fs_pos:%d,startbit:%d\r\n",fs_pos,startbit);	
+			printf("next rd:%d,next vec:%p\r\n", next_vecid, pnext);
+			
+			if (next_vec.status == SPT_VEC_INVALID) {
+				delete_next_vec(pclst, next_vec, pnext,
+						cur_vec, pcur, startbit, SPT_RIGHT);
+				
+				cur_vec.val = pcur->val;
+				if (cur_vec.status != SPT_VEC_VALID) {
+					if (ppre) {
+						if (roll_pos_back(cur_vec))
+							cur_pos_bit = pre_pos_bit;
+					}
+					pcur = ppre;
+					goto refind_forward;
+				}
+				continue;
+			}
+			if (next_vec.down == SPT_NULL) {
+				tmp_vec.val = next_vec.val;
+				tmp_vec.status = SPT_VEC_INVALID;
+				atomic64_cmpxchg((atomic64_t *)pnext,
+						next_vec.val,
+						tmp_vec.val);
+				//set invalid succ or not, refind from cur
+				#if 0	
+				if (!pclst->is_bottom)
+					printf("next down null  pcur %p, pnext %p, threadid %d\r\n",pcur, pnext, g_thrd_id);
+				#endif
+				cur_vec.val = pcur->val;
+				if (cur_vec.status != SPT_VEC_VALID) {
+					if (ppre) {
+						if (roll_pos_back(cur_vec))
+							cur_pos_bit = pre_pos_bit;
+					}
+					pcur = ppre;
+					goto refind_forward;
+				}
+				continue;
+			}
+			if (next_vec.scan_status == SPT_VEC_PVALUE) {
+				next_pos_bit = next_vec.pos + 1;
+				pre_pos_bit = cur_pos_bit;
+				if (next_pos_bit <= cur_pos_bit)
+					return SPT_ERR;
+				cur_pos_bit = next_pos_bit;
+			} else {
+				next_pos_bit = ((cur_pos_bit>>5)<< 5) + spt_get_pos_offset(next_vec);
+			}
+			len = next_pos_bit - startbit;
+
+			printf("next rd vec len:%d\r\n", len);	
+			
+			startbit += len;
+			if (startbit >= endbit)
+				spt_assert(0);
+			ppre = pcur;
+			pcur = pnext;
+			pre_vecid = cur_vecid;
+			cur_vecid = next_vecid;
+			cur_vec.val = next_vec.val;
+			direction = SPT_RIGHT;
+			///TODO:startbit already >= DATA_BIT_MAX
+			fs_pos = find_fs(prdata,
+				startbit,
+				endbit - startbit);
+			printf("next fs_pos:%d,startbit:%d, len:%d\r\n",fs_pos,startbit, endbit - startbit);	
+		
+		}
+		continue;
+prediction_down:
+		if (cur_data != SPT_INVALID) {
+			/* verify the dbid, if changed refind from start*/
+			if (cur_data != get_data_id(pclst, pcur, startbit))
+				goto refind_start;
+			cur_data = SPT_INVALID;
+			pclst->get_key_in_tree_end(pcur_data);
+		}
+		while (fs_pos > startbit) {
+
+			printf("pcur vec:%p, cur_vecid:0x%x, vec_type:%d,  grp id:%d, hash :%d ,curpos:%d\r\n",
+					pcur, cur_vecid, pcur->scan_status, cur_vecid/VEC_PER_GRP, spt_get_pos_hash(cur_vec), startbit);
+
+			if (cur_vec.down != SPT_NULL)
+				goto prediction_down_continue;
+			if (direction == SPT_RIGHT) {
+				tmp_vec.val = cur_vec.val;
+				tmp_vec.status = SPT_VEC_INVALID;
+				cur_vec.val = atomic64_cmpxchg(
+						(atomic64_t *)pcur,
+						cur_vec.val, tmp_vec.val);
+				/*set invalid succ or not, refind from ppre*/
+				if (ppre) {
+					if (roll_pos_back(cur_vec))
+						cur_pos_bit = pre_pos_bit;
+				}
+				pcur = ppre;
+				goto refind_forward;
+			}
+
+			cur_data = get_data_id(pclst, pcur, startbit);
+			
+			printf("cur vec down null , cur_data id %d \r\n",cur_data);
+
+			if (cur_data >= 0 && cur_data < SPT_INVALID) {
+				pdh = (struct spt_dh *)db_id_2_ptr(pclst,
+					cur_data);
+				smp_mb();/* ^^^ */
+				pcur_data = pclst->get_key_in_tree(get_data_from_dh(pdh->pdata));
+				
+				printf("cur vec down null , cur_data %p \r\n",pcur_data);
+				
+				first_chbit = get_first_change_bit(prdata,
+						pcur_data,
+						pqinfo->originbit,
+						startbit);
+
+				printf("check chbit-startbit:%d,endbit:%d,changebit:%d\r\n",pqinfo->originbit,startbit,first_chbit);	
+				
+				if (first_chbit != -1) {	
+					check_pos = first_chbit;
+					check_data_id = cur_data;
+					check_data = pcur_data;
+					
+					printf("checkbit:%d,checkdata_id:%d,checkdata:%p\r\n",check_pos ,check_data_id, check_data);	
+					
+					goto prediction_check;
+				}
+			} else if (cur_data == SPT_NULL) {
+				if (ppre)
+					spt_assert(0);
+			} else {
+				if (cur_data == SPT_DO_AGAIN){
+					cur_data = SPT_INVALID;
+					goto refind_start;
+				}
+				printf("cur_data is %d\r\n", cur_data);
+				spt_assert(0);
+			}
+
+			/*last down */
+			pinfo.cur_vec = cur_vec;
+			pinfo.pcur = pcur;
+			pinfo.pnew_data = prdata;
+			pinfo.cur_data_id = cur_data;
+			pinfo.cur_vecid = cur_vecid;
+			pinfo.fs = fs_pos;
+			pinfo.startbit = startbit;
+
+			printf("final vec process last down \r\n");
+
+			ret = final_vec_process(pclst, pqinfo, &pinfo, SPT_LAST_DOWN);
+			if (ret == SPT_DO_AGAIN)
+				goto refind_start;
+			finish_key_cb(prdata);
+
+			if (cur_data != SPT_INVALID)
+				pclst->get_key_in_tree_end(pcur_data);
+			return ret;
+
+prediction_down_continue:
+
+			pnext = (struct spt_vec *)vec_id_2_ptr(pclst,
+					cur_vec.down);
+			next_vec.val = pnext->val;
+			next_vecid = cur_vec.down;
+
+			printf("down continue fs_pos:%d,startbit:%d\r\n",fs_pos,startbit);
+			printf("next down vec id:%d,vec:%p\r\n", next_vecid, pnext);
+			
+			if (next_vec.status == SPT_VEC_INVALID) {
+				delete_next_vec(pclst, next_vec, pnext,
+						cur_vec, pcur, startbit, SPT_DOWN);
+
+				cur_vec.val = pcur->val;
+				if (cur_vec.status != SPT_VEC_VALID) {
+					if (ppre) {
+						if (roll_pos_back(cur_vec))
+							cur_pos_bit = pre_pos_bit;
+					}
+					pcur = ppre;
+					goto refind_forward;
+				}
+				continue;
+			}
+
+			if (next_vec.scan_status == SPT_VEC_PVALUE) {
+				next_pos_bit = next_vec.pos + 1;
+				pre_pos_bit = cur_pos_bit;
+				if (next_pos_bit <= cur_pos_bit)
+					return SPT_ERR;
+				cur_pos_bit = next_pos_bit;
+			} else {
+				next_pos_bit = ((cur_pos_bit>>5)<< 5) + spt_get_pos_offset(next_vec);
+			}
+			len = next_pos_bit - startbit;
+			
+			direction = SPT_DOWN;
+			
+			printf("next down vec len:%d\r\n",len);
+
+			if (fs_pos >= startbit + len) {
+				startbit += len;
+				ppre = pcur;
+				pcur = pnext;
+				pre_vecid = cur_vecid;
+				cur_vecid = next_vecid;
+				cur_vec.val = next_vec.val;
+				if (startbit != endbit) {
+					continue;
+				}
+			}
+
+			cur_data = get_data_id(pclst, pnext, startbit + len);
+			if (cur_data >= 0 && cur_data < SPT_INVALID) {
+				pdh = (struct spt_dh *)db_id_2_ptr(pclst,
+					cur_data);
+				smp_mb();/* ^^^ */
+				pcur_data = pclst->get_key_in_tree(get_data_from_dh(pdh->pdata));
+			
+			} else { 
+				cur_data = SPT_INVALID;
+				goto refind_start;
+			}
+			
+			printf("down data id :%d down data:%p\r\n", cur_data, pcur_data);	
+			
+			first_chbit = get_first_change_bit(prdata,
+						pcur_data,
+						pqinfo->originbit,
+						startbit);
+			
+			printf("next down vec dismatch\r\n");
+			printf("check chbit-startbit:%d,endbit:%d,changebit:%d\r\n",pqinfo->originbit,startbit,first_chbit);	
+			
+			if (first_chbit != -1) {
+				check_pos = first_chbit;
+				check_data_id = cur_data;
+				check_data = pcur_data;
+				
+				printf("checkbit:%d,checkdata_id:%d,checkdata:%p\r\n",check_pos ,check_data_id, check_data);	
+				goto prediction_check;
+			} else {
+				if (startbit == endbit) {
+					printf("find same record\r\n");	
+					goto same_record;
+				}
+			}
+
+			pinfo.cur_vec = cur_vec;
+			pinfo.pcur = pcur;
+			pinfo.pnew_data = prdata;
+			pinfo.cur_data_id = cur_data;
+			pinfo.cur_vecid = cur_vecid;
+			pinfo.fs = fs_pos;
+			pinfo.startbit = startbit;
+			pinfo.pnext = pnext;
+			pinfo.next_pos = len;
+
+			printf("down up pcur %p\r\n", pcur);
+			printf("final vec fs:%d\r\n", fs_pos);
+			
+			ret = final_vec_process(pclst, pqinfo, &pinfo, SPT_UP_DOWN);
+			if (ret == SPT_DO_AGAIN)
+				goto refind_start;
+			finish_key_cb(prdata);
+
+			if (cur_data != SPT_INVALID)
+				pclst->get_key_in_tree_end(pcur_data);
+			return ret;
+		
+		}	
+	}
+
+prediction_check:
+  	
+	printf("prediction check start\r\n");
+
+	cur_data = SPT_INVALID;
+	pcur = pqinfo->pstart_vec;
+	cur_vecid = pre_vecid = pqinfo->startid;
+	pre_pos_bit = cur_pos_bit = pqinfo->startpos;
+	ppre = NULL;
+	cur_vecid = pre_vecid;
+	pre_vecid = SPT_INVALID;
+	cur_vec.val = pcur->val;
+	pcheck_vec = NULL;
+	check_type = -1;
+
+	if (cur_vec.scan_status == SPT_VEC_PVALUE) {
+		if (pcur == pclst->pstart)
+			startbit = 0;
+		else {
+			startbit = cur_vec.pos + 1;
+			if (cur_pos_bit > startbit)
+				return SPT_ERR;
+		}
+		pre_pos_bit = cur_pos_bit;
+		cur_pos_bit = startbit;
+	} else {
+		startbit = ((cur_pos_bit>>5)<< 5) + spt_get_pos_offset(cur_vec);
+	}
+	
+	endbit = pqinfo->endbit;
+	
+	if (cur_vec.status == SPT_VEC_INVALID) {
+		if (pcur == pqinfo->pstart_vec) {
+			finish_key_cb(prdata);
+			return SPT_DO_AGAIN;
+		}
+		goto refind_start;
+	}
+	direction = SPT_DIR_START;
+	if (cur_data != SPT_INVALID) {
+		cur_data = SPT_INVALID;
+		pclst->get_key_in_tree_end(pcur_data);
+	}
+
+	fs_pos = find_fs(prdata, startbit, endbit-startbit);
+	
+	printf("prediction check start new_data:%p, startbit:%d, len:%d, fs_pos:%d\r\n",
+			prdata, startbit, endbit-startbit, fs_pos);
+	
+	while (startbit < endbit) {
+		/*first bit is 1£¬compare with pcur_vec->right*/
+		if (fs_pos != startbit)
+			goto go_down;
+		printf("rd pcur vec:%p, cur_vecid:0x%x, vec_type:%d,  grp id:%d, curpos:%d\r\n",
+				pcur, cur_vecid, pcur->scan_status, cur_vecid/VEC_PER_GRP, startbit);
+go_right:
+		if (cur_vec.type == SPT_VEC_DATA) { 
+			len = endbit - startbit;
+			if (cur_data != SPT_INVALID) {
+				pclst->get_key_in_tree_end(pcur_data);
+				if (cur_vec.rd != cur_data) {
+					cur_data = SPT_INVALID;
+					goto refind_start;
+				}
+			}
+			cur_data = cur_vec.rd;
+			if (cur_data >= 0 && cur_data < SPT_INVALID) {
+				if (cur_data != check_data_id)
+					goto refind_start;
+				if (!pcheck_vec)
+					goto refind_start;
+			} else if (cur_data == SPT_NULL) {
+					goto refind_start;
+			} else
+				spt_assert(0);
+			
+			printf("prediction check ok, rd end \r\n");
+			
+			ret = final_vec_process(pclst, pqinfo, &pinfo, check_type);
+			if (ret == SPT_DO_AGAIN)
+				goto refind_start;
+			finish_key_cb(prdata);
+			if (cur_data != SPT_INVALID)
+				pclst->get_key_in_tree_end(pcur_data);
+			return ret;
+
+		} else {
+			pnext = (struct spt_vec *)vec_id_2_ptr(pclst,
+					cur_vec.rd);
+			next_vec.val = pnext->val;
+			next_vecid = cur_vec.rd;
+			
+			if (next_vec.status == SPT_VEC_INVALID) {
+				delete_next_vec(pclst, next_vec, pnext,
+						cur_vec, pcur, startbit, SPT_RIGHT);
+				goto refind_start;	
+			}
+			if (next_vec.down == SPT_NULL) {
+				tmp_vec.val = next_vec.val;
+				tmp_vec.status = SPT_VEC_INVALID;
+				atomic64_cmpxchg((atomic64_t *)pnext,
+						next_vec.val,
+						tmp_vec.val);
+				goto refind_start;
+			}
+			if (next_vec.scan_status == SPT_VEC_PVALUE) {
+				next_pos_bit = next_vec.pos + 1;
+				pre_pos_bit = cur_pos_bit;
+				if (next_pos_bit <= cur_pos_bit)
+					return SPT_ERR;
+				cur_pos_bit = next_pos_bit;
+			} else {
+				next_pos_bit = ((cur_pos_bit>>5)<< 5) + spt_get_pos_offset(next_vec);
+			}
+			len = next_pos_bit - startbit;
+	
+			if (startbit + len > check_pos) {
+				pcheck_vec = pcur;
+				check_vec = cur_vec;
+				if (cur_data == SPT_INVALID &&
+						cur_vec.type != SPT_VEC_DATA) {
+					cur_data = get_data_id(pclst, pnext, startbit + len);
+					if(cur_data == SPT_DO_AGAIN) {
+						cur_data = SPT_INVALID;
+						goto refind_start;
+					}
+					if (cur_data == SPT_NULL)
+						spt_assert(0);
+				}
+				
+				cmp = diff_identify(prdata, check_data, startbit, len, &cmpres);
+				pinfo.cur_vec = cur_vec;
+				pinfo.pcur = pcur;
+				pinfo.pnew_data = prdata;
+				pinfo.pcur_data = pcur_data;
+				pinfo.cur_data_id = cur_data;
+				pinfo.cur_vecid = cur_vecid;
+				pinfo.fs = cmpres.smallfs;
+				pinfo.cmp_pos = cmpres.pos;
+				pinfo.startbit = startbit;
+				pinfo.endbit = startbit + len;
+				
+				printf("prediction check ok, check pos:%d, check_vec:%p\r\n", check_pos, pcheck_vec);
+
+				if (cmp == 0) {
+					spt_assert(0);
+				} else if (cmp > 0) {
+					check_type = SPT_RD_UP;
+					
+					printf("prediction check ok, check type RD UP\r\n");
+				} else {
+					check_type = SPT_RD_DOWN;
+					printf("prediction check ok, check type RD_DOWN\r\n");
+				}
+				check_pos = endbit + 1;
+			}
+			startbit += len;
+			if (startbit >= endbit)
+				spt_assert(0);
+			ppre = pcur;
+			pcur = pnext;
+			pre_vecid = cur_vecid;
+			cur_vecid = next_vecid;
+			cur_vec.val = next_vec.val;
+			direction = SPT_RIGHT;
+			///TODO:startbit already >= DATA_BIT_MAX
+			fs_pos = find_fs(prdata,
+				startbit,
+				endbit - startbit);
+		}
+		
+		continue;
+		/*first bit is 0£¬start from pcur_vec->down*/
+go_down:
+
+		if (cur_data != SPT_INVALID) {
+			/* verify the dbid, if changed refind from start*/
+			if (cur_data != get_data_id(pclst, pcur, startbit))
+				goto refind_start;
+			cur_data = SPT_INVALID;
+			pclst->get_key_in_tree_end(pcur_data);
+		}
+		while (fs_pos > startbit) {
+			printf("down pcur vec:%p, cur_vecid:0x%x, vec_type:%d,  grp id:%d, curpos:%d\r\n",
+					pcur, cur_vecid, pcur->scan_status, cur_vecid/VEC_PER_GRP, startbit);
+			
+			if (cur_vec.down != SPT_NULL)
+				goto down_continue;
+			if (direction == SPT_RIGHT) {
+				tmp_vec.val = cur_vec.val;
+				tmp_vec.status = SPT_VEC_INVALID;
+				cur_vec.val = atomic64_cmpxchg(
+						(atomic64_t *)pcur,
+						cur_vec.val, tmp_vec.val);
+				/*set invalid succ or not, refind from ppre*/
+				printf("check fail line %d \r\n", __LINE__);
+				goto refind_start;
+			}
+			
+			cur_data = get_data_id(pclst, pcur, startbit);
+			if (cur_data >= 0 && cur_data < SPT_INVALID) {
+				if (cur_data != check_data_id)
+					goto refind_start;
+				if (!pcheck_vec)
+					goto refind_start;
+				
+				printf("prediction check ok, down end \r\n");
+
+				ret = final_vec_process(pclst, pqinfo, &pinfo, check_type);
+				if (ret == SPT_DO_AGAIN)
+					goto refind_start;
+				finish_key_cb(prdata);
+				if (cur_data != SPT_INVALID)
+					pclst->get_key_in_tree_end(pcur_data);
+				return ret;
+
+			} else if (cur_data == SPT_NULL) {
+				goto refind_start;
+			} else {
+				if (cur_data == SPT_DO_AGAIN) {
+					cur_data = SPT_INVALID;
+					goto refind_start;
+				}
+				spt_assert(0);
+			}
+down_continue:
+			pnext = (struct spt_vec *)vec_id_2_ptr(pclst,
+					cur_vec.down);
+			next_vec.val = pnext->val;
+			next_vecid = cur_vec.down;
+			
+			if (next_vec.status == SPT_VEC_INVALID) {
+				printf("check fail line %d \r\n", __LINE__);
+				delete_next_vec(pclst, next_vec, pnext,
+						cur_vec, pcur, startbit, SPT_DOWN);
+				goto refind_start;
+
+			}
+
+			if (next_vec.scan_status == SPT_VEC_PVALUE) {
+				next_pos_bit = next_vec.pos + 1;
+				pre_pos_bit = cur_pos_bit;
+				if (next_pos_bit <= cur_pos_bit)
+					return SPT_ERR;
+				cur_pos_bit = next_pos_bit;
+			} else {
+				next_pos_bit = ((cur_pos_bit>>5)<< 5) + spt_get_pos_offset(next_vec);
+			}
+			len = next_pos_bit - startbit;
+
+			direction = SPT_DOWN;
+			/* signpost not used now*/
+			
+			if (fs_pos >= startbit + len) {
+
+				startbit += len;
+				ppre = pcur;
+				pcur = pnext;
+				pre_vecid = cur_vecid;
+				cur_vecid = next_vecid;
+				cur_vec.val = next_vec.val;
+			
+				if (startbit != endbit) {
+					continue;
+				}
+			}
+			cur_data = get_data_id(pclst, pnext , startbit + len);
+			if (cur_data >= 0 && cur_data < SPT_INVALID) {
+				
+				if (cur_data != check_data_id)
+					goto refind_start;
+				if (!pcheck_vec)
+					goto refind_start;
+
+				printf("prediction check ok, down continue \r\n");
+
+				ret = final_vec_process(pclst, pqinfo, &pinfo, check_type);
+				if (ret == SPT_DO_AGAIN)
+					goto refind_start;
+				finish_key_cb(prdata);
+				if (cur_data != SPT_INVALID)
+					pclst->get_key_in_tree_end(pcur_data);
+				return ret;
+
+			} else { 
+				cur_data = SPT_INVALID;
+				goto refind_start;
+			}
+		}
+		spt_assert(fs_pos == startbit);
+	}
+
+same_record:
+
+	ret = SPT_OK;
+
+	if (cur_data == SPT_INVALID) {
+		if (cur_vec.type != SPT_VEC_DATA)
+			spt_assert(0);
+		cur_data = cur_vec.rd;
+
+		pdh = (struct spt_dh *)db_id_2_ptr(pclst, cur_data);
+		smp_mb();/* ^^^ */
+		//pcur_data = pclst->get_key(pdh->pdata);
+	} else
+		pclst->get_key_in_tree_end(pcur_data);
+	ref = db_ref_id_2_ptr(pclst, cur_data);
+	switch (op) {
+	case SPT_OP_FIND:
+		if (pqinfo->op == SPT_OP_FIND) {
+			pqinfo->db_id = cur_data;
+			pqinfo->vec_id = cur_vecid;
+			pqinfo->cmp_result = 0;
+		}
+
+		finish_key_cb(prdata);
+		return ret;
+	case SPT_OP_INSERT:
+		while (1) {
+			va_old = ref->ref;
+			if (va_old == 0) {
+				cur_data = SPT_INVALID;
+				ret = SPT_NOT_FOUND;
+				goto refind_start;
+			} else if (va_old > 0) {
+				va_new = va_old + pqinfo->multiple;
+				if (va_old == atomic_cmpxchg(
+							(atomic_t *)&ref->ref,
+							va_old, va_new))
+					break;
+			} else
+				spt_assert(0);
+		}
+		pqinfo->db_id = cur_data;
+		pqinfo->ref_cnt = va_new;
+        pqinfo->vec_id = cur_vecid;
+		finish_key_cb(prdata);
+		return ret;
+	case SPT_OP_DELETE:
+		pqinfo->db_id = cur_data;
+		while (1) {
+			va_old = ref->ref;
+			if (va_old == 0) {
+
+				finish_key_cb(prdata);
+				return SPT_NOT_FOUND;
+			} else if (va_old > 0) {
+				if (va_old < pqinfo->multiple) {
+					spt_assert(0);
+					return SPT_NOT_FOUND;
+				}
+				va_new = va_old-pqinfo->multiple;
+				if (va_old == atomic_cmpxchg(
+							(atomic_t *)&ref->ref,
+							va_old, va_new))
+					break;
+			} else
+				spt_assert(0);
+		}
+		//pqinfo->ref_cnt = va_new;
+		if (va_new == 0) {
+			tmp_vec.val = cur_vec.val;
+			tmp_vec.rd = SPT_NULL;
+			if (pcur == (struct spt_vec *)vec_id_2_ptr(pclst,
+						pclst->vec_head)) {
+				if (cur_vec.val == atomic64_cmpxchg(
+							(atomic64_t *)pcur,
+							cur_vec.val,
+							tmp_vec.val)) {
+					//invalidate succ
+					spt_set_data_free_flag(pdh,
+							pqinfo->free_flag);
+                    db_free(pclst,cur_data);
+                    
+                    finish_key_cb(prdata);
+                    pqinfo->ref_cnt = 0;
+                    return SPT_OK;
+                }
+                else
+                {
+                    cur_data = SPT_INVALID;
+                    while(1)
+                    {
+                        va_old = ref->ref;
+                        va_new = va_old+pqinfo->multiple;
+                        if(va_old == atomic_cmpxchg((atomic_t *)&ref->ref, va_old,va_new))
+                            break;
+                    }
+                    
+                    ret = SPT_NOT_FOUND;
+                    goto refind_start;
+                }
+            }
+            tmp_vec.status = SPT_VEC_INVALID;
+            if(cur_vec.val == atomic64_cmpxchg((atomic64_t *)pcur, cur_vec.val, tmp_vec.val))//invalidate succ
+            {
+				spt_set_data_free_flag(pdh, pqinfo->free_flag);
+                db_free(pclst,cur_data);
+#if 0
+				if ((unsigned long long )(long)(void *)pcur == 0x7ffff6c90f28) {
+					printf("pre_pos_bit%d ,cur_pos_bit %d, startbit %d\r\n", pre_pos_bit, cur_pos_bit, startbit);
+					debug_test_bug1(pcur,ppre,NULL, NULL);
+				}
+#endif
+                if(!pclst->is_bottom)
+                    refresh_db_hang_vec(pclst, pcur, pdh);
+                if(!pclst->is_bottom){
+					//printf("pcur %p, ppre %p\r\n", pcur, ppre);
+				}
+				pqinfo->op = op = SPT_OP_DELETE_FIND;
+				delete_vec = pcur;
+                cur_data = SPT_INVALID;
+                pqinfo->ref_cnt = 0;
+				if (ppre) {
+					if (roll_pos_back(cur_vec))
+						cur_pos_bit = pre_pos_bit;
+					pcur = ppre;
+					goto refind_forward;
+				}
+				pqinfo->pstart_vec = pclst->pstart;
+				pqinfo->startid = pclst->vec_head;
+				pqinfo->startpos = 0;
+                goto refind_start;
+            }
+            else
+            {
+                while(1)
+                {
+                    va_old = ref->ref;
+                    va_new = va_old+pqinfo->multiple;
+                    if(va_old == atomic_cmpxchg((atomic_t *)&ref->ref, va_old,va_new))
+                        break;
+                }                
+                cur_data = SPT_INVALID;
+                ret = SPT_NOT_FOUND;
+                goto refind_start;
+            }
+        }
+        
+        finish_key_cb(prdata);
+        pqinfo->ref_cnt = va_new;
+        return SPT_OK;
+    default:
+        break;
+    }
+    
+    finish_key_cb(prdata);
+    return SPT_ERR;
+}
+
 /*
  * Insert a data into a cluster
  */
@@ -5135,6 +6136,47 @@ refind_next:
 		return NULL;
 	}
 }
+char *query_data_debug (char *pdata)
+{
+	struct cluster_head_t *pnext_clst;
+	struct query_info_t qinfo = {0};
+	struct spt_dh *pdh;
+	int ret = 0;
+
+	/*
+	 *first look up in the top cluster.
+	 *which next level cluster do the data belong.
+	 */
+	pnext_clst = find_next_cluster(pgclst, pdata);
+	if (pnext_clst == NULL) {
+		spt_set_errno(SPT_MASKED);
+		return 0;
+	}
+	if (pnext_clst->data_total >= SPT_DATA_HIGH_WATER_MARK
+		|| pnext_clst->ins_mask == 1) {
+		spt_set_errno(SPT_MASKED);
+		return 0;
+	}
+	qinfo.op = SPT_OP_FIND;
+	qinfo.pstart_vec = pnext_clst->pstart;
+	qinfo.startid = pnext_clst->vec_head;
+	qinfo.endbit = pnext_clst->endbit;
+	qinfo.data = pdata;
+	qinfo.multiple = 1;
+
+	/*
+	 *insert data into the final cluster
+	 */
+	ret = find_data_debug(pnext_clst, &qinfo);
+	if (ret >= 0) {
+		pdh = (struct spt_dh *)db_id_2_ptr(pnext_clst, qinfo.db_id);
+		return get_data_from_dh(pdh->pdata);
+	}
+	spt_set_errno(ret);
+	return 0;
+}
+
+
 /**
  * insert_data - insert data into sd tree
  * @pclst: pointer of sd tree cluster head
@@ -5205,9 +6247,6 @@ char *delete_data(struct cluster_head_t *pclst, char *pdata)
 	 *first look up in the top cluster.
 	 *which next level cluster do the data belong.
 	 */
-	if ((unsigned long long )(long)(void*)pdata == 0x7fa25475500ULL){
-		debug_test_bug(NULL,NULL,NULL,NULL);
-	}
 	pnext_clst = find_next_cluster(pclst, pdata);
 	if (pnext_clst == NULL) {
 		spt_set_errno(SPT_MASKED);

@@ -384,9 +384,11 @@ struct cluster_head_t *cluster_init(int is_bottom,
 	spt_vec_debug_info_init(phead);
 	phead->cluster_vec_mem = spt_malloc(CLST_PG_NUM_MAX << PG_BITS);
 	phead->cluster_db_mem = spt_malloc(CLST_PG_NUM_MAX <<PG_BITS);
+	phead->cluster_pos_mem = spt_malloc(CLST_PG_NUM_MAX <<PG_BITS);
 	for (i = 0 ; i < CLST_PG_NUM_MAX; i++) {
 		grp_init_per_page(phead->cluster_vec_mem + (i << PG_BITS));	
 		grp_init_per_page(phead->cluster_db_mem + (i << PG_BITS));	
+		grp_init_per_page(phead->cluster_pos_mem + (i << PG_BITS));	
 	}
 
     vec = vec_alloc(phead, &pvec, 0);
@@ -399,6 +401,7 @@ struct cluster_head_t *cluster_init(int is_bottom,
 	pvec->val = 0;
 	pvec->type = SPT_VEC_DATA;
 	pvec->pos = startbit - 1;
+	add_real_pos_record(phead, pvec, startbit);
 	pvec->scan_status = SPT_VEC_PVALUE;
 	pvec->down = SPT_NULL;
 	pvec->rd = SPT_NULL;

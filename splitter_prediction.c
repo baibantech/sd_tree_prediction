@@ -214,7 +214,7 @@ int get_first_change_bit(char *src, char *dst, u64 startbit, u64 endbit)
 	dststart = (u8 *)dst + startbit/8;
 	lenbyte =  (bitstart + lenbit)/8;
 	ret = startbit;
-
+	spt_trace("lenbyte is %d, bitend %d, bitstart %d\r\n", lenbyte, bitend, bitstart)
 	if (lenbyte == 0) {
 		uca = *srcstart;
 		ucda = *dststart;
@@ -351,6 +351,8 @@ int get_first_change_bit(char *src, char *dst, u64 startbit, u64 endbit)
 		dststart++;
 	}
 	if (bitend) {
+		
+		spt_trace("ret is %d, src %p , dsc %p %d\r\n", ret, srcstart, dststart);
 		uca = *srcstart >> (8 - bitend) << (8 - bitend);
 		ucda = *dststart >> (8 - bitend) << (8 - bitend);
 		if(uca != ucda) {

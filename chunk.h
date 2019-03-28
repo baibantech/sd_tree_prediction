@@ -280,6 +280,7 @@ struct cluster_head_t {
 	struct spt_vec_debug *vec_debug;
 	char *cluster_vec_mem;
 	char *cluster_db_mem;
+	char *cluster_pos_mem;
 
 	/* vec id to ptr info */
 	struct cluster_address_trans_info address_info;

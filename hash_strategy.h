@@ -21,9 +21,9 @@ int get_real_pos_start(struct spt_vec *pvec);
 
 int get_real_pos_next(struct spt_vec *pvec);
 
-int roll_pos_back(struct spt_vec *pvec,
-		struct spt_vec *pre_vec);
-
+int roll_pos_back(struct spt_vec cur_vec);
+void add_real_pos_record(struct cluster_head_t *pclst, struct spt_vec *pvec, int pos);
+int get_real_pos_record(struct cluster_head_t *pclst, struct spt_vec *pvec);
 int set_real_pos(struct spt_vec *pvec,
 		unsigned int real_pos,
 		unsigned int pre_pos,
