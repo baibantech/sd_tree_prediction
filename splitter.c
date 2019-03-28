@@ -1978,7 +1978,7 @@ int delete_next_vec(struct cluster_head_t *pclst,
 						return SPT_DO_AGAIN;
 
 					cur_vec.scan_lock = 1;
-
+					tmp_vec.scan_lock = 1;
 					tmp_val = tmp_delete_vec.val = next_vec.val;
 					if (tmp_delete_vec.scan_lock != 1)
 						tmp_delete_vec.scan_lock = 1;
@@ -2020,6 +2020,8 @@ int delete_next_vec(struct cluster_head_t *pclst,
 					add_debug_cnt(pclst, new_next_pos, SPT_VEC_PVALUE);
 					do {	
 						tmp_val = tmp_delete_vec.val = pcur->val;
+						if (tmp_delete_vec.scan_lock == 0)
+							spt_assert(0);
 						tmp_delete_vec.scan_lock = 0;
 					}while(tmp_val != atomic64_cmpxchg(
 							(atomic64_t *)pcur,
@@ -2030,8 +2032,8 @@ int delete_next_vec(struct cluster_head_t *pclst,
 			} 
 			
 			if (chg_pos) {
-				printf("pcur %p,revert vec %p cur_vec %p, next_vec %p\r\n",pcur, the_next_vec, &cur_vec, &next_vec);
-				spt_assert(0);
+				//printf("pcur %p,revert vec %p cur_vec %p, next_vec %p\r\n",pcur, the_next_vec, &cur_vec, &next_vec);
+				//spt_assert(0);
 				goto revert_pos;
 			}
 			break;
@@ -2077,7 +2079,8 @@ int delete_next_vec(struct cluster_head_t *pclst,
 						tmp_delete_vec.val))
 					return SPT_DO_AGAIN;
 
-				cur_vec.scan_lock = 1;	
+				cur_vec.scan_lock = 1;
+				tmp_vec.scan_lock = 1;
 				tmp_val = tmp_delete_vec.val = next_vec.val;
 				if (tmp_delete_vec.scan_lock != 1)
 					tmp_delete_vec.scan_lock = 1;
@@ -2121,6 +2124,8 @@ int delete_next_vec(struct cluster_head_t *pclst,
 					add_debug_cnt(pclst, new_next_pos, SPT_VEC_PVALUE);
 					do {	
 						tmp_val = tmp_delete_vec.val = pcur->val;
+						if (tmp_delete_vec.scan_lock == 0)
+							spt_assert(0);
 						tmp_delete_vec.scan_lock = 0;
 					}while(tmp_val != atomic64_cmpxchg(
 							(atomic64_t *)pcur,
@@ -2130,8 +2135,8 @@ int delete_next_vec(struct cluster_head_t *pclst,
 				return SPT_OK;
 			}
 			if (chg_pos) {
-				printf("pcur %p,revert vec %p \r\n",pcur, the_next_vec);
-				spt_assert(0);
+				//printf("pcur %p,revert vec %p \r\n",pcur, the_next_vec);
+				//spt_assert(0);
 				goto revert_pos;
 			}
 		
@@ -2150,8 +2155,8 @@ revert_pos:
 	}while (tmp_val != atomic64_cmpxchg (
 				(atomic64_t *)the_next_vec, tmp_val,
 				tmp_delete_vec.val));
-	printf("pcur %p,revert vec %p \r\n",pcur, the_next_vec);
-	spt_assert(0);
+	//printf("pcur %p,revert vec %p \r\n",pcur, the_next_vec);
+	//spt_assert(0);
 free_next_lock:
 
 	do {
