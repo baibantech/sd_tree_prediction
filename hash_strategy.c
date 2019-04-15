@@ -117,7 +117,7 @@ int get_real_pos_next(struct spt_vec *pvec)
 #endif
 int roll_pos_back(struct spt_vec cur_vec)
 {
-	if (cur_vec.scan_status == SPT_VEC_PVALUE)
+	if (cur_vec.scan_status == SPT_VEC_PVALUE )
 		return 1;
 	return 0;
 }

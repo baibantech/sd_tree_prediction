@@ -362,31 +362,13 @@ int main(int argc,char *argv[])
 	//test_find_next_cluster(0);
 	sleep(10);
 	//test_find_proc(0);
-#if 0
+#if 1
 	err = pthread_create(&ntid, NULL, test_find_thread, 2);
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));
 #endif
+	
 #if 0
-	for(i = 0;  i  < data_set_config_insert_thread_num ; i++)
-    {
-        err = pthread_create(&ntid, NULL, test_insert_thread, (void *)(data_set_config_delete_thread_num + i +1));
-        if (err != 0)
-            printf("can't create thread: %s\n", strerror(err));
-    }
-#endif
-#if 0
-	while (cnt < 5000)
-	{
-		cnt++;
-	}
-    for(i = 0;  i  < data_set_config_delete_thread_num ; i++)
-    {
-        err = pthread_create(&ntid, NULL, test_delete_thread, (void *) (i+1));
-        if (err != 0)
-            printf("can't create thread: %s\n", strerror(err));
-    }
-#endif
 	err = pthread_create(&ntid, NULL, test_delete_thread, 2);
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));
@@ -399,6 +381,7 @@ int main(int argc,char *argv[])
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));
 
+#endif
 	while(1)
 	{
 		sleep(1);
@@ -426,10 +409,11 @@ void test_find_cluster(char *data)
 	sleep(1);
 }
 extern char *query_data_by_hash(struct cluster_head_t *pclst, char *pdata);
+extern char *find_data_by_hash(struct cluster_head_t *pclst, char *pdata);
 extern char *query_data(struct cluster_head_t *pclst, char *pdata);
 void *test_find_data(char *pdata)
 {
-	return query_data_by_hash(pgclst, pdata);
+	return find_data_by_hash(pgclst, pdata);
 }
 void* test_find_thread(void *arg)
 {

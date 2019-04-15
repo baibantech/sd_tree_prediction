@@ -86,9 +86,11 @@
 #define GRPS_PER_PG_BITS 5
 #define GRPS_PER_PG_MASK 0x1F
 
-#define VEC_PER_GRP 16
+#define VEC_PER_GRP 16 /*grp head alloc two entry ,so really 14*/
 #define VEC_PER_GRP_BITS 4
 #define VEC_PER_GRP_MASK 0x0F
+
+#define DB_PER_GRP 7 /*db space is same as vec space but,db is two vec,so alloc map is half of vec*/
 
 #define VEC_PER_PG (VEC_PER_GRP*GRPS_PER_PG)
 #define GRP_ALLOCMAP_MASK 0xFFFFull
@@ -189,9 +191,7 @@ struct spt_sort_info {
 
 
 struct spt_dh_ref {
-	u8 type;
-	u8 rsv;
-	u16 rsv2;
+	volatile unsigned int hash;
 	volatile int ref;
 };
 struct spt_dh {
@@ -268,6 +268,7 @@ struct cluster_head_t {
 	unsigned int used_vec_cnt;
 	unsigned int used_db_cnt;
 	unsigned int spill_grp_id;
+	unsigned int spill_db_grp_id;
 	unsigned int thrd_total;
 	unsigned int last_alloc_id;
 
@@ -407,6 +408,61 @@ static inline struct spt_grp *get_grp_from_grpid(struct cluster_head_t *pclst, u
 	char *page = pclst->cluster_vec_mem + ((grp_id >> GRPS_PER_PG_BITS) << PG_BITS); 
 	return page + ((grp_id & GRPS_PER_PG_MASK) << GRP_BITS);
 }
+static inline struct spt_grp *get_db_grp_from_grpid(struct cluster_head_t *pclst, unsigned int grp_id)
+{
+	char *page = pclst->cluster_db_mem + ((grp_id >> GRPS_PER_PG_BITS) << PG_BITS); 
+	return page + ((grp_id & GRPS_PER_PG_MASK) << GRP_BITS);
+}
+
+void vec_free(struct cluster_head_t *pcluster, int id);
+void vec_list_free(struct cluster_head_t *pcluster, int id);
+void db_free(struct cluster_head_t *pcluster, int id);
+
+int spt_get_errno(void);
+extern struct cluster_head_t *pgclst;
+
+unsigned int db_alloc(struct cluster_head_t *pclst,
+		struct spt_dh **db, struct spt_dh_ref **ref, unsigned int db_id);
+
+struct cluster_head_t *cluster_init(int is_bottom,
+						u64 startbit,
+						u64 endbit,
+						int thread_num,
+						spt_cb_get_key pf,
+						spt_cb_end_key pf2,
+						spt_cb_free pf_free,
+						spt_cb_construct pf_con);
+
+
+void cluster_vec_add_page(struct cluster_head_t *pclst, int pg_id);
+void cluster_db_add_page(struct cluster_head_t *pclst, int pg_id);
+
+void cluster_destroy(struct cluster_head_t *pclst);
+void free_data(char *p);
+void default_end_get_key(char *p);
+
+void debug_data_print(char *pdata);
+extern int g_data_size;
+
+char *insert_data(struct cluster_head_t *pclst, char *pdata);
+char *delete_data(struct cluster_head_t *pclst, char *pdata);
+char *insert_data_prediction(struct cluster_head_t *pclst, char *pdata);
+char *delete_data_prediction(struct cluster_head_t *pclst, char *pdata);
+char *insert_data_entry(struct cluster_head_t *pclst, char *pdata);
+char *delete_data_entry(struct cluster_head_t *pclst, char *pdata);
+void set_data_size(int size);
+
+struct cluster_head_t *spt_cluster_init(u64 startbit,
+						u64 endbit,
+						int thread_num,
+						spt_cb_get_key pf,
+						spt_cb_end_key pf2,
+						spt_cb_free pf_free,
+						spt_cb_construct pf_con);
+
+
+struct spt_thrd_t *spt_thread_init(int thread_num);
+void spt_set_thrd_id(int val);
 
 void vec_free(struct cluster_head_t *pcluster, int id);
 void vec_list_free(struct cluster_head_t *pcluster, int id);
@@ -490,6 +546,10 @@ int delete_next_vec(struct cluster_head_t *pclst,
 		struct spt_vec *pcur,
 		int startbit,
 		int direction );
+struct spt_vec *replace_precise_vec(struct cluster_head_t *pclst,
+		struct spt_vec *precise_vec,
+		unsigned int seg_hash,
+		int *vec_id);
 
 #endif
 

@@ -483,7 +483,7 @@ void test_find_next_cluster(void *args)
 		}while(cur);
 	return;
 }
-
+int find_data_err;
 void test_find_proc(void *args)
 {
 	struct data_set_cache *cur = NULL;
@@ -514,23 +514,14 @@ void test_find_proc(void *args)
 			PERF_STAT_START(whole_query_by_hash);
 try_again:
 #if 1
-			if(NULL ==(ret_data =  test_find_data(data)))
+			ret_data =  test_find_data(data);
 #else
 			if(NULL ==(ret_data =  data_rb_tree_find(data)))
 #endif
-			{
-                ret = spt_get_errno();
-				spt_thread_exit(g_thrd_id);
-				spt_thread_start(g_thrd_id);
-				goto try_again;
-				printf("find ERROR[%d],%d\t%s\r\n", ret,__LINE__, __FUNCTION__);
-				break;
-			}
-			else
-			{
-				PERF_STAT_END(whole_query_by_hash);
-				spt_thread_exit(g_thrd_id);
-			}
+			PERF_STAT_END(whole_query_by_hash);
+			spt_thread_exit(g_thrd_id);
+			if (!ret_data)
+				find_data_err++;
 		}
 next_loop:
         if(cur)
