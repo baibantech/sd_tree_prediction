@@ -368,7 +368,7 @@ int main(int argc,char *argv[])
 		printf("can't create thread: %s\n", strerror(err));
 #endif
 	
-#if 0
+#if 1
 	err = pthread_create(&ntid, NULL, test_delete_thread, 2);
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));

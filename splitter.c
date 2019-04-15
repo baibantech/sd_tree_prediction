@@ -2377,7 +2377,6 @@ int final_vec_process(struct cluster_head_t *pclst, struct query_info_t *pqinfo 
 							pqinfo->data);
 					PERF_STAT_END(insert_first_set);
 					if (ret == SPT_DO_AGAIN) {
-						spt_assert(0);
 						return SPT_DO_AGAIN;
 					} else if (ret >= 0) {
 						pqinfo->db_id = ret;
@@ -2397,7 +2396,6 @@ int final_vec_process(struct cluster_head_t *pclst, struct query_info_t *pqinfo 
 						pqinfo->data);
 					PERF_STAT_END(insert_up_rd);
 					if (ret == SPT_DO_AGAIN) {
-						spt_assert(0);
 						return  SPT_DO_AGAIN;
 					} else if (ret >= 0) {
 						pqinfo->db_id = ret;
@@ -2425,7 +2423,6 @@ int final_vec_process(struct cluster_head_t *pclst, struct query_info_t *pqinfo 
 							&st_insert_info, pqinfo->data);
 					PERF_STAT_END(insert_down_rd);
 					if (ret == SPT_DO_AGAIN) {
-						spt_assert(0);
 						return SPT_DO_AGAIN;
 					}
 
@@ -2447,7 +2444,6 @@ int final_vec_process(struct cluster_head_t *pclst, struct query_info_t *pqinfo 
 						pqinfo->data);
 					PERF_STAT_END(insert_up_down);
 					if (ret == SPT_DO_AGAIN) {
-						spt_assert(0);
 						return  SPT_DO_AGAIN;
 					}
 					else if (ret >= 0) {
