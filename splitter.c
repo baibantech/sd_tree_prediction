@@ -279,7 +279,7 @@ char *get_real_data(struct cluster_head_t *pclst, char *pdata)
 int get_data_id(struct cluster_head_t *pclst, struct spt_vec *pvec, int startbit)
 {
 	struct spt_vec *pcur, *pnext, *ppre;
-	struct spt_vec tmp_vec, cur_vec, next_vec;
+	struct spt_vec tmp_vec, cur_vec, cur_vec_2, next_vec;
 
 	if (get_real_pos_record(pclst, pvec) != startbit)
 		spt_assert(0);
@@ -300,6 +300,16 @@ get_id_start:
 			pnext = (struct spt_vec *)vec_id_2_ptr(pclst,
 					cur_vec.rd);
 			next_vec.val = pnext->val;
+			
+			smp_mb();
+			cur_vec_2.val = pcur->val;
+			if (cur_vec_2.rd != cur_vec.rd) {
+				cur_vec.val = pcur->val;
+				if (cur_vec.status != SPT_VEC_VALID)
+					goto get_id_start;
+				continue;
+			}
+
 			if (next_vec.status == SPT_VEC_VALID
 				&& next_vec.down != SPT_NULL) {
 				ppre = pcur;
@@ -512,7 +522,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 				new_next_pos = (new_window_hash << SPT_POS_BIT) + (chg_vec->pos +1)%32;
 				chg_vec->pos = new_next_pos;
 				chg_vec->scan_status = SPT_VEC_HVALUE;
-				add_real_pos_record(pclst, chg_vec, next_vec->pos);
+				add_real_pos_record(pclst, chg_vec, next_vec->pos + 1);
 			}
 		}
 
@@ -546,7 +556,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 				new_next_pos = (window_hash << SPT_POS_BIT) + (chg_vec->pos +1)%32;
 				chg_vec->pos = new_next_pos;
 				chg_vec->scan_status = SPT_VEC_HVALUE;
-				add_real_pos_record(pclst, chg_vec, next_vec->pos);
+				add_real_pos_record(pclst, chg_vec, next_vec->pos + 1);
 			}
 		}
 	}
@@ -710,7 +720,7 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 			new_next_pos = (window_hash << SPT_POS_BIT) + (chg_vec->pos +1)%32;
 			chg_vec->pos = new_next_pos;
 			chg_vec->scan_status = SPT_VEC_HVALUE;
-			add_real_pos_record(pclst, chg_vec, next_vec->pos);
+			add_real_pos_record(pclst, chg_vec, next_vec->pos + 1);
 		}
 	}
 	pvec_a->down = vecid_b;
@@ -916,7 +926,7 @@ int do_insert_up_via_d(struct cluster_head_t *pclst,
 		new_next_pos = (window_hash << SPT_POS_BIT) + (chg_vec->pos +1)%32;
 		chg_vec->pos = new_next_pos;
 		chg_vec->scan_status = SPT_VEC_HVALUE;
-		add_real_pos_record(pclst, chg_vec, next_vec->pos);
+		add_real_pos_record(pclst, chg_vec, next_vec->pos + 1);
 		
 	}
 	
@@ -1009,7 +1019,7 @@ void refresh_db_hang_vec(struct cluster_head_t *pclst,
 int find_lowest_data_slow(struct cluster_head_t *pclst, struct spt_vec *pvec, int startbit)
 {
 	struct spt_vec *pcur, *pnext, *ppre;
-	struct spt_vec cur_vec, next_vec;
+	struct spt_vec cur_vec, cur_vec_2, next_vec;
 
 find_lowest_start:
 	ppre = 0;
@@ -1028,6 +1038,14 @@ find_lowest_start:
 			pnext = (struct spt_vec *)vec_id_2_ptr(pclst,
 					cur_vec.down);
 			next_vec.val = pnext->val;
+			smp_mb();
+			cur_vec_2.val = pcur->val;
+			if (cur_vec_2.down != cur_vec.down) {
+				cur_vec.val = pcur->val;
+				if (cur_vec.status != SPT_VEC_VALID)
+					goto find_lowest_start;
+				continue;
+			}
 			
 			if (next_vec.status == SPT_VEC_INVALID) {
 				delete_next_vec(pclst, next_vec, pnext,
@@ -1044,6 +1062,15 @@ find_lowest_start:
 				cur_vec.rd);
 			next_vec.val = pnext->val;
 			
+			smp_mb();
+			cur_vec_2.val = pcur->val;
+			if (cur_vec_2.rd != cur_vec.rd) {
+				cur_vec.val = pcur->val;
+				if (cur_vec.status != SPT_VEC_VALID)
+					goto find_lowest_start;
+				continue;
+			}
+			
 			if (next_vec.status == SPT_VEC_INVALID) {
 
 				delete_next_vec(pclst, next_vec, pnext,
@@ -1056,6 +1083,7 @@ find_lowest_start:
 			}
 
 		}
+		
 		ppre = pcur;
 		pcur = pnext;
 		if (pcur->scan_status == SPT_VEC_PVALUE)
@@ -4371,8 +4399,7 @@ prediction_right:
 				step = 3;	
 				if (cur_vec.status != SPT_VEC_VALID) {
 					if (ppre) {
-						if (roll_pos_back(cur_vec))
-							cur_pos_bit = pre_pos_bit;
+						cur_pos_bit = pre_pos_bit;
 					}
 					pcur = ppre;
 					goto refind_forward;
@@ -4394,14 +4421,14 @@ prediction_right:
 				step = 4;	
 				if (cur_vec.status != SPT_VEC_VALID) {
 					if (ppre) {
-						if (roll_pos_back(cur_vec))
-							cur_pos_bit = pre_pos_bit;
+						cur_pos_bit = pre_pos_bit;
 					}
 					pcur = ppre;
 					goto refind_forward;
 				}
 				continue;
 			}
+			
 			if (next_vec.scan_status == SPT_VEC_PVALUE) {
 				next_pos_bit = next_vec.pos + 1;
 				if (next_pos_bit <= cur_pos_bit)
@@ -4410,8 +4437,17 @@ prediction_right:
 			} else {
 				smp_mb();
 				cur_vec_2.val = pcur->val;
-				if ((cur_vec_2.scan_status == 1)|| (cur_vec_2.rd != cur_vec.rd))
+				if (cur_vec_2.rd != cur_vec.rd) {
+					cur_vec.val = pcur->val;
+					if (cur_vec.status != SPT_VEC_VALID) {
+						if (ppre) {
+							cur_pos_bit = pre_pos_bit;
+						}
+						pcur = ppre;
+						goto refind_forward;
+					}
 					continue;
+				}
 				next_pos_bit = ((cur_pos_bit>>5)<< 5) + spt_get_pos_offset(next_vec);
 				step = 11;
 			}
@@ -4468,8 +4504,7 @@ prediction_down:
 						cur_vec.val, tmp_vec.val);
 				/*set invalid succ or not, refind from ppre*/
 				if (ppre) {
-					if (roll_pos_back(cur_vec))
-						cur_pos_bit = pre_pos_bit;
+					cur_pos_bit = pre_pos_bit;
 				}
 				pcur = ppre;
 				step = 7;
@@ -4554,8 +4589,7 @@ prediction_down_continue:
 				step = 8;
 				if (cur_vec.status != SPT_VEC_VALID) {
 					if (ppre) {
-						if (roll_pos_back(cur_vec))
-							cur_pos_bit = pre_pos_bit;
+						cur_pos_bit = pre_pos_bit;
 					}
 					pcur = ppre;
 					goto refind_forward;
@@ -4570,8 +4604,17 @@ prediction_down_continue:
 			} else {
 				smp_mb();
 				cur_vec_2.val = pcur->val;
-				if ((cur_vec_2.scan_status == 1)|| (cur_vec_2.down != cur_vec.down))
+				if (cur_vec_2.rd != cur_vec.rd) {
+					cur_vec.val = pcur->val;
+					if (cur_vec.status != SPT_VEC_VALID) {
+						if (ppre) {
+							cur_pos_bit = pre_pos_bit;
+						}
+						pcur = ppre;
+						goto refind_forward;
+					}
 					continue;
+				}
 				next_pos_bit = ((cur_pos_bit>>5)<< 5) + spt_get_pos_offset(next_vec);
 			}
 			pre_pos_bit = cur_pos_bit;
@@ -4778,10 +4821,21 @@ go_right:
 			} else {
 				smp_mb();
 				cur_vec_2.val = pcur->val;
-				if ((cur_vec_2.scan_status == 1)|| (cur_vec_2.rd != cur_vec.rd))
+				if (cur_vec_2.rd != cur_vec.rd) {
+					cur_vec.val = pcur->val;
+					if (cur_vec.status != SPT_VEC_VALID) {
+						if (ppre) {
+							cur_pos_bit = pre_pos_bit;
+						}
+						pcur = ppre;
+						goto refind_forward;
+					}
 					continue;
+				}
 				next_pos_bit = ((cur_pos_bit>>5)<< 5) + spt_get_pos_offset(next_vec);
 			}
+			pre_pos_bit = cur_pos_bit;
+			cur_pos_bit = next_pos_bit;
 			len = next_pos_bit - startbit;
 	
 			if (startbit + len > check_pos) {
@@ -4921,10 +4975,21 @@ down_continue:
 			} else {
 				smp_mb();
 				cur_vec_2.val = pcur->val;
-				if ((cur_vec_2.scan_status == 1)|| (cur_vec_2.down != cur_vec.down))
+				if (cur_vec_2.rd != cur_vec.rd) {
+					cur_vec.val = pcur->val;
+					if (cur_vec.status != SPT_VEC_VALID) {
+						if (ppre) {
+							cur_pos_bit = pre_pos_bit;
+						}
+						pcur = ppre;
+						goto refind_forward;
+					}
 					continue;
+				}
 				next_pos_bit = ((cur_pos_bit>>5)<< 5) + spt_get_pos_offset(next_vec);
 			}
+			pre_pos_bit = cur_pos_bit;
+			cur_pos_bit = next_pos_bit;
 			len = next_pos_bit - startbit;
 
 			direction = SPT_DOWN;
@@ -5093,8 +5158,7 @@ same_record:
                 cur_data = SPT_INVALID;
                 pqinfo->ref_cnt = 0;
 				if (ppre) {
-					if (roll_pos_back(cur_vec))
-						cur_pos_bit = pre_pos_bit;
+					cur_pos_bit = pre_pos_bit;
 					pcur = ppre;
 					goto refind_forward;
 				}
