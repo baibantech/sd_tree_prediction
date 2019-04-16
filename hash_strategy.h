@@ -7,8 +7,8 @@
 #ifndef __HASH_STRATEGY_H__
 #define __HASH_STRATEGY_H__
 
-#define HASH_WINDOW_LEN  4
-
+#define HASH_WINDOW_LEN  8
+#define HASH_WINDOW_BIT_NUM  (64)
 void calc_hash(char *data, unsigned int *window_hash,
 		unsigned int *seg_hash, int pos);
 

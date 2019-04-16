@@ -519,7 +519,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 				if (!chg_vec)
 					goto release_vec;
 				pvec_b->rd = chg_vec_id;				
-				new_next_pos = (new_window_hash << SPT_POS_BIT) + (chg_vec->pos +1)%32;
+				new_next_pos = (new_window_hash << SPT_POS_BIT) + (chg_vec->pos +1)%HASH_WINDOW_BIT_NUM;
 				chg_vec->pos = new_next_pos;
 				chg_vec->scan_status = SPT_VEC_HVALUE;
 				add_real_pos_record(pclst, chg_vec, next_vec->pos + 1);
@@ -553,7 +553,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 				if (!chg_vec)
 					goto release_vec;	
 				pvec_a->down = chg_vec_id;
-				new_next_pos = (window_hash << SPT_POS_BIT) + (chg_vec->pos +1)%32;
+				new_next_pos = (window_hash << SPT_POS_BIT) + (chg_vec->pos +1)%HASH_WINDOW_BIT_NUM;
 				chg_vec->pos = new_next_pos;
 				chg_vec->scan_status = SPT_VEC_HVALUE;
 				add_real_pos_record(pclst, chg_vec, next_vec->pos + 1);
@@ -717,7 +717,7 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 			if (!chg_vec)
 				goto release_vec;
 			pvec_a->rd = chg_vec_id;				
-			new_next_pos = (window_hash << SPT_POS_BIT) + (chg_vec->pos +1)%32;
+			new_next_pos = (window_hash << SPT_POS_BIT) + (chg_vec->pos +1)%HASH_WINDOW_BIT_NUM;
 			chg_vec->pos = new_next_pos;
 			chg_vec->scan_status = SPT_VEC_HVALUE;
 			add_real_pos_record(pclst, chg_vec, next_vec->pos + 1);
@@ -923,7 +923,7 @@ int do_insert_up_via_d(struct cluster_head_t *pclst,
 		if (!chg_vec)
 			goto release_vec;
 		pvec_a->down = chg_vec_id;				
-		new_next_pos = (window_hash << SPT_POS_BIT) + (chg_vec->pos +1)%32;
+		new_next_pos = (window_hash << SPT_POS_BIT) + (chg_vec->pos +1)%HASH_WINDOW_BIT_NUM;
 		chg_vec->pos = new_next_pos;
 		chg_vec->scan_status = SPT_VEC_HVALUE;
 		add_real_pos_record(pclst, chg_vec, next_vec->pos + 1);
@@ -2051,7 +2051,7 @@ int delete_next_vec(struct cluster_head_t *pclst,
 		if (cur_pos != real_cur_pos)
 			spt_assert(0);
 	} else {
-		if ((cur_pos /32) != (real_cur_pos /32))
+		if ((cur_pos / HASH_WINDOW_BIT_NUM) != (real_cur_pos / HASH_WINDOW_BIT_NUM))
 			spt_assert(0);
 	}
 	
@@ -4254,7 +4254,7 @@ prediction_start:
 
 	while (startbit < endbit) {
 		/*first bit is 1£¬compare with pcur_vec->right*/
-		if (get_real_pos_record(pclst, pcur)!= startbit || (startbit /32 != cur_pos_bit /32)) {
+		if (get_real_pos_record(pclst, pcur)!= startbit || ((startbit /HASH_WINDOW_BIT_NUM) != (cur_pos_bit /HASH_WINDOW_BIT_NUM))) {
 			printf("pcur %p, startbit is %d, pos record %d,step %d\r\n", pcur, startbit, get_real_pos_record(pclst, pcur), step);
 			spt_assert(0);
 		}
@@ -4809,7 +4809,7 @@ go_right:
 			}
 			if (next_vec.scan_status == SPT_VEC_PVALUE) {
 				next_pos_bit = next_vec.pos + 1;
-				if ((cur_pos_bit /32) != (next_pos_bit/32))
+				if ((cur_pos_bit / HASH_WINDOW_BIT_NUM) != (next_pos_bit/ HASH_WINDOW_BIT_NUM))
 					pre_pos_bit = cur_pos_bit;
 				if (next_pos_bit <= cur_pos_bit)
 					return SPT_ERR;
@@ -4963,7 +4963,7 @@ down_continue:
 
 			if (next_vec.scan_status == SPT_VEC_PVALUE) {
 				next_pos_bit = next_vec.pos + 1;
-				if ((cur_pos_bit /32) != (next_pos_bit/32))
+				if ((cur_pos_bit / HASH_WINDOW_BIT_NUM) != (next_pos_bit/ HASH_WINDOW_BIT_NUM))
 					pre_pos_bit = cur_pos_bit;
 				if (next_pos_bit <= cur_pos_bit)
 					spt_assert(0);

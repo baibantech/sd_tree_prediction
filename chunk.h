@@ -62,18 +62,19 @@
 /* vec status */
 #define SPT_VEC_VALID 0
 #define SPT_VEC_INVALID 1
-#define SPT_VEC_DB 3
 
-/* vec scan status */
+/* vec pos status */
 #define SPT_VEC_PVALUE  0
 #define SPT_VEC_HVALUE 1
+
+/* vec scan lock */
 #define SPT_VEC_SCAN_LOCK 1
 
 /* vec id bit len*/
-#define SPT_VEC_BITS_LEN 21
+#define SPT_VEC_BITS_LEN 22
 
 /* vec nums in a cluster define by SPT_VEC_BITS_LEN*/
-#define VEC_PER_CLUSTER  0x200000ull
+#define VEC_PER_CLUSTER  0x400000ull
 
 /* vec grp info*/
 #define VBLK_SIZE 8
@@ -101,9 +102,9 @@
 
 #define SPT_SORT_ARRAY_SIZE (4096*8)
 #define SPT_DVD_CNT_PER_TIME (100)
-#define SPT_DVD_THRESHOLD_VA (100000)
+#define SPT_DVD_THRESHOLD_VA (500000)
 #define SPT_DVD_MOVE_TIMES (SPT_DVD_THRESHOLD_VA/(2*SPT_DVD_CNT_PER_TIME))
-#define SPT_DATA_HIGH_WATER_MARK (150000)
+#define SPT_DATA_HIGH_WATER_MARK (550000)
 
 
 /* data size and bit len*/
@@ -121,8 +122,8 @@
 #define CLST_N_PGS (CLST_DIND_PG+1)//pclst->pglist[] max
 
 /*vec special value*/
-#define SPT_NULL 0x1fffff
-#define SPT_INVALID 0x1ffffe
+#define SPT_NULL 0x3fffff
+#define SPT_INVALID 0x3ffffe
 
 /*scan direction*/
 #define SPT_DIR_START 0
@@ -155,11 +156,10 @@
 #define spt_set_data_free_flag(x, y) ((x)->free = y)
 #define spt_set_data_not_free(x) ((x)->free = 0)
 
-#define SPT_HASH_BIT  11
 #define SPT_HASH_MASK 0x3FF
-#define SPT_POS_BIT 5
+#define SPT_POS_BIT 6
 #define spt_get_pos_hash(x) ((x).pos >> SPT_POS_BIT)
-#define spt_get_pos_offset(x) ((x).pos & 0x001F)
+#define spt_get_pos_offset(x) ((x).pos & 0x003F)
 
 
 /*final process type*/
@@ -204,13 +204,13 @@ struct spt_vec {
 	union {
 		volatile unsigned long long val;
 		struct {
-			volatile unsigned long long status:      2;
-			volatile unsigned long long type:       1;
-			volatile unsigned long long scan_lock:   2;
-			volatile unsigned long long	scan_status: 2; 
-			volatile unsigned long long pos:        15;
-			volatile unsigned long long down:       21;
-			volatile unsigned long long rd:         21;
+			volatile unsigned long long status:      1;
+			volatile unsigned long long type:        1;
+			volatile unsigned long long scan_lock:   1;
+			volatile unsigned long long	scan_status: 1; 
+			volatile unsigned long long pos:        16;
+			volatile unsigned long long down:       22;
+			volatile unsigned long long rd:         22;
 		};
 	};
 };
@@ -230,9 +230,9 @@ struct spt_grp
 		volatile unsigned long long control;
 		struct {
 			volatile unsigned long long tick:  4;
-			volatile unsigned long long next_grp: 20;
-			volatile unsigned long long pre_grp: 20;
-			volatile unsigned long long resv:  20; 
+			volatile unsigned long long next_grp: 22;
+			volatile unsigned long long pre_grp: 22;
+			volatile unsigned long long resv:  16; 
 		};
 	};
 };
