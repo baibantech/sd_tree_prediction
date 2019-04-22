@@ -20,7 +20,7 @@
 #include "rbtree_adp.h"
 
 #define DEFAULT_INS_LEN  256
-#define DEFAULT_INS_NUM  2000000
+#define DEFAULT_INS_NUM  4000000
 #define DEFAULT_RANDOM_WAY 1
 #define DEFAULT_FILE_LEN 400*1024*1024
 unsigned long long spt_no_found_num = 0;
@@ -791,7 +791,9 @@ void test_memcmp()
 
 #define  random_data_seg_num 4
 #define  random_data_seg_len 64
-#define  first_seg_data_num 2
+#define  inner_data_seg_num 2
+#define  inner_data_seg_len 32
+#define  first_seg_data_num 4
 #define  second_seg_data_num 100
 
 char *random_data_array[random_data_seg_num];
@@ -805,7 +807,7 @@ int get_random_string(char *str, int len)
 		flag = rand()%3;
 		switch(flag) {
 			case 0:
-				str[i] = rand()%26 + 'a';
+ 				str[i] = rand()%26 + 'a';
 				break;
 			case 1:
 				str[i] = rand()%26 + 'A';
@@ -820,7 +822,7 @@ int get_random_string(char *str, int len)
 
 int make_test_random_data(void)
 {
-	int i, j ;
+	int i, j, k;
 	char *str;
 	for (i = 0; i < random_data_seg_num; i++) {
 
@@ -835,18 +837,22 @@ int make_test_random_data(void)
 		str = random_data_array[i];
 		if (i == 0) {
 			for (j = 0; j < first_seg_data_num; j++) {
-				str[0] = '/';
-				str++;
-				get_random_string(str, random_data_seg_len -1);
-				str = str + random_data_seg_len -1;
+				for (k = 0 ; k < inner_data_seg_num; k++) {
+					str[0] = '/';
+					str++;
+					get_random_string(str, inner_data_seg_len -1);
+					str = str + inner_data_seg_len -1;
+				}
 			}
 
 		} else {
 			for (j = 0; j < second_seg_data_num; j++) {
-				str[0] = '/';
-				str++;
-				get_random_string(str, random_data_seg_len -1);
-				str = str + random_data_seg_len -1;
+				for (k = 0; k < inner_data_seg_num; k++) {
+					str[0] = '/';
+					str++;
+					get_random_string(str, inner_data_seg_len -1);
+					str = str + inner_data_seg_len -1;
+				}
 			}
 		}
 	}
