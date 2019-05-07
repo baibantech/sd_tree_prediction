@@ -343,6 +343,11 @@ int main(int argc,char *argv[])
         spt_debug("cluster_init err\r\n");
         return 1;
     }
+	spt_module_tree_init(0,DATA_BIT_MAX, 12, 
+                              tree_get_key_from_data,
+                              tree_free_key,
+                              tree_free_data,
+                              tree_construct_data_from_key);
 
     g_thrd_h = spt_thread_init(thread_num);
     if(g_thrd_h == NULL)

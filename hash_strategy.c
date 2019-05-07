@@ -44,6 +44,55 @@ void calc_hash(char *data, unsigned int *window_hash, unsigned int *seg_hash, in
 		*seg_hash = djb_hash_seg (data + window_id*HASH_WINDOW_LEN, *window_hash, HASH_WINDOW_LEN);
 	}
 }
+void calc_gramma_hash(char *data, unsigned int *window_hash, unsigned int *seg_hash, int pos)
+{
+	int cur_pos_len;
+	int seg_len;
+	int window_len;
+	char *cur_byte;
+	int window_num;
+
+	cur_byte = data + (pos/8);
+	cur_pos_len = window_len = seg_len = pos / 8;
+
+	/*get gramma seg boundary*/
+	if (*cur_byte == gramma_window_symbol) {
+		cur_byte++;
+		seg_len++;
+	}
+	
+	while (*cur_byte != gramma_window_symbol){
+		seg_len++; 
+		if (seg_len == DATA_SIZE)
+			break;
+		cur_byte++;
+	}
+	
+	/*get window boundary*/
+	cur_byte = data + (pos / 8);
+	while(*cur_byte != gramma_window_symbol) {
+		window_len--;
+		cur_byte--;
+	}
+	window_num = (cur_pos_len - window_len) / HASH_WINDOW_LEN + 1; 
+	printf("windown len %d, seg len %d, window num %d\r\n", window_len ,seg_len ,window_num);	
+	if (seg_len - window_len > window_num * HASH_WINDOW_LEN) {
+		*window_hash = djb_hash(data, window_len + HASH_WINDOW_LEN);
+		*window_hash = *window_hash + window_num - 1;
+		*seg_hash = djb_hash_seg(data + window_len + HASH_WINDOW_LEN, *window_hash, seg_len - window_len - HASH_WINDOW_LEN); 
+	} else 
+		*window_hash = *seg_hash = djb_hash(data, seg_len);
+
+}
+#if 0
+void calc_gramma_hash_by_base(char *data, unsigned int base_hash, int base_pos, unsigned int *window_hash, unsigned int *seg_hash, int pos)
+{
+
+
+
+}
+#endif
+
 
 void calc_hash_by_base(char *data, unsigned int base_hash, int base_pos, unsigned int *window_hash, unsigned int *seg_hash, int pos)
 {

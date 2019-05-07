@@ -536,6 +536,7 @@ char* db_ref_id_2_ptr(struct cluster_head_t * pclst,unsigned int id);
 int db_alloc_from_grp(struct cluster_head_t *pclst, int id, struct spt_dh **db);
 
 int vec_alloc(struct cluster_head_t *pclst, struct spt_vec **vec, unsigned int sed);
+int vec_judge_full_and_alloc(struct cluster_head_t *pclst, struct spt_vec **vec, unsigned int sed);
 extern unsigned long find_next_bit(const unsigned long *addr, unsigned long size,
 			    unsigned long offset);
 

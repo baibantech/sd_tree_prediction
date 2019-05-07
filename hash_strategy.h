@@ -9,6 +9,9 @@
 
 #define HASH_WINDOW_LEN  8
 #define HASH_WINDOW_BIT_NUM  (64)
+
+#define gramma_window_symbol '/'
+
 void calc_hash(char *data, unsigned int *window_hash,
 		unsigned int *seg_hash, int pos);
 
