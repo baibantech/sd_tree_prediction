@@ -80,7 +80,7 @@ void show_module_tree_data(void)
 }
 
 
-int get_vec_by_module_tree(struct cluster_head_t *pclst, char *pdata, int pos, struct spt_vec **ret_vec, unsigned int *window_hash, unsigned int *seg_hash)
+int get_vec_by_module_tree(struct cluster_head_t *vec_clst, char *pdata, int pos, struct spt_vec **ret_vec, unsigned int *window_hash, unsigned int *seg_hash)
 {
 	struct query_info_t qinfo;
 	int ret;
@@ -91,10 +91,14 @@ int get_vec_by_module_tree(struct cluster_head_t *pclst, char *pdata, int pos, s
 	int window_num, window_len, cur_pos_len;
 	unsigned int grama_seg_hash;
 	int vecid = -1;
-	
-	cur_byte = pdata + (pos / 8);
+	int j;
+	struct cluster_head_t * pclst = spt_module_cluster;
+
+	window_byte = cur_byte = pdata + (pos / 8);
 	cur_pos_len = window_len = pos/8; 
-	while (*cur_byte != gramma_window_symbol) {
+	printf("cur byte is %p\r\n", cur_byte);
+
+	while (*window_byte != gramma_window_symbol) {
 		window_len--;
 		window_byte--;
 	}
@@ -104,8 +108,9 @@ int get_vec_by_module_tree(struct cluster_head_t *pclst, char *pdata, int pos, s
 		grama_seg_hash = 0x1234;
 
 	window_byte++;
+	printf("window byte is %p\r\n", window_byte);
+
 	while (((unsigned long)(void*)window_byte) <= ((unsigned long) (void*)cur_byte)){
-		printf("window_byte is %p\r\n",window_byte);
 		grama_seg_hash = djb_hash_seg(window_byte, grama_seg_hash, 1);
 		memset(&qinfo, 0, sizeof(struct query_info_t));
 		qinfo.op = SPT_OP_FIND;
@@ -162,17 +167,26 @@ int get_vec_by_module_tree(struct cluster_head_t *pclst, char *pdata, int pos, s
 			spt_debug("find_data err!¥r¥n");
 			spt_assert(0);
 		}
+		printf("pdext_h is %p \r\n", pdext_h);
 		module_data = pdext_h->data;
 		printf("module data  %p\r\n", module_data);
+		for (j = 0; j < HASH_WINDOW_LEN; j++)
+			printf("%2x ", module_data[j]);
+
+		printf("window_byte is %p\r\n",window_byte);
+		for (j = 0; j < HASH_WINDOW_LEN; j++)
+			printf("%2x ", window_byte[j]);
+		printf("\r\n");
 		*window_hash = grama_seg_hash;
 		*seg_hash = djb_hash_seg(module_data, grama_seg_hash, 8);	
 		if (window_byte != cur_byte) {
-			vecid = vec_judge_full_and_alloc(pclst, ret_vec, *seg_hash);
+			vecid = vec_judge_full_and_alloc(vec_clst, ret_vec, *seg_hash);
 			if (vecid != -1)
 				break;
 			window_byte++;
 		} else {
-			vecid = vec_alloc(pclst, ret_vec, grama_seg_hash);
+			vecid = vec_alloc(vec_clst, ret_vec, grama_seg_hash);
+			break;
 		}
 	}
 	return vecid;
@@ -181,8 +195,21 @@ int get_vec_by_module_tree(struct cluster_head_t *pclst, char *pdata, int pos, s
 
 void test_get_vec_by_module_tree(char *pdata, int pos) 
 {
-
-
-
-
+	struct cluster_head_t *pnext_clst;
+	struct query_info_t qinfo = {0};
+	struct spt_dh *pdh;
+	int ret = 0;
+	struct spt_vec *vec;
+	unsigned int window_hash, seg_hash;
+	/*
+	 *first look up in the top cluster.
+	 *which next level cluster do the data belong.
+	 */
+	pnext_clst = find_next_cluster(pgclst, pdata);
+	if (pnext_clst == NULL) {
+		spt_set_errno(SPT_MASKED);
+		return 0;
+	}
+			
+	get_vec_by_module_tree(pnext_clst, pdata, pos, &vec, &window_hash, &seg_hash);
 }

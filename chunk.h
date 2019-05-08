@@ -551,6 +551,6 @@ struct spt_vec *replace_precise_vec(struct cluster_head_t *pclst,
 		struct spt_vec *precise_vec,
 		unsigned int seg_hash,
 		int *vec_id);
-
+struct cluster_head_t *find_next_cluster(struct cluster_head_t *pclst, char *pdata);
 #endif
 
