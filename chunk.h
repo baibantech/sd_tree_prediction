@@ -552,5 +552,14 @@ struct spt_vec *replace_precise_vec(struct cluster_head_t *pclst,
 		unsigned int seg_hash,
 		int *vec_id);
 struct cluster_head_t *find_next_cluster(struct cluster_head_t *pclst, char *pdata);
+
+int get_vec_by_module_tree(struct cluster_head_t *pclst,
+		char *pdata,
+		int pos,
+		struct spt_vec *cur_vec,
+		struct spt_vec **ret_vec,
+		unsigned int *window_hash,
+		unsigned int *seg_hash);
+void calc_grama_hash(char *data, unsigned int *window_hash, unsigned int *seg_hash, int pos);
 #endif
 

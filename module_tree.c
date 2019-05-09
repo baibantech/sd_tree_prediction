@@ -80,7 +80,10 @@ void show_module_tree_data(void)
 }
 
 
-int get_vec_by_module_tree(struct cluster_head_t *vec_clst, char *pdata, int pos, struct spt_vec **ret_vec, unsigned int *window_hash, unsigned int *seg_hash)
+int get_vec_by_module_tree(struct cluster_head_t *vec_clst, char *pdata, int pos,
+		struct spt_vec *cur_vec,
+		struct spt_vec **ret_vec,
+		unsigned int *window_hash, unsigned int *seg_hash)
 {
 	struct query_info_t qinfo;
 	int ret;
@@ -96,7 +99,7 @@ int get_vec_by_module_tree(struct cluster_head_t *vec_clst, char *pdata, int pos
 
 	window_byte = cur_byte = pdata + (pos / 8);
 	cur_pos_len = window_len = pos/8; 
-	printf("cur byte is %p\r\n", cur_byte);
+	spt_trace("cur byte is %p\r\n", cur_byte);
 
 	while (*window_byte != gramma_window_symbol) {
 		window_len--;
@@ -108,7 +111,7 @@ int get_vec_by_module_tree(struct cluster_head_t *vec_clst, char *pdata, int pos
 		grama_seg_hash = 0x1234;
 
 	window_byte++;
-	printf("window byte is %p\r\n", window_byte);
+	spt_trace("window byte is %p\r\n", window_byte);
 
 	while (((unsigned long)(void*)window_byte) <= ((unsigned long) (void*)cur_byte)){
 		grama_seg_hash = djb_hash_seg(window_byte, grama_seg_hash, 1);
@@ -167,16 +170,16 @@ int get_vec_by_module_tree(struct cluster_head_t *vec_clst, char *pdata, int pos
 			spt_debug("find_data err!¥r¥n");
 			spt_assert(0);
 		}
-		printf("pdext_h is %p \r\n", pdext_h);
+		spt_trace("pdext_h is %p \r\n", pdext_h);
 		module_data = pdext_h->data;
-		printf("module data  %p\r\n", module_data);
+		spt_trace("module data  %p\r\n", module_data);
 		for (j = 0; j < HASH_WINDOW_LEN; j++)
-			printf("%2x ", module_data[j]);
+			spt_trace("%2x ", module_data[j]);
 
-		printf("window_byte is %p\r\n",window_byte);
+		spt_trace("window_byte is %p\r\n",window_byte);
 		for (j = 0; j < HASH_WINDOW_LEN; j++)
-			printf("%2x ", window_byte[j]);
-		printf("\r\n");
+			spt_trace("%2x ", window_byte[j]);
+		spt_trace("\r\n");
 		*window_hash = grama_seg_hash;
 		*seg_hash = djb_hash_seg(module_data, grama_seg_hash, 8);	
 		if (window_byte != cur_byte) {
@@ -211,5 +214,5 @@ void test_get_vec_by_module_tree(char *pdata, int pos)
 		return 0;
 	}
 			
-	get_vec_by_module_tree(pnext_clst, pdata, pos, &vec, &window_hash, &seg_hash);
+	get_vec_by_module_tree(pnext_clst, pdata, pos, NULL, &vec, &window_hash, &seg_hash);
 }

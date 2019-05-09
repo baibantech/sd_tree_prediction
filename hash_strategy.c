@@ -44,7 +44,7 @@ void calc_hash(char *data, unsigned int *window_hash, unsigned int *seg_hash, in
 		*seg_hash = djb_hash_seg (data + window_id*HASH_WINDOW_LEN, *window_hash, HASH_WINDOW_LEN);
 	}
 }
-void calc_gramma_hash(char *data, unsigned int *window_hash, unsigned int *seg_hash, int pos)
+void calc_grama_hash(char *data, unsigned int *window_hash, unsigned int *seg_hash, int pos)
 {
 	int cur_pos_len;
 	int seg_len;
@@ -75,7 +75,7 @@ void calc_gramma_hash(char *data, unsigned int *window_hash, unsigned int *seg_h
 		cur_byte--;
 	}
 	window_num = (cur_pos_len - window_len) / HASH_WINDOW_LEN + 1; 
-	printf("windown len %d, seg len %d, window num %d\r\n", window_len ,seg_len ,window_num);	
+	spt_trace("windown len %d, seg len %d, window num %d\r\n", window_len ,seg_len ,window_num);	
 	if (seg_len - window_len > window_num * HASH_WINDOW_LEN) {
 		*window_hash = djb_hash(data, window_len + HASH_WINDOW_LEN);
 		*window_hash = *window_hash + window_num - 1;
@@ -92,7 +92,6 @@ void calc_gramma_hash_by_base(char *data, unsigned int base_hash, int base_pos, 
 
 }
 #endif
-
 
 void calc_hash_by_base(char *data, unsigned int base_hash, int base_pos, unsigned int *window_hash, unsigned int *seg_hash, int pos)
 {

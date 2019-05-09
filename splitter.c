@@ -432,11 +432,16 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 	pre_pos = pinsert->vec_real_pos;
 	pnew_data = pinsert->pnew_data;
 	pcur_data = pinsert->pcur_data;
-	calc_hash(pnew_data, &window_hash, &seg_hash, pinsert->cmp_pos);
-
-    vecid_a = vec_alloc(pclst, &pvec_a, seg_hash);
+	if (!pclst->is_bottom) {
+		calc_hash(pnew_data, &window_hash, &seg_hash, pinsert->cmp_pos);
+		vecid_a = vec_alloc(pclst, &pvec_a, seg_hash);
+	}else {
+		vecid_a = get_vec_by_module_tree(pclst, pnew_data,
+				pinsert->cmp_pos, pinsert->pkey_vec,
+				&pvec_a, &window_hash, &seg_hash);
+	}
 	
-	if (pvec_a == NULL) {
+	if (!pvec_a) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		return SPT_NOMEM;
 	}
@@ -471,11 +476,17 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 	if (tmp_vec.type == SPT_VEC_DATA
 		|| pinsert->endbit > pinsert->fs) {
 		unsigned int new_window_hash,new_seg_hash;
-		
-		calc_hash_by_base(pcur_data, window_hash,
-				pinsert->cmp_pos,
-				&new_window_hash,
-				&new_seg_hash, pinsert->fs);
+
+		if (!pclst->is_bottom) {
+			calc_hash_by_base(pcur_data, window_hash,
+					pinsert->cmp_pos,
+					&new_window_hash,
+					&new_seg_hash, pinsert->fs);
+		} else {
+			calc_grama_hash(pcur_data,
+					&new_window_hash,
+					&new_seg_hash, pinsert->fs);
+		}
 
 		vecid_b = vec_alloc(pclst, &pvec_b, new_seg_hash);
 		if (pvec_b == NULL) {
@@ -642,9 +653,15 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 	if (tmp_vec.type != SPT_VEC_DATA) {
 		next_vec = (struct spt_vec *)vec_id_2_ptr(pclst, tmp_vec.rd);
 	}
-
-	calc_hash(pcur_data, &window_hash, &seg_hash,pinsert->cmp_pos);
-	vecid_a = vec_alloc(pclst, &pvec_a, seg_hash);
+	if (!pclst->is_bottom) {
+		calc_hash(pcur_data, &window_hash, &seg_hash,pinsert->cmp_pos);
+		vecid_a = vec_alloc(pclst, &pvec_a, seg_hash);
+	} else {
+		vecid_a = get_vec_by_module_tree(pclst, pcur_data,
+				pinsert->cmp_pos, pinsert->pkey_vec,
+				&pvec_a, &window_hash, &seg_hash);
+	}
+	
 	if (!pvec_a) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		return SPT_NOMEM;
@@ -656,10 +673,16 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 	add_real_pos_record(pclst, pvec_a, pinsert->cmp_pos);
 	add_debug_cnt(pclst, pinsert->cmp_pos, pos_type);
 
-	calc_hash_by_base(pnew_data, window_hash,
-			pinsert->cmp_pos,
-			&new_window_hash,
-			&new_seg_hash, pinsert->fs);
+	if (!pclst->is_bottom) {
+		calc_hash_by_base(pnew_data, window_hash,
+				pinsert->cmp_pos,
+				&new_window_hash,
+				&new_seg_hash, pinsert->fs);
+	} else {
+		calc_grama_hash(pnew_data,
+				&new_window_hash,
+				&new_seg_hash, pinsert->fs);
+	}
 
 	vecid_b = vec_alloc(pclst, &pvec_b, new_seg_hash);
 	if (!pvec_b) {
@@ -799,10 +822,13 @@ int do_insert_last_down(struct cluster_head_t *pclst,
 
 	pre_pos = pinsert->vec_real_pos;
 	pnew_data = pinsert->pnew_data;
-
-	calc_hash(pnew_data, &window_hash, &seg_hash, pinsert->fs);
+	if (!pclst->is_bottom)
+		calc_hash(pnew_data, &window_hash, &seg_hash, pinsert->fs);
+	else
+		calc_grama_hash(pnew_data, &window_hash, &seg_hash, pinsert->fs);
+	
 	vecid_a = vec_alloc(pclst, &pvec_a, seg_hash);
-	if (pvec_a == 0) {
+	if (!pvec_a) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		return SPT_NOMEM;
 	}
@@ -811,7 +837,7 @@ int do_insert_last_down(struct cluster_head_t *pclst,
     
 	data_hash = djb_hash(pnew_data , DATA_SIZE);
 	dataid = db_alloc(pclst, &pdh, &ref, data_hash);
-	if (pdh == 0) {
+	if (!pdh) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		vec_free(pclst, vecid_a);
 		return SPT_NOMEM;
@@ -876,9 +902,13 @@ int do_insert_up_via_d(struct cluster_head_t *pclst,
 	pre_pos = pinsert->vec_real_pos;
 	pnew_data = pinsert->pnew_data;
 
-	calc_hash(pnew_data, &window_hash, &seg_hash, pinsert->fs);
+	if (!pclst->is_bottom)
+		calc_hash(pnew_data, &window_hash, &seg_hash, pinsert->fs);
+	else
+		calc_grama_hash(pnew_data, &window_hash, &seg_hash, pinsert->fs);
+
 	vecid_a = vec_alloc(pclst, &pvec_a, seg_hash);
-	if (pvec_a == 0) {
+	if (!pvec_a) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		return SPT_NOMEM;
 	}
@@ -887,7 +917,7 @@ int do_insert_up_via_d(struct cluster_head_t *pclst,
     
 	data_hash = djb_hash(pnew_data , DATA_SIZE);
 	dataid = db_alloc(pclst, &pdh, &ref, data_hash);
-	if (pdh == 0) {
+	if (!pdh) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
 		vec_free(pclst, vecid_a);
 		return SPT_NOMEM;
