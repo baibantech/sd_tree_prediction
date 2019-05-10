@@ -379,12 +379,10 @@ int vec_judge_full_and_alloc(struct cluster_head_t *pclst, struct spt_vec **vec,
 	int fs, gid, gid_t;
 	struct spt_grp old, tmp;
 	int cnt = 0;
-	int spill_grp_id = 0;
-	int alloc_debug = 0;
-	int next_grp_id = 0;
 	u32 tick;
 	int alloc_cnt = 0;
 	int offset = 0;
+	int conflict_cnt = 0;
 	gid = sed % GRP_SPILL_START;
 
 
@@ -417,6 +415,11 @@ re_alloc:
 		}
 		if((old.allocmap & GRP_ALLOCMAP_MASK) == 0)
 		{
+			if (conflict_cnt) {
+				gid = gid + 1;
+				conflict_cnt--;
+				goto re_alloc;
+			}
 			return -1;
 #if 0
 alloc_next_grp:

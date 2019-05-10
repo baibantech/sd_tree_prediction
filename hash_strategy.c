@@ -84,6 +84,15 @@ void calc_grama_hash(char *data, unsigned int *window_hash, unsigned int *seg_ha
 		*window_hash = *seg_hash = djb_hash(data, seg_len);
 
 }
+
+int find_vec_from_grama_hash(struct cluster_head_t *pclst, char *pdata,
+		struct spt_vec **vec, int pos)
+{
+
+
+
+
+}
 #if 0
 void calc_gramma_hash_by_base(char *data, unsigned int base_hash, int base_pos, unsigned int *window_hash, unsigned int *seg_hash, int pos)
 {
@@ -214,7 +223,6 @@ void add_real_pos_record(struct cluster_head_t *pclst, struct spt_vec *pvec,int 
 	char *pos_mem = pclst->cluster_pos_mem;
 
 	char * record_ptr = pos_mem + ((unsigned long long )(long)(void*)pvec - (unsigned long long)(long)(void*)pclst->cluster_vec_mem);
-
 	*((int *)record_ptr) = real_pos;
 }
 

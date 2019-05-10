@@ -18,6 +18,9 @@ PERF_STAT_DEFINE(leaf_data_check_vec);
 PERF_STAT_DEFINE(calc_hash_start_vec);
 PERF_STAT_DEFINE(spt_cluster_scan_perf);
 PERF_STAT_DEFINE(rbtree_scan_perf);
+PERF_STAT_DEFINE(find_vec_from_module);
+PERF_STAT_DEFINE(find_stable_tree);
+PERF_STAT_DEFINE(scan_grp_vec);
 
 
 
@@ -42,6 +45,9 @@ sd_perf_stat *sd_perf_stat_array[] =
     PERF_STAT_PTR(calc_hash_start_vec),
     PERF_STAT_PTR(spt_cluster_scan_perf),
     PERF_STAT_PTR(rbtree_scan_perf),
+    PERF_STAT_PTR(find_vec_from_module),
+    PERF_STAT_PTR(find_stable_tree),
+    PERF_STAT_PTR(scan_grp_vec),
 };
 
 void sd_perf_stat_init()

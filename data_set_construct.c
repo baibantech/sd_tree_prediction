@@ -484,6 +484,7 @@ void test_find_next_cluster(void *args)
 	return;
 }
 int find_data_err;
+extern char *test_find_data_start_vec(char *pdata);
 void test_find_proc(void *args)
 {
 	struct data_set_cache *cur = NULL;
@@ -514,7 +515,7 @@ void test_find_proc(void *args)
 			PERF_STAT_START(whole_query_by_hash);
 try_again:
 #if 1
-			ret_data =  test_find_data(data);
+			ret_data =  test_find_data_start_vec(data);
 #else
 			if(NULL ==(ret_data =  data_rb_tree_find(data)))
 #endif

@@ -364,24 +364,27 @@ int main(int argc,char *argv[])
 
 	g_thrd_id = 0;
 	test_pre_insert_proc(0);
-	//test_find_next_cluster(0);
-	sleep(10);
-	//test_find_proc(0);
-#if 1
-	err = pthread_create(&ntid, NULL, test_find_thread, 2);
-	if (err != 0)
-		printf("can't create thread: %s\n", strerror(err));
-#endif
-	
-#if 0
+
+	sleep(15);
+
 	err = pthread_create(&ntid, NULL, test_delete_thread, 2);
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));
 
+	sleep(15);
 	err = pthread_create(&ntid, NULL, test_insert_thread, 3);
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));
+	sleep(15);
 
+	err = pthread_create(&ntid, NULL, test_find_thread, 4);
+	if (err != 0)
+		printf("can't create thread: %s\n", strerror(err));
+
+#if 0
+	err = pthread_create(&ntid, NULL, test_insert_thread, 3);
+	if (err != 0)
+		printf("can't create thread: %s\n", strerror(err));
 	err = pthread_create(&ntid, NULL, test_delete_thread, 4);
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));

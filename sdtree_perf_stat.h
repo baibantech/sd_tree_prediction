@@ -64,4 +64,8 @@ PERF_STAT_DEC(leaf_data_check_vec);
 PERF_STAT_DEC(calc_hash_start_vec);
 PERF_STAT_DEC(spt_cluster_scan_perf);
 PERF_STAT_DEC(rbtree_scan_perf);
+PERF_STAT_DEC(rbtree_scan_perf);
+PERF_STAT_DEC(find_vec_from_module);
+PERF_STAT_DEC(find_stable_tree);
+PERF_STAT_DEC(scan_grp_vec);
 #endif
