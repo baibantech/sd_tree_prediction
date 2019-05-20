@@ -17,6 +17,7 @@
 #include "chunk.h"
 #include "splitter_adp.h"
 #include "spt_dep.h"
+#include "module_tree.h"
 char test_case_name[64] = {'t','e','s','t','_','c','a','s','e'};
 
 typedef void (*test_proc_pfn)(void *args);
@@ -343,11 +344,7 @@ int main(int argc,char *argv[])
         spt_debug("cluster_init err\r\n");
         return 1;
     }
-	spt_module_tree_init(0,DATA_BIT_MAX, 12, 
-                              tree_get_key_from_data,
-                              tree_free_key,
-                              tree_free_data,
-                              tree_construct_data_from_key);
+	spt_module_tree_init(64, module_cluster_data_total); 
 
     g_thrd_h = spt_thread_init(thread_num);
     if(g_thrd_h == NULL)
