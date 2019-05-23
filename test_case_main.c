@@ -279,7 +279,10 @@ error_cmd:
 	printf("error cmdline %s\r\n",argv[i]);
 	return -1;
 }
-
+extern int vec_hash_cnt;
+extern int module_tree_hash_one_byte;
+extern int module_tree_alloc_ok;
+extern int module_tree_alloc_conf;
 struct data_set_file *set_file_list = NULL;
 int main(int argc,char *argv[])
 {
@@ -369,6 +372,10 @@ int main(int argc,char *argv[])
 		printf("can't create thread: %s\n", strerror(err));
 
 	sleep(15);
+	vec_hash_cnt = 0;
+	module_tree_hash_one_byte = 0;
+	module_tree_alloc_ok = 0;
+	module_tree_alloc_conf = 0;
 	err = pthread_create(&ntid, NULL, test_insert_thread, 3);
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));

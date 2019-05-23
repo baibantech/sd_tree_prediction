@@ -8,7 +8,7 @@
 #define MODULE_TREE_H__
 #include  <stdio.h>
 
-#define module_cluster_data_total (16)
+#define module_cluster_data_total (8)
 #define SPT_MODULE_NULL  (module_cluster_data_total * 2 + 1)
 #define SPT_VEC_MODULE_INVALID module_cluster_data_total*2 
 #define SPT_DB_MODULE_INVALID  module_cluster_data_total
@@ -19,20 +19,20 @@ struct module_cluster_head_t {
 	u64 endbit;
 	unsigned int data_total;
 	unsigned int max_data_total;
-	unsigned int used_vec_cnt;
 	unsigned int last_alloc_id;
 	char *vec_mem;
+	char *db_mem;
 };
 
 struct spt_module_vec {
 	union {
-		volatile unsigned long long val;
+		volatile unsigned int val;
 		struct {
-			volatile unsigned long long status:      1;
-			volatile unsigned long long type:        1;
-			volatile unsigned long long pos:        16;
-			volatile unsigned long long down:       10;
-			volatile unsigned long long rd:         10;
+			volatile unsigned int status:      1;
+			volatile unsigned int type:        1;
+			volatile unsigned int pos:        10;
+			volatile unsigned int down:       10;
+			volatile unsigned int rd:         10;
 		};
 	};
 };

@@ -214,6 +214,16 @@ struct spt_vec {
 		};
 	};
 };
+struct spt_vec_debug_info {
+	union {
+		unsigned long long val;
+		struct {
+			unsigned long long pos :32;
+			unsigned long long hash_type :16;
+			unsigned long long pos_type: 16;
+		};
+	};
+};
 
 struct spt_grp
 {
@@ -549,7 +559,7 @@ int delete_next_vec(struct cluster_head_t *pclst,
 		int direction );
 struct spt_vec *replace_precise_vec(struct cluster_head_t *pclst,
 		struct spt_vec *precise_vec,
-		unsigned int seg_hash,
+		int precise_vecid,
 		int *vec_id);
 struct cluster_head_t *find_next_cluster(struct cluster_head_t *pclst, char *pdata);
 

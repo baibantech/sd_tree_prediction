@@ -221,18 +221,32 @@ int is_need_chg_pos(struct spt_vec *vec, struct spt_vec *next_vec, int type)
 void add_real_pos_record(struct cluster_head_t *pclst, struct spt_vec *pvec,int real_pos)
 {
 	char *pos_mem = pclst->cluster_pos_mem;
-
 	char * record_ptr = pos_mem + ((unsigned long long )(long)(void*)pvec - (unsigned long long)(long)(void*)pclst->cluster_vec_mem);
-	*((int *)record_ptr) = real_pos;
+	struct spt_vec_debug_info *debug = record_ptr;
+	debug->pos = real_pos;
 }
 
 int get_real_pos_record(struct cluster_head_t *pclst, struct spt_vec *pvec)
 {
 	char *pos_mem = pclst->cluster_pos_mem;
-
 	char * record_ptr = pos_mem + ((unsigned long long )(long)(void*)pvec - (unsigned long long)(long)(void*)pclst->cluster_vec_mem);
+	struct spt_vec_debug_info *debug = record_ptr;
+	return debug->pos;
+}
+void add_hash_type_record(struct cluster_head_t *pclst, struct spt_vec *pvec,int type)
+{
+	char *pos_mem = pclst->cluster_pos_mem;
+	char * record_ptr = pos_mem + ((unsigned long long )(long)(void*)pvec - (unsigned long long)(long)(void*)pclst->cluster_vec_mem);
+	struct spt_vec_debug_info *debug = record_ptr;
+	debug->hash_type = type;
+}
 
-	return *((int *)record_ptr);
+int get_hash_type_record(struct cluster_head_t *pclst, struct spt_vec *pvec)
+{
+	char *pos_mem = pclst->cluster_pos_mem;
+	char * record_ptr = pos_mem + ((unsigned long long )(long)(void*)pvec - (unsigned long long)(long)(void*)pclst->cluster_vec_mem);
+	struct spt_vec_debug_info *debug = record_ptr;
+	return debug->hash_type;
 }
 
 

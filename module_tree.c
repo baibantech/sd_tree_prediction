@@ -14,7 +14,7 @@
 #include "sdtree_perf_stat.h"
 
 struct module_cluster_head_t *spt_module_cluster;
-char *module_array_data[512];
+struct spt_module_dh_ext *module_array_data[512];
 int  vec_module_alloc(struct module_cluster_head_t *pm_cluster, struct spt_module_vec **vec)
 {
 	int vecid = atomic_add_return(1, (atomic_t *)&pm_cluster->last_alloc_id);
@@ -46,7 +46,8 @@ struct module_cluster_head_t * module_cluster_init(u64 endbit, int data_total)
 	pm_cluster->startbit = 0;
 	pm_cluster->endbit = endbit;
 	pm_cluster->max_data_total = data_total;
-	pm_cluster->vec_mem = spt_malloc(sizeof(struct spt_module_vec)*data_total*2);
+	pm_cluster->vec_mem = spt_malloc(sizeof(struct spt_module_vec)*data_total*2 + (sizeof(struct spt_module_dh_ext) + HASH_WINDOW_LEN)*data_total);
+	pm_cluster->db_mem = pm_cluster->vec_mem + sizeof(struct spt_module_vec)*data_total*2;
 	pm_cluster->vec_head = 0;
 	start_vec = pm_cluster->pstart = (struct spt_module_vec *)pm_cluster->vec_mem;
 	
@@ -69,7 +70,7 @@ struct spt_module_vec * vec_module_id_2_ptr(struct module_cluster_head_t *pm_cls
 
 char *db_module_id_2_ptr(struct module_cluster_head_t *pm_clst, int db_id)
 {
-	return module_array_data[db_id];
+	return pm_clst->db_mem + (sizeof(struct spt_module_dh_ext) + HASH_WINDOW_LEN)*db_id;
 }
 
 int do_module_insert_first_set(struct module_cluster_head_t *pclst,
@@ -91,8 +92,8 @@ int do_module_insert_first_set(struct module_cluster_head_t *pclst,
 	pdh_ext->hang_vec = SPT_MODULE_NULL;
 	
 	smp_mb();/* ^^^ */
-	if (pinsert->key_val == atomic64_cmpxchg(
-		(atomic64_t *)pinsert->pkey_vec,
+	if (pinsert->key_val == atomic_cmpxchg(
+		(atomic_t *)pinsert->pkey_vec,
 		pinsert->key_val, tmp_vec.val))
 		return dataid;
 
@@ -150,8 +151,8 @@ int do_module_insert_up_via_r(struct module_cluster_head_t *pclst,
 	plast_dh_ext = (struct spt_module_dh_ext *)db_module_id_2_ptr(pclst, pinsert->dataid);
 	pdh_ext->hang_vec = plast_dh_ext->hang_vec;
 
-	if (pinsert->key_val == atomic64_cmpxchg(
-		(atomic64_t *)pinsert->pkey_vec,
+	if (pinsert->key_val == atomic_cmpxchg(
+		(atomic_t *)pinsert->pkey_vec,
 		pinsert->key_val, tmp_vec.val)) {
 		plast_dh_ext->hang_vec = vecid_a;
 		return dataid;
@@ -213,8 +214,8 @@ int do_module_insert_down_via_r(struct module_cluster_head_t *pclst,
 	
 	pdh_ext->hang_vec = vecid_a;
 	
-	if (pinsert->key_val == atomic64_cmpxchg(
-		(atomic64_t *)pinsert->pkey_vec,
+	if (pinsert->key_val == atomic_cmpxchg(
+		(atomic_t *)pinsert->pkey_vec,
 		pinsert->key_val, tmp_vec.val)) {
 		pinsert->hang_vec = vecid_a;
 		return dataid;
@@ -251,8 +252,8 @@ int do_module_insert_last_down(struct module_cluster_head_t *pclst,
 	tmp_vec.down = vecid_a;
 	pdh_ext->hang_vec = pinsert->key_id;
 
-	if (pinsert->key_val == atomic64_cmpxchg(
-		(atomic64_t *)pinsert->pkey_vec,
+	if (pinsert->key_val == atomic_cmpxchg(
+		(atomic_t *)pinsert->pkey_vec,
 		pinsert->key_val, tmp_vec.val))
 		return dataid;
 
@@ -286,8 +287,8 @@ int do_module_insert_up_via_d(struct module_cluster_head_t *pclst,
 
 	pdh_ext->hang_vec = pinsert->key_id;
 	
-	if (pinsert->key_val == atomic64_cmpxchg(
-				(atomic64_t *)pinsert->pkey_vec,
+	if (pinsert->key_val == atomic_cmpxchg(
+				(atomic_t *)pinsert->pkey_vec,
 				pinsert->key_val, tmp_vec.val)) {
 		
 
@@ -467,8 +468,6 @@ int final_module_vec_process(struct module_cluster_head_t *pclst,
 	return ret;
 }
 
-
-
 int get_module_data_id(struct module_cluster_head_t *pclst, struct spt_module_vec *pvec)
 {
 	struct spt_module_vec *pcur, *pnext, *ppre;
@@ -502,7 +501,7 @@ get_id_start:
 			if (next_vec.down == SPT_MODULE_NULL) {
 				tmp_vec.val = next_vec.val;
 				tmp_vec.status = SPT_VEC_INVALID;
-				atomic64_cmpxchg((atomic64_t *)pnext,
+				atomic_cmpxchg((atomic_t *)pnext,
 					next_vec.val, tmp_vec.val);
 				//set invalid succ or not, refind from cur
 				cur_vec.val = pcur->val;
@@ -549,13 +548,209 @@ int find_module_lowest_data(struct module_cluster_head_t *pclst,
 	}
 }
 
+int query_data_from_module_tree(struct module_cluster_head_t *pclst, char *pdata, struct module_query_info_t *pqinfo)
+{
+	struct spt_module_vec *start_vec, *pcur, *pnext, cur_vec, next_vec;
+	struct spt_module_vec *vec_stack[16];
+	struct spt_module_dh_ext *pdh_ext;
+	int    vec_id_stack[16];
+	struct vec_cmpret_t cmpres;
+	int vec_stack_top = 0;
+	u64 startbit,endbit, fs_pos;
+	int cur_data, cur_vecid, next_vecid, i, len, first_chbit, cmp;
+	char *pcur_data;
+	int ret = SPT_NOT_FOUND;
+
+	cur_vecid = 0;
+	startbit = 0;
+	endbit = pclst->endbit;
+	pcur = (struct spt_module_vec *)(void *)pclst->vec_mem;
+	cur_vec.val = pcur->val;
+	vec_stack_top = 0;
+	fs_pos = find_fs(pdata, startbit, endbit - startbit);
+	vec_id_stack[vec_stack_top] = cur_vecid;
+	vec_stack[vec_stack_top++] = pcur;
+	
+	while (startbit < endbit) {
+
+		if (fs_pos != startbit) 
+			goto prediction_down;
+
+prediction_right:
+		if (cur_vec.type == SPT_VEC_DATA) { 
+			len = endbit - startbit;
+			cur_data = cur_vec.rd;
+
+			if (cur_data >= 0 && cur_data < SPT_DB_MODULE_INVALID) {
+				pdh_ext = (struct spt_module_dh_ext *)db_module_id_2_ptr(pclst,
+						cur_data);
+				pcur_data = pdh_ext->data;
+				first_chbit = get_first_change_bit(pdata,
+						pcur_data,
+						0,
+						startbit);
+				
+				if (first_chbit == -1) {
+					cmp = diff_identify(pdata, pcur_data, startbit, len ,&cmpres);
+					
+					pqinfo->db_id = cur_data;
+					pqinfo->vec_id = cur_vecid;
+					if (cmp == 0) { 
+						pqinfo->cmp_result = 0;
+						ret = SPT_OK;
+					} else if (cmp > 0)
+						pqinfo->cmp_result = 1;
+					else
+						pqinfo->cmp_result = -1;
+					
+					return ret;
+
+				} else
+					goto check_diff_vec;
+			} else 
+				spt_assert(0);
+
+		} else {
+			pnext = (struct spt_module_vec *)vec_module_id_2_ptr(pclst,
+					cur_vec.rd);
+			next_vec.val = pnext->val;
+			next_vecid = cur_vec.rd;
+			
+			
+			len = next_vec.pos + 1 - startbit;
+			startbit += len;
+			if (startbit >= endbit)
+				spt_assert(0);
+			pcur = pnext;
+			cur_vecid = next_vecid;
+			cur_vec.val = next_vec.val;
+			vec_id_stack[vec_stack_top] = cur_vecid;
+			vec_stack[vec_stack_top++] = pcur;
+
+			fs_pos = find_fs(pdata,
+				startbit,
+				endbit - startbit);
+		
+		}
+		continue;
+prediction_down:
+		
+		while (fs_pos > startbit) {
+
+			if (cur_vec.down != SPT_MODULE_NULL)
+				goto prediction_down_continue;
+
+			cur_data = get_module_data_id(pclst, pcur);
+			
+			if (cur_data >= 0 && cur_data < SPT_DB_MODULE_INVALID) {
+				pdh_ext = (struct spt_module_dh_ext *)db_module_id_2_ptr(pclst, cur_data);
+				pcur_data = pdh_ext->data;
+				
+				first_chbit = get_first_change_bit(pdata,
+						pcur_data,
+						0,
+						startbit);
+				if (first_chbit == -1) {
+					pqinfo->db_id = cur_data;
+					pqinfo->vec_id = cur_vecid;
+					pqinfo->cmp_result = -1;
+					return ret;
+
+				} else 
+					goto check_diff_vec;
+			} else 
+				spt_assert(0);
+
+prediction_down_continue:
+
+			pnext = (struct spt_vec *)vec_module_id_2_ptr(pclst,
+					cur_vec.down);
+			next_vec.val = pnext->val;
+			next_vecid = cur_vec.down;
+
+			len = next_vec.pos + 1 - startbit;
+			
+			if (fs_pos >= startbit + len) {
+				startbit += len;
+				pcur = pnext;
+				cur_vecid = next_vecid;
+				cur_vec.val = next_vec.val;
+				vec_id_stack[vec_stack_top] = cur_vecid;
+				vec_stack[vec_stack_top++] = pcur;
+				if (startbit != endbit) {
+					continue;
+				}
+			}
+
+			cur_data = get_module_data_id(pclst, pcur);
+			if (cur_data >= 0 && cur_data < SPT_DB_MODULE_INVALID) {
+				pdh_ext = (struct spt_module_dh_ext *)db_module_id_2_ptr(pclst, cur_data);
+				pcur_data = pdh_ext->data;
+
+			} else 
+				spt_assert(0);
+
+			first_chbit = get_first_change_bit(pdata,
+						pcur_data,
+						0,
+						startbit);
+			if (first_chbit == -1) {
+				pqinfo->db_id = cur_data;
+				pqinfo->vec_id = cur_vecid;
+				pqinfo->cmp_result = -1;
+				return ret;
+
+			} else 
+				goto check_diff_vec;
+			
+		}	
+	}
+
+check_diff_vec:
+	for (i = 0; i < vec_stack_top; i++) {
+		pcur = vec_stack[i];
+		if ( i == 0){
+			if (first_chbit <= 0)
+				spt_assert(0);
+			continue;
+		}
+		if (pcur->pos < first_chbit)
+			continue;
+		else {
+			
+			if (vec_module_id_2_ptr(pclst, vec_stack[i-1]->rd) != pcur)
+				spt_assert(0);
+			cur_data = get_module_data_id(pclst, pcur);
+			if (cur_data >= 0 && cur_data < SPT_DB_MODULE_INVALID) {
+				pdh_ext = (struct spt_module_dh_ext *)db_module_id_2_ptr(pclst,
+						cur_data);
+				pcur_data = pdh_ext->data;
+				cmp = diff_identify(pdata, pcur_data, startbit, len ,&cmpres);
+					
+					pqinfo->db_id = cur_data;
+					pqinfo->vec_id = vec_id_stack[i - 1];
+					if (cmp == 0) { 
+						spt_assert(0);
+					} else if (cmp > 0)
+						pqinfo->cmp_result = 1;
+					else
+						pqinfo->cmp_result = -1;
+				return ret;
+			}
+			spt_assert(0);
+
+		}
+	}
+	return ret;
+}
+
+
 int find_data_from_module_cluster(struct module_cluster_head_t *pclst, struct module_query_info_t *pqinfo)
 {
 	int cur_data, vecid, cmp, op, cur_vecid, pre_vecid, next_vecid;
 	struct spt_module_vec *pcur, *pnext, *ppre;
 	struct spt_module_vec tmp_vec, cur_vec, next_vec;
 	u64 originbit, startbit, endbit, len, fs_pos;
-	int va_old, va_new;
 	struct spt_module_dh_ext *pdh_ext;
 	u8 direction;
 	int ret;
@@ -602,13 +797,6 @@ int find_data_from_module_cluster(struct module_cluster_head_t *pclst, struct mo
 	
 	endbit = pqinfo->endbit;
 	
-	if (cur_vec.status == SPT_VEC_INVALID) {
-		
-		if (pcur == pqinfo->pstart_vec)
-			return SPT_DO_AGAIN;
-
-		goto refind_start;
-	}
 	direction = SPT_DIR_START;
 
 	if (cur_data != SPT_DB_MODULE_INVALID)
@@ -727,11 +915,6 @@ prediction_right:
 			spt_trace("go right vec-fs_pos:%d,startbit:%d\r\n",fs_pos,startbit);	
 			spt_trace("next rd:%d,next vec:%p\r\n", next_vecid, pnext);
 			
-			if (next_vec.status == SPT_VEC_INVALID) 
-				spt_assert(0);
-			if (next_vec.down == SPT_MODULE_NULL)
-				spt_assert(0);
-			
 			len = next_vec.pos + 1 - startbit;
 			startbit += len;
 			if (startbit >= endbit)
@@ -762,8 +945,8 @@ prediction_down:
 			if (direction == SPT_RIGHT) {
 				tmp_vec.val = cur_vec.val;
 				tmp_vec.status = SPT_VEC_INVALID;
-				cur_vec.val = atomic64_cmpxchg(
-						(atomic64_t *)pcur,
+				cur_vec.val = atomic_cmpxchg(
+						(atomic_t *)pcur,
 						cur_vec.val, tmp_vec.val);
 				/*set invalid succ or not, refind from ppre*/
 				pcur = ppre;
@@ -835,9 +1018,6 @@ prediction_down_continue:
 			spt_trace("down continue fs_pos:%d,startbit:%d\r\n",fs_pos,startbit);
 			spt_trace("next down vec id:%d,vec:%p\r\n", next_vecid, pnext);
 			
-			if (next_vec.status == SPT_VEC_INVALID)
-				spt_assert(0);
-
 			len = next_vec.pos + 1 - startbit;
 			
 			direction = SPT_DOWN;
@@ -982,13 +1162,6 @@ go_right:
 			next_vec.val = pnext->val;
 			next_vecid = cur_vec.rd;
 			
-			if (next_vec.status == SPT_VEC_INVALID) {
-				spt_assert(0);
-			}
-			if (next_vec.down == SPT_MODULE_NULL) {
-				spt_assert(0);
-			}
-			
 			len = next_vec.pos + 1 - startbit;
 	
 			if (startbit + len > check_pos) {
@@ -1030,6 +1203,10 @@ go_right:
 					spt_trace("prediction check ok, check type RD_DOWN\r\n");
 				}
 				check_pos = endbit + 1;
+				ret = final_module_vec_process(pclst, pqinfo, &pinfo, check_type);
+				if (ret == SPT_DO_AGAIN)
+					goto refind_start;
+				return ret;
 			}
 			startbit += len;
 			if (startbit >= endbit)
@@ -1173,11 +1350,11 @@ same_record:
 struct module_cluster_head_t * spt_module_tree_init(u64 endbit, int data_total)
 {
 	struct module_cluster_head_t *pclst;
-	struct spt_module_dh_ext *pdh_ext;
+	struct spt_module_dh_ext *pdh_ext,*pcur_dh_ext, *pnext_dh_ext;
 	struct module_query_info_t qinfo = {0};
 	struct spt_module_vec *pvec_start;
 	char *pdata;
-	int i;
+	int i, j;
 	
 	pclst = spt_module_cluster = module_cluster_init(HASH_WINDOW_LEN*8, data_total);
 
@@ -1190,25 +1367,46 @@ struct module_cluster_head_t * spt_module_tree_init(u64 endbit, int data_total)
 			spt_assert(0);
 		}
 		pdh_ext->data = (char *)(pdh_ext + 1);
-
-		pdh_ext->dataid = i;
 		pdata = pdh_ext->data;
 		module_array_data[i] = (char *)(void *)pdh_ext;
+
 		if (i != data_total -1)
 			get_random_string(pdata, HASH_WINDOW_LEN);
 		else 
 			memset(pdata, 0xFF, HASH_WINDOW_LEN);
+	}
 
+	for (i = 0; i < data_total; i++) {
+		for (j = 0; j < data_total - i -1; j++) {
+			pcur_dh_ext = module_array_data[j];
+			pnext_dh_ext = module_array_data[j + 1];
+			if (memcmp(pcur_dh_ext->data, pnext_dh_ext->data, HASH_WINDOW_LEN) > 0) {
+				module_array_data[j] = pnext_dh_ext;
+				module_array_data[j + 1] = pcur_dh_ext;
+			}
+		}
+	}
+	j = 0;
+	for (i = data_total - 1; i >= 0; i--) {
+		pcur_dh_ext = module_array_data[i];
+
+		pnext_dh_ext = pclst->db_mem + j *(sizeof(struct spt_module_dh_ext) + HASH_WINDOW_LEN);
+		pnext_dh_ext->dataid = j;
+		pnext_dh_ext->data = (char *)(pnext_dh_ext + 1);
+		j++;
+		memcpy(pnext_dh_ext->data, pcur_dh_ext->data, HASH_WINDOW_LEN);	
+		
 		pvec_start = (struct spt_module_vec *)vec_module_id_2_ptr(pclst, pclst->vec_head);
 
 		qinfo.op = SPT_OP_INSERT;
 		qinfo.pstart_vec = pvec_start;
 		qinfo.startid = pclst->vec_head;
 		qinfo.endbit = pclst->endbit;
-		qinfo.data = pdh_ext;
+		qinfo.data = pnext_dh_ext;
 
 		find_data_from_module_cluster(pclst, &qinfo);
 	}
+
 	return spt_module_cluster;	
 }
 #if 0
@@ -1238,6 +1436,8 @@ void show_module_tree_data(void)
 #endif
 unsigned int module_tree_alloc_ok;
 unsigned int module_tree_alloc_conf;
+int module_tree_hash_one_byte;
+int module_tree_hash_two_byte;
 
 int get_vec_by_module_tree(struct cluster_head_t *vec_clst, char *pdata, int pos,
 		struct spt_vec *cur_vec,
@@ -1253,6 +1453,7 @@ int get_vec_by_module_tree(struct cluster_head_t *vec_clst, char *pdata, int pos
 	unsigned int grama_seg_hash;
 	int vecid = -1;
 	int j;
+	int cnt = 0;
 	struct module_cluster_head_t * pclst = spt_module_cluster;
 
 	window_byte = cur_byte = pdata + (pos / 8);
@@ -1279,7 +1480,7 @@ int get_vec_by_module_tree(struct cluster_head_t *vec_clst, char *pdata, int pos
 		qinfo.startid = pclst->vec_head;
 		qinfo.endbit = pclst->endbit;
 		qinfo.data = window_byte;
-
+		cnt++;
 		ret = find_data_from_module_cluster(pclst, &qinfo);
 		if (ret >= 0) {
 			pdext_h = (struct spt_module_dh_ext *)db_module_id_2_ptr(pclst, qinfo.db_id);
@@ -1340,6 +1541,8 @@ int get_vec_by_module_tree(struct cluster_head_t *vec_clst, char *pdata, int pos
 		*seg_hash = djb_hash_seg(module_data, grama_seg_hash, 8);	
 		vecid = vec_judge_full_and_alloc(vec_clst, ret_vec, *seg_hash);
 		if (vecid != -1) {
+			if ((cnt == 1) && (pos > 192 *8))
+				module_tree_hash_one_byte++;
 			module_tree_alloc_ok++;
 			break;
 		}
@@ -1349,6 +1552,7 @@ int get_vec_by_module_tree(struct cluster_head_t *vec_clst, char *pdata, int pos
 			module_tree_alloc_conf++;
 			break;
 		}
+
 		window_byte++;
 	}
 	return vecid;
@@ -1395,7 +1599,7 @@ int find_vec_from_module_hash(struct cluster_head_t *vec_clst, char *pdata,
 		qinfo.data = window_byte;
 		
 		PERF_STAT_START(find_stable_tree);
-		ret = find_data_from_module_cluster(pclst, &qinfo);
+		ret = query_data_from_module_tree(pclst,window_byte, &qinfo);
 		PERF_STAT_END(find_stable_tree);
 		if (ret >= 0) {
 			pdext_h = (struct spt_module_dh_ext *)db_module_id_2_ptr(pclst, qinfo.db_id);

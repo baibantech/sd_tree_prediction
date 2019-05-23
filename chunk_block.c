@@ -366,7 +366,6 @@ int get_vec_hash_grp_id(struct cluster_head_t *pclst, int vec_id)
 	while (orign_grp > GRP_SPILL_START) {
 		grp = get_grp_from_grpid(pclst, orign_grp);	
 		pre_grp_id = grp->pre_grp;
-		while(pre_grp == 0xFFFF);
 		orign_grp = pre_grp_id;
 	}
 	return orign_grp;

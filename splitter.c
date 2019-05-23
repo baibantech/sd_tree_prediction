@@ -396,7 +396,7 @@ int do_insert_first_set(struct cluster_head_t *pclst,
  * compare with the data corresponding to a right vector,
  * the new data is greater, so insert it above the vector
  */
-
+int vec_hash_cnt;
 int do_insert_up_via_r(struct cluster_head_t *pclst,
 	struct insert_info_t *pinsert,
 	char *new_encapdata)
@@ -432,6 +432,9 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 	pre_pos = pinsert->vec_real_pos;
 	pnew_data = pinsert->pnew_data;
 	pcur_data = pinsert->pcur_data;
+	if ((pinsert->cmp_pos <= pre_pos) || (pinsert->fs < pinsert->cmp_pos))
+		spt_assert(0);
+
 	if (!pclst->is_bottom) {
 		calc_hash(pnew_data, &window_hash, &seg_hash, pinsert->cmp_pos);
 		vecid_a = vec_alloc(pclst, &pvec_a, seg_hash);
@@ -448,6 +451,12 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 	pvec_a->val = 0;
 	pvec_a->type = SPT_VEC_DATA;
 
+	pos_type = set_real_pos(pvec_a, pinsert->cmp_pos, pre_pos, window_hash);
+	add_hash_type_record(pclst, pvec_a, 1);
+	if ((pos_type == SPT_VEC_HVALUE) && (pinsert->cmp_pos > 192*8))
+		vec_hash_cnt++;
+	add_real_pos_record(pclst, pvec_a, pinsert->cmp_pos);
+
 	data_hash = djb_hash(pnew_data , DATA_SIZE);
 	dataid = db_alloc(pclst, &pdh, &ref, data_hash);
 	if (!pdh) {
@@ -459,11 +468,6 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 	pdh->pdata = set_data_to_dh(new_encapdata);
 
 	pvec_a->rd = dataid;
-	if ((pinsert->cmp_pos <= pre_pos) || (pinsert->fs < pinsert->cmp_pos))
-		spt_assert(0);
-	pos_type = set_real_pos(pvec_a, pinsert->cmp_pos, pre_pos, window_hash);
-	add_real_pos_record(pclst, pvec_a, pinsert->cmp_pos);
-	add_debug_cnt(pclst, pinsert->cmp_pos, pos_type);
 
 	tmp_vec.rd = vecid_a;
 	if (tmp_vec.pos == pvec_a->pos && tmp_vec.pos != 0) {
@@ -504,8 +508,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 
 		pos_type = set_real_pos(pvec_b, pinsert->fs, pinsert->cmp_pos, new_window_hash);
 		add_real_pos_record(pclst, pvec_b, pinsert->fs);
-		
-		add_debug_cnt(pclst, pinsert->fs, pos_type);
+		add_hash_type_record(pclst, pvec_b, 2);
 		
 		if (tmp_vec.type != SPT_VEC_DATA) {
 			if (chg_pos = is_need_chg_pos(pvec_b,
@@ -526,7 +529,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 				pinsert->key_val = cur_vec.val;
 				//tmp_vec.scan_lock = 1;
 
-				chg_vec = replace_precise_vec(pclst, next_vec, new_seg_hash, &chg_vec_id);
+				chg_vec = replace_precise_vec(pclst, next_vec, tmp_rd, &chg_vec_id);
 				if (!chg_vec)
 					goto release_vec;
 				pvec_b->rd = chg_vec_id;				
@@ -534,6 +537,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 				chg_vec->pos = new_next_pos;
 				chg_vec->scan_status = SPT_VEC_HVALUE;
 				add_real_pos_record(pclst, chg_vec, next_vec->pos + 1);
+				add_hash_type_record(pclst, chg_vec, get_hash_type_record(pclst, next_vec));
 			}
 		}
 
@@ -560,7 +564,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 				pinsert->key_val = cur_vec.val;
 				//tmp_vec.scan_lock = 1;
 				
-				chg_vec = replace_precise_vec(pclst, next_vec, seg_hash, &chg_vec_id);
+				chg_vec = replace_precise_vec(pclst, next_vec, tmp_rd, &chg_vec_id);
 				if (!chg_vec)
 					goto release_vec;	
 				pvec_a->down = chg_vec_id;
@@ -586,8 +590,6 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 		if (chg_pos) {
 			
 			chg_pos = next_vec->pos;
-			sub_debug_cnt(pclst, chg_pos, SPT_VEC_PVALUE);
-			add_debug_cnt(pclst, chg_pos, SPT_VEC_HVALUE);
 			vec_free(pclst, tmp_rd);
 #if 0
 			do {
@@ -651,7 +653,7 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 	pnew_data = pinsert->pnew_data;
 	tmp_rd = tmp_vec.rd;
 	if (tmp_vec.type != SPT_VEC_DATA) {
-		next_vec = (struct spt_vec *)vec_id_2_ptr(pclst, tmp_vec.rd);
+		next_vec = (struct spt_vec *)vec_id_2_ptr(pclst, tmp_rd);
 	}
 	if (!pclst->is_bottom) {
 		calc_hash(pcur_data, &window_hash, &seg_hash,pinsert->cmp_pos);
@@ -670,8 +672,10 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 		spt_assert(0);
 	pvec_a->val = 0;
 	pos_type = set_real_pos(pvec_a, pinsert->cmp_pos, pre_pos, window_hash);
+	add_hash_type_record(pclst, pvec_a, 1);
+	if ((pos_type == SPT_VEC_HVALUE) && (pinsert->cmp_pos > 192*8))
+		vec_hash_cnt++;
 	add_real_pos_record(pclst, pvec_a, pinsert->cmp_pos);
-	add_debug_cnt(pclst, pinsert->cmp_pos, pos_type);
 
 	if (!pclst->is_bottom) {
 		calc_hash_by_base(pnew_data, window_hash,
@@ -692,6 +696,7 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 	}
 	pvec_b->val = 0;
 	pvec_b->type = SPT_VEC_DATA;
+	add_hash_type_record(pclst, pvec_b, 2);
 
 	
 	data_hash = djb_hash(pnew_data , DATA_SIZE);
@@ -707,7 +712,6 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 
 	pos_type = set_real_pos(pvec_b, pinsert->fs, pinsert->cmp_pos, new_window_hash);
 	add_real_pos_record(pclst, pvec_b, pinsert->fs);
-	add_debug_cnt(pclst, pinsert->fs, pos_type);
 	pvec_b->rd = dataid;
 	pvec_b->down = SPT_NULL;
 
@@ -736,7 +740,7 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 			pinsert->key_val = cur_vec.val;
 			//tmp_vec.scan_lock = 1;
 
-			chg_vec = replace_precise_vec(pclst, next_vec, seg_hash, &chg_vec_id);
+			chg_vec = replace_precise_vec(pclst, next_vec, tmp_rd, &chg_vec_id);
 			if (!chg_vec)
 				goto release_vec;
 			pvec_a->rd = chg_vec_id;				
@@ -767,8 +771,6 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 		pinsert->key_val, tmp_vec.val)) {
 		if (chg_pos) {
 			chg_pos = next_vec->pos;
-			sub_debug_cnt(pclst, chg_pos, SPT_VEC_PVALUE);
-			add_debug_cnt(pclst, chg_pos, SPT_VEC_HVALUE);
 			vec_free(pclst, tmp_rd);	
 #if 0
 			do {
@@ -834,6 +836,7 @@ int do_insert_last_down(struct cluster_head_t *pclst,
 	}
 	pvec_a->val = 0;
 	pvec_a->type = SPT_VEC_DATA;
+	add_hash_type_record(pclst, pvec_a, 2);
     
 	data_hash = djb_hash(pnew_data , DATA_SIZE);
 	dataid = db_alloc(pclst, &pdh, &ref, data_hash);
@@ -847,7 +850,6 @@ int do_insert_last_down(struct cluster_head_t *pclst,
 
 	pos_type = set_real_pos(pvec_a, pinsert->fs, pre_pos, window_hash);
 	add_real_pos_record(pclst, pvec_a, pinsert->fs);
-	add_debug_cnt(pclst, pinsert->fs, pos_type);
 
 	pvec_a->rd = dataid;
 	pvec_a->down = SPT_NULL;
@@ -914,6 +916,7 @@ int do_insert_up_via_d(struct cluster_head_t *pclst,
 	}
 	pvec_a->val = 0;
 	pvec_a->type = SPT_VEC_DATA;
+	add_hash_type_record(pclst, pvec_a, 2);
     
 	data_hash = djb_hash(pnew_data , DATA_SIZE);
 	dataid = db_alloc(pclst, &pdh, &ref, data_hash);
@@ -927,7 +930,6 @@ int do_insert_up_via_d(struct cluster_head_t *pclst,
 
 	pos_type = set_real_pos(pvec_a, pinsert->fs, pre_pos, window_hash);
 	add_real_pos_record(pclst, pvec_a, pinsert->fs);
-	add_debug_cnt(pclst, pinsert->fs, pos_type);
 	pvec_a->rd = dataid;
 
 	pvec_a->down = tmp_vec.down;
@@ -949,7 +951,7 @@ int do_insert_up_via_d(struct cluster_head_t *pclst,
 		pinsert->key_val = cur_vec.val;
 		//tmp_vec.scan_lock = 1;
 
-		chg_vec = replace_precise_vec(pclst, next_vec, seg_hash, &chg_vec_id);
+		chg_vec = replace_precise_vec(pclst, next_vec, tmp_down, &chg_vec_id);
 		if (!chg_vec)
 			goto release_vec;
 		pvec_a->down = chg_vec_id;				
@@ -971,8 +973,6 @@ int do_insert_up_via_d(struct cluster_head_t *pclst,
 		
 		if (chg_pos) {
 			chg_pos = next_vec->pos;
-			sub_debug_cnt(pclst, chg_pos, SPT_VEC_PVALUE);
-			add_debug_cnt(pclst, chg_pos, SPT_VEC_HVALUE);
 			vec_free(pclst, tmp_down);
 #if 0
 			do {
@@ -1408,6 +1408,89 @@ int spt_cluster_sort_down(struct cluster_head_t *pclst, struct spt_sort_info *ps
 		}
 	}
 
+	spt_free(stack);
+	return SPT_OK;
+}
+
+int vec_pos_valid_data_num;
+
+int spt_cluster_sort_hash_vec(struct cluster_head_t *pclst, int vec_pos)
+{
+	struct spt_vec **stack;
+	int cur_data, cur_vecid, index;
+	struct spt_vec *pcur, cur_vec, *tmp_vec;
+	struct spt_dh *pdh;
+	int i;
+
+	stack = (struct spt_vec **)spt_malloc(4096*8*8);
+	if (stack == NULL)
+		return SPT_ERR;
+	index = 0;
+	cur_data = SPT_INVALID;
+
+	cur_vecid = pclst->vec_head;
+	pcur = (struct spt_vec *)vec_id_2_ptr(pclst, pclst->vec_head);
+
+	cur_vec.val = pcur->val;
+	if (cur_vec.down == SPT_NULL && cur_vec.rd == SPT_NULL) {
+		spt_print("cluster is null\r\n");
+		return SPT_ERR;
+	}
+	stack[index] = pcur;
+	index++;
+
+	while (1) {
+		if (cur_vec.type != SPT_VEC_DATA) {
+			cur_vecid = cur_vec.rd;
+			pcur = (struct spt_vec *)vec_id_2_ptr(pclst, cur_vecid);
+			cur_vec.val = pcur->val;
+			stack[index] = pcur;
+			index++;
+		} else {
+			cur_data = cur_vec.rd;
+			if (cur_data != SPT_NULL) {
+				pdh = (struct spt_dh *)db_id_2_ptr(pclst,
+						cur_data);
+				for (i = 0; i < index; i++) {
+					if (get_real_pos_record(pclst, stack[i]) >= vec_pos) {
+						if (i == 0)
+							spt_assert(0);
+						
+						tmp_vec = stack[i-1];
+						if (vec_id_2_ptr(pclst, tmp_vec->rd) != stack[i])
+							continue;
+						if (stack[i]->down == SPT_NULL)
+							continue;
+						if (stack[i]->scan_status == SPT_VEC_HVALUE) {
+							vec_pos_valid_data_num++;
+							break;
+						}
+					}
+				}
+			}
+
+			if (index == 0)
+				break;
+			while (1) {
+				index--;
+				pcur = stack[index];
+				cur_vec.val = pcur->val;
+				if (cur_vec.down != SPT_NULL) {
+					cur_vecid = cur_vec.down;
+					pcur = (struct spt_vec *)
+						vec_id_2_ptr(pclst, cur_vecid);
+					cur_vec.val = pcur->val;
+
+					stack[index] = pcur;
+					index++;
+					break;
+				}
+				if (index == 0)
+					goto sort_exit;
+			}
+		}
+	}
+sort_exit:
 	spt_free(stack);
 	return SPT_OK;
 }
@@ -2032,11 +2115,12 @@ int debug_test_bug1(struct spt_vec *next_vec,
 	return 0;
 }
 
-struct spt_vec *replace_precise_vec(struct cluster_head_t *pclst, struct spt_vec *precise_vec, unsigned int seg_hash, int *new_vecid)
+struct spt_vec *replace_precise_vec(struct cluster_head_t *pclst, struct spt_vec *precise_vec, int precise_vecid, int *new_vecid)
 {
 	struct spt_vec old_vec, *new_vec;
 	u64 tmp_val;
 	int vecid;
+	unsigned int seg_hash;
 
 	do {
 		tmp_val = old_vec.val = precise_vec->val;
@@ -2045,7 +2129,8 @@ struct spt_vec *replace_precise_vec(struct cluster_head_t *pclst, struct spt_vec
 		old_vec.scan_lock = 1;	
 	}while (tmp_val != atomic64_cmpxchg((atomic64_t *)precise_vec,
 				tmp_val, old_vec.val));
-	
+	seg_hash = get_vec_hash_grp_id(pclst, precise_vecid);
+
 	vecid = vec_alloc(pclst, &new_vec, seg_hash);
 	if (new_vec) {
 		new_vec->val = old_vec.val;
@@ -2173,10 +2258,7 @@ int delete_next_vec(struct cluster_head_t *pclst,
 					tmp_vec.val)) {
 				
 				vec_free(pclst, vecid);
-				sub_debug_cnt(pclst, next_pos, next_vec.scan_status);	
 				if (chg_pos) {
-					sub_debug_cnt(pclst, new_next_pos, SPT_VEC_HVALUE);
-					add_debug_cnt(pclst, new_next_pos, SPT_VEC_PVALUE);
 #if 0
 					do {	
 						tmp_val = tmp_delete_vec.val = pcur->val;
@@ -2276,14 +2358,11 @@ int delete_next_vec(struct cluster_head_t *pclst,
 					tmp_vec.val)) {
 				vec_free(pclst, vecid);
 				
-				sub_debug_cnt(pclst, next_pos, next_vec.scan_status);	
 			//delete_succ
 				
 				
 				if (chg_pos) {
 					
-					sub_debug_cnt(pclst, new_next_pos, SPT_VEC_HVALUE);
-					add_debug_cnt(pclst, new_next_pos, SPT_VEC_PVALUE);
 #if 0
 					do {	
 						tmp_val = tmp_delete_vec.val = pcur->val;
@@ -7105,13 +7184,14 @@ int scan_sub_cluster(struct cluster_head_t *pclst, struct spt_dh_ext *pup)
 	/* sort the data in the cluster.move the smaller half of the data to
 	 * the new cluster later
 	 */
-	ret = spt_cluster_sort(plower_clst, NULL);
+	ret = spt_cluster_sort_hash_vec(plower_clst, 192*8);
 	if (ret == SPT_ERR) {
 		spt_thread_exit(g_thrd_id);
 		spt_preempt_enable();
 		spt_debug("spt_cluster_sort return ERR\r\n");
 		return SPT_ERR;
 	}
+	plower_clst->ins_mask = 0;
 	spt_thread_exit(g_thrd_id);
 	spt_preempt_enable();
 	return SPT_OK;
