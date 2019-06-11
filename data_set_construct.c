@@ -515,7 +515,11 @@ void test_find_proc(void *args)
 			PERF_STAT_START(whole_query_by_hash);
 try_again:
 #if 1
+#if 0
 			ret_data =  test_find_data_start_vec(data);
+#endif
+			
+			ret_data =  test_find_data(data);
 #else
 			if(NULL ==(ret_data =  data_rb_tree_find(data)))
 #endif

@@ -397,6 +397,7 @@ int do_insert_first_set(struct cluster_head_t *pclst,
  * the new data is greater, so insert it above the vector
  */
 int vec_hash_cnt;
+int vec_chg_pos_ptov;
 int do_insert_up_via_r(struct cluster_head_t *pclst,
 	struct insert_info_t *pinsert,
 	char *new_encapdata)
@@ -454,7 +455,8 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 	pos_type = set_real_pos(pvec_a, pinsert->cmp_pos, pre_pos, window_hash);
 	add_hash_type_record(pclst, pvec_a, 1);
 	if ((pos_type == SPT_VEC_HVALUE) && (pinsert->cmp_pos > 192*8))
-		vec_hash_cnt++;
+		hash_stat_add_hang_hash(pnew_data);
+
 	add_real_pos_record(pclst, pvec_a, pinsert->cmp_pos);
 
 	data_hash = djb_hash(pnew_data , DATA_SIZE);
@@ -588,7 +590,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 		(atomic64_t *)pinsert->pkey_vec,
 		pinsert->key_val, tmp_vec.val)) {
 		if (chg_pos) {
-			
+			vec_chg_pos_ptov++;
 			chg_pos = next_vec->pos;
 			vec_free(pclst, tmp_rd);
 #if 0
@@ -674,7 +676,8 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 	pos_type = set_real_pos(pvec_a, pinsert->cmp_pos, pre_pos, window_hash);
 	add_hash_type_record(pclst, pvec_a, 1);
 	if ((pos_type == SPT_VEC_HVALUE) && (pinsert->cmp_pos > 192*8))
-		vec_hash_cnt++;
+		hash_stat_add_hang_hash(pcur_data);
+
 	add_real_pos_record(pclst, pvec_a, pinsert->cmp_pos);
 
 	if (!pclst->is_bottom) {
@@ -770,6 +773,7 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 		(atomic64_t *)pinsert->pkey_vec,
 		pinsert->key_val, tmp_vec.val)) {
 		if (chg_pos) {
+			vec_chg_pos_ptov++;
 			chg_pos = next_vec->pos;
 			vec_free(pclst, tmp_rd);	
 #if 0
@@ -972,6 +976,7 @@ int do_insert_up_via_d(struct cluster_head_t *pclst,
 				pinsert->key_val, tmp_vec.val)) {
 		
 		if (chg_pos) {
+			vec_chg_pos_ptov++;
 			chg_pos = next_vec->pos;
 			vec_free(pclst, tmp_down);
 #if 0
@@ -1413,7 +1418,7 @@ int spt_cluster_sort_down(struct cluster_head_t *pclst, struct spt_sort_info *ps
 }
 
 int vec_pos_valid_data_num;
-
+unsigned long long data_scan_address;
 int spt_cluster_sort_hash_vec(struct cluster_head_t *pclst, int vec_pos)
 {
 	struct spt_vec **stack;
@@ -1451,17 +1456,20 @@ int spt_cluster_sort_hash_vec(struct cluster_head_t *pclst, int vec_pos)
 			if (cur_data != SPT_NULL) {
 				pdh = (struct spt_dh *)db_id_2_ptr(pclst,
 						cur_data);
+				if (data_scan_address ==(unsigned long long)(void *)get_data_from_dh(pdh->pdata)) {
+					for (i = 0; i < index; i++) {
+						if (get_real_pos_record(pclst, stack[i]) >= vec_pos) {
+							if ((get_hash_type_record(pclst, stack[i]) == 1) && (stack[i]->scan_status == SPT_VEC_HVALUE)) {
+								printf("pclst %p,  hang hash vec %p \r\n",pclst, stack[i]);
+								break;
+							}
+						}
+					}
+				}
 				for (i = 0; i < index; i++) {
 					if (get_real_pos_record(pclst, stack[i]) >= vec_pos) {
-						if (i == 0)
-							spt_assert(0);
 						
-						tmp_vec = stack[i-1];
-						if (vec_id_2_ptr(pclst, tmp_vec->rd) != stack[i])
-							continue;
-						if (stack[i]->down == SPT_NULL)
-							continue;
-						if (stack[i]->scan_status == SPT_VEC_HVALUE) {
+						if ((get_hash_type_record(pclst, stack[i]) == 1) && (stack[i]->scan_status == SPT_VEC_HVALUE)) {
 							vec_pos_valid_data_num++;
 							break;
 						}
@@ -2091,8 +2099,8 @@ int spt_divided_scan(struct cluster_head_t *pclst)
 		if (plower_clst->data_total >= SPT_DVD_THRESHOLD_VA) {
 			divide_sub_cluster(pclst, pdh_ext);
 
-			if (plower_clst->spill_grp_id >= (GRP_SPILL_START + 16000))
-				adjust_mem_sub_cluster(pclst, pdh_ext);
+			//if (plower_clst->spill_grp_id >= (GRP_SPILL_START + 16000))
+				//adjust_mem_sub_cluster(pclst, pdh_ext);
 		}
 	}
 	spt_order_array_free(psort);
@@ -2140,7 +2148,7 @@ struct spt_vec *replace_precise_vec(struct cluster_head_t *pclst, struct spt_vec
 	}
 	return NULL;
 }
-
+int vec_chg_pos_vtop;
 int delete_next_vec(struct cluster_head_t *pclst,
 		struct spt_vec next_vec,
 		struct spt_vec *pnext,
@@ -2259,6 +2267,7 @@ int delete_next_vec(struct cluster_head_t *pclst,
 				
 				vec_free(pclst, vecid);
 				if (chg_pos) {
+					vec_chg_pos_vtop++;
 #if 0
 					do {	
 						tmp_val = tmp_delete_vec.val = pcur->val;
@@ -2362,6 +2371,7 @@ int delete_next_vec(struct cluster_head_t *pclst,
 				
 				
 				if (chg_pos) {
+					vec_chg_pos_vtop++;
 					
 #if 0
 					do {	

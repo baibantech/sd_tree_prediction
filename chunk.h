@@ -261,6 +261,11 @@ struct spt_vec_debug {
 	int hash_vec_cnt;
 };
 
+struct spt_hash_stat_info {
+	int hang_vec_cnt;
+	int find_err;
+};
+
 struct cluster_head_t {
 	struct list_head c_list;
 	int vec_head;

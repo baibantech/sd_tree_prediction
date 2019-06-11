@@ -283,6 +283,12 @@ extern int vec_hash_cnt;
 extern int module_tree_hash_one_byte;
 extern int module_tree_alloc_ok;
 extern int module_tree_alloc_conf;
+extern int module_tree_hash_node;
+extern int module_tree_hash_branch;
+extern int module_tree_hash_preseg_err;
+extern int vec_chg_pos_ptov;
+extern int vec_chg_pos_vtop;
+extern int hash_stat_switch;
 struct data_set_file *set_file_list = NULL;
 int main(int argc,char *argv[])
 {
@@ -336,7 +342,7 @@ int main(int argc,char *argv[])
     printf("thread_num is %d\r\n",thread_num);
 
     sd_perf_stat_init();
-
+	hash_stat_init();
 	pgclst = spt_cluster_init(0,DATA_BIT_MAX, 12, 
                               tree_get_key_from_data,
                               tree_free_key,
@@ -363,10 +369,11 @@ int main(int argc,char *argv[])
 #endif
 
 	g_thrd_id = 0;
-	test_pre_insert_proc(0);
-
-	sleep(15);
-
+	err = pthread_create(&ntid, NULL, test_insert_thread, 3);
+	if (err != 0)
+		printf("can't create thread: %s\n", strerror(err));
+	sleep(60);
+	hash_stat_switch = 1;
 	err = pthread_create(&ntid, NULL, test_delete_thread, 2);
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));
@@ -376,10 +383,15 @@ int main(int argc,char *argv[])
 	module_tree_hash_one_byte = 0;
 	module_tree_alloc_ok = 0;
 	module_tree_alloc_conf = 0;
+	module_tree_hash_node = 0;
+	module_tree_hash_branch = 0;
+	module_tree_hash_preseg_err = 0;
+	vec_chg_pos_ptov = 0;
+	vec_chg_pos_vtop = 0;
 	err = pthread_create(&ntid, NULL, test_insert_thread, 3);
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));
-	sleep(15);
+	sleep(30);
 
 	err = pthread_create(&ntid, NULL, test_find_thread, 4);
 	if (err != 0)
@@ -425,7 +437,8 @@ extern char *find_data_by_hash(struct cluster_head_t *pclst, char *pdata);
 extern char *query_data(struct cluster_head_t *pclst, char *pdata);
 void *test_find_data(char *pdata)
 {
-	return find_data_by_hash(pgclst, pdata);
+	//return find_data_by_hash(pgclst, pdata);
+	return query_data(pgclst, pdata);
 }
 void* test_find_thread(void *arg)
 {

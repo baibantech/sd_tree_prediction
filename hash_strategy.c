@@ -249,6 +249,62 @@ int get_hash_type_record(struct cluster_head_t *pclst, struct spt_vec *pvec)
 	return debug->hash_type;
 }
 
+struct spt_hash_stat_info *hash_stat_ptr;
+int hash_stat_switch = 0;
+extern unsigned long long data_set_config_map_address;
+int hash_stat_find_err_cnt = 10;
+void hash_stat_init(void)
+{
+	hash_stat_ptr = spt_malloc(sizeof(struct spt_hash_stat_info)*4000000);
+	if (hash_stat_ptr)
+		memset(hash_stat_ptr, 0, sizeof(struct spt_hash_stat_info)*4000000);
+	else
+		spt_assert(0);
+}
+
+void hash_stat_add_hang_hash(char *pdata)
+{
+	int data_id = ((unsigned long long )(void*)pdata - data_set_config_map_address)/256;
+	if (hash_stat_switch)
+		hash_stat_ptr[data_id].hang_vec_cnt++;
+}
+
+void show_hash_stat_record(void)
+{
+	int i, hash_data, hash_cnt,hash_cnt_max;
+	hash_cnt_max = hash_data = hash_cnt = 0;
+
+	for (i = 0; i < 4000000; i++)
+	{
+		if (hash_stat_ptr[i].hang_vec_cnt)
+			hash_data++;
+		if (hash_stat_ptr[i].hang_vec_cnt > hash_cnt_max)
+			hash_cnt_max = hash_stat_ptr[i].hang_vec_cnt;
+		hash_cnt += hash_stat_ptr[i].hang_vec_cnt;
+	}
+	printf("hash data cnt is %d, hash vec cnt is %d, hash cnt max is %d\r\n", hash_data, hash_cnt, hash_cnt_max);
+}
+void show_hash_stat_find_err(void)
+{
+	int i, hash_data, hash_cnt,hash_cnt_max;
+	
+	for (i = 0; i < 4000000; i++)
+	{
+		if (hash_stat_ptr[i].hang_vec_cnt && hash_stat_ptr[i].find_err)
+		{
+			if (hash_stat_find_err_cnt--)
+				printf("find err data 0x%llx,has hang vec\r\n", data_set_config_map_address + i *256);	
+			if (!hash_stat_find_err_cnt)
+				break;
+		}
+		
+	}
+}
+void hash_stat_find_err(char *pdata)
+{
+	int data_id = ((unsigned long long )(void*)pdata - data_set_config_map_address)/256;
+	hash_stat_ptr[data_id].find_err++;
+}
 
 int last_seg_hash_grp;
 int last_window_hash;
