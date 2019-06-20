@@ -284,9 +284,10 @@ struct cluster_head_t {
 	unsigned int used_db_cnt;
 	unsigned int spill_grp_id;
 	unsigned int spill_db_grp_id;
-	unsigned int thrd_total;
+	//unsigned int thrd_total;
 	unsigned int last_alloc_id;
-
+	unsigned long long loop_vec_cnt;
+	unsigned int loop_check_cnt;
 	spt_cb_get_key get_key;
 	spt_cb_get_key get_key_in_tree;
 	spt_cb_free freedata;
@@ -300,8 +301,6 @@ struct cluster_head_t {
 
 	/* vec id to ptr info */
 	struct cluster_address_trans_info address_info;
-	volatile char **pglist_db;
-	volatile char *pglist_vec[0];
 };
 
 struct spt_divided_info {

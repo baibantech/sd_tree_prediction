@@ -191,11 +191,11 @@ struct cluster_head_t *cluster_init(int is_bottom,
 	phead->address_info.pg_num_max = CLST_PG_NUM_MAX;
 	phead->address_info.pg_ptr_bits = PG_BITS - ptr_bits;
 
-	phead->debug = 1;
+	phead->debug = 0;
 	phead->is_bottom = is_bottom;
 	phead->startbit = startbit;
 	phead->endbit = endbit;
-	phead->thrd_total = thread_num;
+	//phead->thrd_total = thread_num;
 	phead->freedata = pf_free;
 	phead->construct_data = pf_con;
 	phead->spill_grp_id = GRP_SPILL_START;
@@ -226,7 +226,6 @@ struct cluster_head_t *cluster_init(int is_bottom,
     vec = vec_alloc(phead, &pvec, 0);
 	if (pvec == 0) {
 		spt_free(phead);
-		spt_free(phead->pglist_db);
 		return NULL;
 	}
 	phead->last_alloc_id = vec;

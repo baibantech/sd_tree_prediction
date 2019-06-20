@@ -28,10 +28,12 @@ void* test_pre_insert_thread(void *arg);
 void* test_pre_delete_thread(void *arg);
 void* test_pre_insert_proc(void *arg);
 void* test_pre_delete_proc(void *arg);
+void* test_vec_delete_proc(void *arg);
 void* test_find_proc(void *arg);
 
 void* test_delete_thread(void *arg);
 void* test_divid_thread(void *arg);
+void* test_vec_delete_thread(void *arg);
 extern int sd_perf_debug;
 int sd_perf_debug_1= 0;
 enum cmd_index
@@ -405,7 +407,12 @@ int main(int argc,char *argv[])
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));
 
+	sleep(30);
+	err = pthread_create(&ntid, NULL, test_vec_delete_thread, 4);
+	if (err != 0)
+		printf("can't create thread: %s\n", strerror(err));
 #endif
+
 	while(1)
 	{
 		sleep(1);
@@ -482,6 +489,25 @@ void* test_insert_thread(void *arg)
 	}
 }
 
+void* test_vec_delete_thread(void *arg)
+{
+	int i = (long)arg;
+	cpu_set_t mask;
+	g_thrd_id = i;
+	CPU_ZERO(&mask);
+	CPU_SET(i,&mask);
+	printf("delete thead cpu %d, %p\r\n", i, arg);
+	if(sched_setaffinity(0,sizeof(mask),&mask)== -1)
+	{
+		printf("warning: could not set CPU AFFINITY\r\n");
+	}
+	//while(test_stop == 0)
+	test_vec_delete_proc(i);
+	while(1)
+	{
+		sleep(1);
+	}
+}
 void* test_delete_thread(void *arg)
 {
 	int i = (long)arg;

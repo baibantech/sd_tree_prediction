@@ -9,18 +9,18 @@ PERF_STAT_DEFINE(insert_up_down);
 PERF_STAT_DEFINE(insert_first_set);
 PERF_STAT_DEFINE(whole_delete);
 PERF_STAT_DEFINE(whole_query_by_hash);
-PERF_STAT_DEFINE(find_startvec);
-PERF_STAT_DEFINE(find_data_leaf);
-PERF_STAT_DEFINE(scan_grp_info);
-PERF_STAT_DEFINE(scan_grp_vec_cnt);
 PERF_STAT_DEFINE(leaf_data_prediction_vec);
 PERF_STAT_DEFINE(leaf_data_check_vec);
 PERF_STAT_DEFINE(calc_hash_start_vec);
 PERF_STAT_DEFINE(spt_cluster_scan_perf);
 PERF_STAT_DEFINE(rbtree_scan_perf);
 PERF_STAT_DEFINE(find_vec_from_module);
+PERF_STAT_DEFINE(find_vec_from_module1);
 PERF_STAT_DEFINE(find_stable_tree);
 PERF_STAT_DEFINE(scan_grp_vec);
+PERF_STAT_DEFINE(module_tree_get_data);
+PERF_STAT_DEFINE(test_delete_data);
+PERF_STAT_DEFINE(final_find_data);
 
 
 
@@ -36,18 +36,18 @@ sd_perf_stat *sd_perf_stat_array[] =
 	PERF_STAT_PTR(insert_first_set),
     PERF_STAT_PTR(whole_delete),
     PERF_STAT_PTR(whole_query_by_hash),
-    PERF_STAT_PTR(find_startvec),
-    PERF_STAT_PTR(find_data_leaf),
-    PERF_STAT_PTR(scan_grp_info),
-    PERF_STAT_PTR(scan_grp_vec_cnt),
     PERF_STAT_PTR(leaf_data_prediction_vec),
     PERF_STAT_PTR(leaf_data_check_vec),
     PERF_STAT_PTR(calc_hash_start_vec),
     PERF_STAT_PTR(spt_cluster_scan_perf),
     PERF_STAT_PTR(rbtree_scan_perf),
     PERF_STAT_PTR(find_vec_from_module),
+    PERF_STAT_PTR(find_vec_from_module1),
     PERF_STAT_PTR(find_stable_tree),
     PERF_STAT_PTR(scan_grp_vec),
+    PERF_STAT_PTR(module_tree_get_data),
+    PERF_STAT_PTR(test_delete_data),
+    PERF_STAT_PTR(final_find_data),
 };
 
 void sd_perf_stat_init()

@@ -485,6 +485,7 @@ void test_find_next_cluster(void *args)
 }
 int find_data_err;
 extern char *test_find_data_start_vec(char *pdata);
+extern char *test_delete_data_start_vec(char *pdata);
 void test_find_proc(void *args)
 {
 	struct data_set_cache *cur = NULL;
@@ -515,11 +516,9 @@ void test_find_proc(void *args)
 			PERF_STAT_START(whole_query_by_hash);
 try_again:
 #if 1
-#if 0
 			ret_data =  test_find_data_start_vec(data);
-#endif
 			
-			ret_data =  test_find_data(data);
+			//ret_data =  test_find_data(data);
 #else
 			if(NULL ==(ret_data =  data_rb_tree_find(data)))
 #endif
@@ -647,8 +646,10 @@ void test_pre_delete_proc(void *args)
 			spt_thread_start(g_thrd_id);
 
 try_again:
+			PERF_STAT_START(whole_delete);
 			if(NULL == (ret_data = test_delete_data(data)))
             {
+				PERF_STAT_END(whole_delete);
 				spt_trace("data delete error %p\r\n", data);
 				ret = spt_get_errno();
 				if (ret == SPT_NOT_FOUND) {
@@ -678,6 +679,79 @@ try_again:
 				}
             } 
             else {
+				PERF_STAT_END(whole_delete);
+				atomic64_add(1,(atomic64_t*)&g_delete_ok);
+				spt_thread_exit(g_thrd_id);
+			}
+		}
+		if(cur)
+		{
+			free(cur);
+		}
+		cur = next;
+		sleep(0);
+	}while(cur);
+	printf("pre delete over\r\n");
+}
+void test_vec_delete_proc(void *args)
+{
+	struct data_set_cache *cur = NULL;
+	struct data_set_cache *next = NULL;
+	void *data = NULL;
+    int ret;
+	void *ret_data;
+	//int delete_cnt = 0;
+	unsigned long long per_cache_time_begin = 0;	
+	unsigned long long per_cache_time_end = 0;	
+	unsigned long long total_time = 0;
+	int cnt = 10000;
+	u32 hash;
+	do {
+		next = get_next_data_set_cache(cur);		
+		if(NULL == next)
+		{
+			break;
+		}
+		while(data = get_next_data(next))
+		{
+			delete_cnt++;	
+			spt_thread_start(g_thrd_id);
+
+try_again:
+			PERF_STAT_START(test_delete_data);
+			if(NULL == (ret_data = test_delete_data_start_vec(data)))
+            {
+				PERF_STAT_END(test_delete_data);
+				spt_trace("data delete error %p\r\n", data);
+				ret = spt_get_errno();
+				if (ret == SPT_NOT_FOUND) {
+					atomic64_add(1,(atomic64_t*)&spt_no_found_num);
+					spt_thread_exit(g_thrd_id);
+					continue;
+				} else if(ret == SPT_MASKED) {
+					spt_thread_exit(g_thrd_id);
+					spt_thread_start(g_thrd_id);
+					goto try_again;
+				}
+				else if(ret == SPT_WAIT_AMT)
+				{
+					spt_thread_exit(g_thrd_id);
+					spt_thread_start(g_thrd_id);
+					goto try_again;
+				}
+				else if(ret == SPT_NOMEM)
+				{
+					printf("OOM,%d\t%s\r\n", __LINE__, __FUNCTION__);
+					break;
+				}
+				else
+				{
+					printf("DELETE ERROR[%d],%d\t%s\r\n", ret,__LINE__, __FUNCTION__);
+					break;
+				}
+            } 
+            else {
+				PERF_STAT_END(test_delete_data);
 				atomic64_add(1,(atomic64_t*)&g_delete_ok);
 				spt_thread_exit(g_thrd_id);
 			}
