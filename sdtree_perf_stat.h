@@ -54,9 +54,10 @@ PERF_STAT_DEC(insert_last_down);
 PERF_STAT_DEC(insert_up_down);
 PERF_STAT_DEC(insert_first_set);
 PERF_STAT_DEC(whole_delete);
+PERF_STAT_DEC(whole_query_data);
 PERF_STAT_DEC(whole_query_by_hash);
-PERF_STAT_DEC(leaf_data_prediction_vec);
-PERF_STAT_DEC(leaf_data_check_vec);
+PERF_STAT_DEC(whole_query_djb_hash_data);
+PERF_STAT_DEC(whole_query_get_data);
 PERF_STAT_DEC(calc_hash_start_vec);
 PERF_STAT_DEC(spt_cluster_scan_perf);
 PERF_STAT_DEC(rbtree_scan_perf);
@@ -68,4 +69,5 @@ PERF_STAT_DEC(scan_grp_vec);
 PERF_STAT_DEC(module_tree_get_data);
 PERF_STAT_DEC(test_delete_data);
 PERF_STAT_DEC(final_find_data);
+PERF_STAT_DEC(delete_vec);
 #endif

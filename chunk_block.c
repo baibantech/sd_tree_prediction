@@ -72,6 +72,39 @@ void db_grp_init_per_page(char *page)
 		pgrp->allocmap = 0x1FCull;
 	}
 }
+void cluster_mem_init(struct cluster_head_t *pclst) 
+{
+	int ptr_bits, i;
+	u32 vec;
+	struct spt_vec *pvec;
+
+	pclst->spill_grp_id = GRP_SPILL_START;
+	pclst->spill_db_grp_id = GRP_SPILL_START;
+	
+	for (i = 0 ; i < CLST_PG_NUM_MAX; i++) {
+		grp_init_per_page(pclst->cluster_vec_mem + (i << PG_BITS));	
+		db_grp_init_per_page(pclst->cluster_db_mem + (i << PG_BITS));	
+		grp_init_per_page(pclst->cluster_pos_mem + (i << PG_BITS));	
+	}
+
+    vec = vec_alloc(pclst, &pvec, 0);
+	if (pvec == 0) {
+		spt_free(pclst);
+		return NULL;
+	}
+	pclst->last_alloc_id = vec;
+	pvec->val = 0;
+	pvec->type = SPT_VEC_DATA;
+	pvec->pos = - 1;
+	add_real_pos_record(pclst, pvec, 0);
+	pvec->scan_status = SPT_VEC_PVALUE;
+	pvec->down = SPT_NULL;
+	pvec->rd = SPT_NULL;
+	pclst->vec_head = vec;
+	pclst->pstart = pvec;
+
+}
+
 int calBitNum(int num)  
 {  
     int numOnes = 0;  
@@ -160,7 +193,26 @@ void cluster_destroy(struct cluster_head_t *pclst)
 
 	spt_debug("\r\n");
 }
+int db_null_grp;
+int db_alloc_grp;
+int db_spill_grp;
+void stat_cluster_db_grp(struct cluster_head_t *pclst)
+{
+	int i,j;
+	struct spt_grp *grp;
+	printf("db hash grp num is %d\r\n",GRP_SPILL_START);
 
+	for (i = 0; i < GRP_SPILL_START; i++) {
+		grp = db_grp_id_2_ptr(pclst, i);
+		if (grp->allocmap == 0x01FCull)
+			db_null_grp++;
+		else {
+			db_alloc_grp++;
+			if (grp->next_grp != 0)
+				db_spill_grp++;
+		}
+	}
+}
 
 struct cluster_head_t *cluster_init(int is_bottom,
 		u64 startbit,

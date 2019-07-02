@@ -319,8 +319,12 @@ get_id_start:
 			}
 			if (next_vec.status == SPT_VEC_INVALID) {
 				
+				if (pclst->debug)
+					PERF_STAT_START(delete_vec);
 				delete_next_vec(pclst, next_vec, pnext,
 						cur_vec, pcur, startbit, SPT_RIGHT);
+				if (pclst->debug)
+					PERF_STAT_END(delete_vec);
 				
 				cur_vec.val = pcur->val;
 				if (cur_vec.status != SPT_VEC_VALID)
@@ -415,7 +419,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 	int pos_type;
 	chg_pos = 0;
 	pvec_b = NULL;
-	unsigned int data_hash = 0;
+	unsigned int data_hash = 0, seg_pos = 24*8;
 	struct spt_vec *chg_vec;
 	
 	tmp_vec.val = pinsert->key_val;
@@ -454,7 +458,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 
 	pos_type = set_real_pos(pvec_a, pinsert->cmp_pos, pre_pos, window_hash);
 	add_hash_type_record(pclst, pvec_a, 1);
-	if ((pos_type == SPT_VEC_HVALUE) && (pinsert->cmp_pos > 192*8))
+	if ((pos_type == SPT_VEC_HVALUE) && (pinsert->cmp_pos > seg_pos))
 		hash_stat_add_hang_hash(pnew_data);
 
 	add_real_pos_record(pclst, pvec_a, pinsert->cmp_pos);
@@ -641,7 +645,7 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 	int chg_pos ,new_next_pos;
 	u64 next_vec_val;
 	int pos_type;
-	unsigned int data_hash = 0;
+	unsigned int data_hash = 0, seg_pos = 24*8;
 	struct spt_vec *chg_vec;
 	chg_pos = 0;
 
@@ -675,7 +679,7 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 	pvec_a->val = 0;
 	pos_type = set_real_pos(pvec_a, pinsert->cmp_pos, pre_pos, window_hash);
 	add_hash_type_record(pclst, pvec_a, 1);
-	if ((pos_type == SPT_VEC_HVALUE) && (pinsert->cmp_pos > 192*8))
+	if ((pos_type == SPT_VEC_HVALUE) && (pinsert->cmp_pos > seg_pos))
 		hash_stat_add_hang_hash(pcur_data);
 
 	add_real_pos_record(pclst, pvec_a, pinsert->cmp_pos);
@@ -1083,8 +1087,12 @@ find_lowest_start:
 			}
 			
 			if (next_vec.status == SPT_VEC_INVALID) {
+				if (pclst->debug)
+					PERF_STAT_START(delete_vec);
 				delete_next_vec(pclst, next_vec, pnext,
 						cur_vec, pcur, startbit, SPT_DOWN);
+				if (pclst->debug)
+					PERF_STAT_END(delete_vec);
 				
 				cur_vec.val = pcur->val;
 				if (cur_vec.status != SPT_VEC_VALID)
@@ -1108,8 +1116,12 @@ find_lowest_start:
 			
 			if (next_vec.status == SPT_VEC_INVALID) {
 
+				if (pclst->debug)
+					PERF_STAT_START(delete_vec);
 				delete_next_vec(pclst, next_vec, pnext,
 						cur_vec, pcur, startbit, SPT_RIGHT);
+				if (pclst->debug)
+					PERF_STAT_END(delete_vec);
 				
 				cur_vec.val = pcur->val;
 				if (cur_vec.status != SPT_VEC_VALID)
@@ -2161,6 +2173,7 @@ struct spt_vec *replace_precise_vec(struct cluster_head_t *pclst, struct spt_vec
 	return NULL;
 }
 int vec_chg_pos_vtop;
+int delete_vec_in_debug;
 int delete_next_vec(struct cluster_head_t *pclst,
 		struct spt_vec next_vec,
 		struct spt_vec *pnext,
@@ -2175,7 +2188,8 @@ int delete_next_vec(struct cluster_head_t *pclst,
 	int ret = SPT_OK;
 	int old_next_pos;
 	struct spt_vec *the_next_vec,tmp_vec, tmp_delete_vec, chg_vec;
-	
+	if (pclst->debug)
+		delete_vec_in_debug++;	
 	if (next_vec.scan_status == SPT_VEC_PVALUE)
 		next_pos = next_vec.pos + 1;
 	else
@@ -3327,6 +3341,8 @@ int find_data_from_data_vec(struct cluster_head_t *pclst, struct spt_vec *pcur_v
 
 int find_data_loop_hang_vec_cnt;
 int find_data_loop_hanged_vec_cnt;
+int find_data_loop_delete_vec_cnt;
+int delete_data_from_root;
 int debug_hang_vec_stat = 10;
 int find_data(struct cluster_head_t *pclst, struct query_info_t *pqinfo)
 {
@@ -3432,7 +3448,10 @@ int find_data(struct cluster_head_t *pclst, struct query_info_t *pqinfo)
 			prdata, startbit, endbit-startbit, fs_pos);
 
 	if (pclst->debug) {
-		pclst->loop_vec_cnt++;
+		if (op != SPT_OP_DELETE_FIND)
+			pclst->loop_vec_cnt++;
+		else
+			find_data_loop_delete_vec_cnt++;
 	}
 
 prediction_start:
@@ -3574,8 +3593,13 @@ prediction_right:
 			spt_trace("next rd:%d,next vec:%p\r\n", next_vecid, pnext);
 			
 			if (next_vec.status == SPT_VEC_INVALID) {
+				
+				if (pclst->debug)
+					PERF_STAT_START(delete_vec);
 				delete_next_vec(pclst, next_vec, pnext,
 						cur_vec, pcur, startbit, SPT_RIGHT);
+				if (pclst->debug)
+					PERF_STAT_END(delete_vec);
 				
 				cur_vec.val = pcur->val;
 				step = 3;	
@@ -3657,7 +3681,10 @@ prediction_right:
 					}
 					find_data_loop_hang_vec_cnt++;
 				}
-				pclst->loop_vec_cnt++;
+				if (op != SPT_OP_DELETE_FIND)
+					pclst->loop_vec_cnt++;
+				else
+					find_data_loop_delete_vec_cnt++;
 			}
 			///TODO:startbit already >= DATA_BIT_MAX
 			fs_pos = find_fs(prdata,
@@ -3766,8 +3793,12 @@ prediction_down_continue:
 			spt_trace("next down vec id:%d,vec:%p\r\n", next_vecid, pnext);
 			
 			if (next_vec.status == SPT_VEC_INVALID) {
+				if (pclst->debug)
+					PERF_STAT_START(delete_vec);
 				delete_next_vec(pclst, next_vec, pnext,
 						cur_vec, pcur, startbit, SPT_DOWN);
+				if (pclst->debug)
+					PERF_STAT_END(delete_vec);
 
 				cur_vec.val = pcur->val;
 				step = 8;
@@ -3822,7 +3853,10 @@ prediction_down_continue:
 						}
 						find_data_loop_hang_vec_cnt++;
 					}
-					pclst->loop_vec_cnt++;
+					if (op != SPT_OP_DELETE_FIND)
+						pclst->loop_vec_cnt++;
+					else
+						find_data_loop_delete_vec_cnt++;
 				}
 				
 				if (startbit != endbit) {
@@ -3995,8 +4029,12 @@ go_right:
 			next_vecid = cur_vec.rd;
 			
 			if (next_vec.status == SPT_VEC_INVALID) {
+				if (pclst->debug)
+					PERF_STAT_START(delete_vec);
 				delete_next_vec(pclst, next_vec, pnext,
 						cur_vec, pcur, startbit, SPT_RIGHT);
+				if (pclst->debug)
+					PERF_STAT_END(delete_vec);
 				goto refind_start;	
 			}
 			if (next_vec.down == SPT_NULL) {
@@ -4153,8 +4191,12 @@ down_continue:
 			
 			if (next_vec.status == SPT_VEC_INVALID) {
 				spt_trace("check fail line %d \r\n", __LINE__);
+				if (pclst->debug)
+					PERF_STAT_START(delete_vec);
 				delete_next_vec(pclst, next_vec, pnext,
 						cur_vec, pcur, startbit, SPT_DOWN);
+				if (pclst->debug)
+					PERF_STAT_END(delete_vec);
 				goto refind_start;
 
 			}
@@ -4357,7 +4399,9 @@ same_record:
 				pqinfo->pstart_vec = pclst->pstart;
 				pqinfo->startid = pclst->vec_head;
 				pqinfo->startpos = 0;
-                goto refind_start;
+                if (pclst->debug)
+					delete_data_from_root++;
+				goto refind_start;
             }
             else
             {
@@ -4810,26 +4854,36 @@ char *find_data_by_hash(struct cluster_head_t *pclst, char *pdata)
 	struct spt_vec *vec;
 	int ret = 0;
 	char *ret_data;
-	unsigned int data_hash;
+	unsigned int data_hash, seg_hash;
 	int grp_id;
 	struct spt_grp *grp;
 	struct spt_dh_ref *ref;
 	struct spt_dh *dh_data;
 	int i = 0;
-	unsigned int next_grp;
+	unsigned int next_grp, seg_pos = 24*8;
 	/*
 	 *first look up in the top cluster.
 	 *which next level cluster do the data belong.
 	 */
-	pnext_clst = find_next_cluster(pclst, pdata);
-	if (pnext_clst == NULL) {
-		spt_set_errno(SPT_MASKED);
-		spt_assert(0);
-		return NULL;
+	seg_hash = djb_hash(pdata, seg_pos/8);
+	if (seg_hash == local_pre_seg_hash) {
+		pnext_clst = local_bottom_clst;
+	} else {
+		pnext_clst = find_next_cluster(pclst, pdata);
+		if (pnext_clst == NULL) {
+			spt_set_errno(SPT_MASKED);
+			spt_assert(0);
+			return NULL;
+		}
+		local_bottom_clst = pnext_clst;
+		local_pre_seg_hash = seg_hash;
 	}
-	data_hash = djb_hash(pdata, DATA_SIZE);
+
+	PERF_STAT_START(whole_query_djb_hash_data);	
+	data_hash = djb_hash_seg(pdata + seg_pos/8, seg_hash, DATA_SIZE - seg_pos/8);
+	PERF_STAT_END(whole_query_djb_hash_data);	
 	
-	//PERF_STAT_START(find_startvec);	
+	PERF_STAT_START(whole_query_get_data);	
 	grp_id = data_hash % GRP_SPILL_START;
 next_grp_find:
 	grp = get_db_grp_from_grpid(pnext_clst, grp_id);
@@ -4838,8 +4892,8 @@ next_grp_find:
 	for (i = 0; i < DB_PER_GRP ; i++) {
 		if (ref->hash == data_hash) {
 			dh_data = (char *)ref + (DB_PER_GRP << 3); 	
-			if (get_data_from_dh(dh_data->pdata) == pdata) {
-				//PERF_STAT_END(find_startvec);
+			if (memcmp(get_data_from_dh(dh_data->pdata), pdata, DATA_SIZE) == 0) {
+				PERF_STAT_END(whole_query_get_data);	
 				return pdata;
 			}
 		}
@@ -5575,8 +5629,8 @@ int align_compare(u8 *a, u8 *b, s64 len, int align, struct vec_cmpret_t *result)
 perbyte:
 	case 1:
 		while (lenbyte >= 1) {
-			uca = *(u64 *)a;
-			ucb = *(u64 *)b;
+			uca = *(u8 *)a;
+			ucb = *(u8 *)b;
 
 			if (uca == ucb) {
 				result->pos += 8;
@@ -6436,6 +6490,7 @@ int scan_sub_cluster(struct cluster_head_t *pclst, struct spt_dh_ext *pup)
 	struct cluster_head_t *plower_clst;
 	struct spt_dh *pdh;
 	struct spt_dh_ref  *ref;
+	int seg_pos = 24*8;
 
 	pext_head = pup;
 	plower_clst = pext_head->plower_clst;
@@ -6447,7 +6502,7 @@ int scan_sub_cluster(struct cluster_head_t *pclst, struct spt_dh_ext *pup)
 	/* sort the data in the cluster.move the smaller half of the data to
 	 * the new cluster later
 	 */
-	ret = spt_cluster_sort_hash_vec(plower_clst, 192*8);
+	ret = spt_cluster_sort_hash_vec(plower_clst, seg_pos);
 	if (ret == SPT_ERR) {
 		spt_thread_exit(g_thrd_id);
 		spt_preempt_enable();
@@ -6483,12 +6538,41 @@ int spt_cluster_scan(struct cluster_head_t *pclst)
 	for (i = 0; i < psort->size; i++) {
 		pdh_ext = (struct spt_dh_ext *)psort->array[i];
 		plower_clst = pdh_ext->plower_clst;
-		if (plower_clst->data_total)
+		if (plower_clst->data_total) {
 			scan_sub_cluster(pclst, pdh_ext);
+			stat_cluster_db_grp(plower_clst);
+		}
 		find_data_loop_vec_cnt += plower_clst->loop_vec_cnt;
 		find_data_loop_vec_check_cnt += plower_clst->loop_check_cnt;
 	}
 	PERF_STAT_END(spt_cluster_scan_perf);
+	spt_order_array_free(psort);
+	return SPT_OK;
+}
+
+int spt_cluster_scan_mem_init(struct cluster_head_t *pclst)
+{
+	struct spt_sort_info *psort;
+	struct spt_dh_ext *pdh_ext;
+	struct cluster_head_t *plower_clst;
+	int i, ret;
+
+	psort = spt_order_array_init(pclst, pclst->data_total);
+	if (psort == NULL) {
+		spt_debug("spt_order_array_init return NULL\r\n");
+		return SPT_ERR;
+	}
+
+	ret = spt_cluster_sort_down(pclst, psort);
+	if (ret == SPT_ERR) {
+		spt_debug("psort ERR\r\n");
+		return SPT_ERR;
+	}
+	for (i = 0; i < psort->size; i++) {
+		pdh_ext = (struct spt_dh_ext *)psort->array[i];
+		plower_clst = pdh_ext->plower_clst;
+		cluster_mem_init(plower_clst);	
+	}
 	spt_order_array_free(psort);
 	return SPT_OK;
 }

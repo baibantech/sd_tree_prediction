@@ -19,7 +19,7 @@
 #include "xxhash.h"
 #include "rbtree_adp.h"
 
-#define DEFAULT_INS_LEN  256
+#define DEFAULT_INS_LEN  32
 #define DEFAULT_INS_NUM  4000000
 #define DEFAULT_RANDOM_WAY 1
 #define DEFAULT_FILE_LEN 400*1024*1024
@@ -486,6 +486,7 @@ void test_find_next_cluster(void *args)
 int find_data_err;
 extern char *test_find_data_start_vec(char *pdata);
 extern char *test_delete_data_start_vec(char *pdata);
+int test_find_data_by_vec;
 void test_find_proc(void *args)
 {
 	struct data_set_cache *cur = NULL;
@@ -513,16 +514,19 @@ void test_find_proc(void *args)
 		while(data = get_next_data(next))
 		{
 			spt_thread_start(g_thrd_id);
-			PERF_STAT_START(whole_query_by_hash);
 try_again:
-#if 1
-			ret_data =  test_find_data_start_vec(data);
-			
-			//ret_data =  test_find_data(data);
-#else
+			if (test_find_data_by_vec) {
+				PERF_STAT_START(whole_query_by_hash);
+				ret_data =  test_find_data_start_vec(data);
+				PERF_STAT_END(whole_query_by_hash);
+			} else {
+				PERF_STAT_START(whole_query_data);
+				ret_data =  test_find_data(data);
+				PERF_STAT_END(whole_query_data);
+			}
+#if 0
 			if(NULL ==(ret_data =  data_rb_tree_find(data)))
 #endif
-			PERF_STAT_END(whole_query_by_hash);
 			spt_thread_exit(g_thrd_id);
 			if (!ret_data)
 				find_data_err++;
@@ -867,13 +871,21 @@ void test_memcmp()
     return;    
 }
 
-
+#if 0
 #define  random_data_seg_num 4
 #define  random_data_seg_len 64
 #define  inner_data_seg_num 2
 #define  inner_data_seg_len 32
 #define  first_seg_data_num 4
 #define  second_seg_data_num 100
+#else
+#define  random_data_seg_num 4
+#define  random_data_seg_len 8
+#define  inner_data_seg_num 1
+#define  inner_data_seg_len 8
+#define  first_seg_data_num 4
+#define  second_seg_data_num 100
+#endif
 
 char *random_data_array[random_data_seg_num];
 

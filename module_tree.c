@@ -1456,7 +1456,7 @@ int get_vec_by_module_tree(struct cluster_head_t *vec_clst, char *pdata, int pos
 	int window_num, window_len, cur_pos_len, bit_offset;
 	unsigned int grama_seg_hash, pre_grama_seg_hash, grama_one_byte;
 	int vecid = -1;
-	int j;
+	int j, seg_pos = 24*8;
 	int cnt = 0;
 	struct module_cluster_head_t * pclst = spt_module_cluster;
 
@@ -1512,7 +1512,7 @@ int get_vec_by_module_tree(struct cluster_head_t *vec_clst, char *pdata, int pos
 				if (grama_one_byte) {
 					vecid = vec_judge_full_and_alloc(vec_clst, ret_vec, pre_grama_seg_hash);
 					if (vecid != -1) {
-						if ((cnt == 1) && (pos > 192 *8))
+						if ((cnt == 1) && (pos > seg_pos))
 							module_tree_hash_one_byte++;
 						spt_trace("alloc vec %p\r\n", *ret_vec);
 						module_tree_alloc_ok++;
@@ -1588,7 +1588,7 @@ int get_vec_by_module_tree(struct cluster_head_t *vec_clst, char *pdata, int pos
 		spt_trace("seg hash is %x\r\n", *seg_hash);
 		vecid = vec_judge_full_and_alloc(vec_clst, ret_vec, *seg_hash);
 		if (vecid != -1) {
-			if ((cnt == 1) && (pos > 192 *8))
+			if ((cnt == 1) && (pos > seg_pos))
 				module_tree_hash_one_byte++;
 			module_tree_alloc_ok++;
 			break;
@@ -1602,7 +1602,7 @@ int get_vec_by_module_tree(struct cluster_head_t *vec_clst, char *pdata, int pos
 		grama_one_byte = 0;
 		window_byte++;
 		window_len++;
-		if (pos > 192*8)
+		if (pos > seg_pos)
 			module_tree_hash_two_byte++;
 
 	}
@@ -1612,10 +1612,11 @@ int get_vec_by_module_tree(struct cluster_head_t *vec_clst, char *pdata, int pos
 }
 int module_tree_find_hash_node;
 int module_tree_find_hash_branch;
+int module_tree_find_hash_node_ret;
 int find_vec_pos_err;
 int loop_vec_cnt;
-int find_vec_from_module_hash(struct cluster_head_t *vec_clst, char *pdata,
-		struct spt_vec **ret_vec, int pos)
+int find_vec_from_module_hash_small(struct cluster_head_t *vec_clst, char *pdata,
+		struct spt_vec **ret_vec, int pos, unsigned int pre_grama_seg_hash)
 {
 	struct module_query_info_t qinfo;
 	struct spt_module_dh_ext *pdext_h;
@@ -1623,14 +1624,13 @@ int find_vec_from_module_hash(struct cluster_head_t *vec_clst, char *pdata,
 	struct spt_vec *pvec;
 	char *cur_byte, *window_byte, *tmp_byte, *module_data;
 	int window_num, window_len, cur_pos_len;
-	unsigned int grama_seg_hash, window_hash, seg_hash, pre_grama_seg_hash,tmp_hash;
+	unsigned int grama_seg_hash, window_hash, seg_hash, tmp_hash;
 	int vecid = -1;
 	int i = 0, j, gid;
 	int ret, vec_pos, bit_offset, preseg_cnt;
 	struct spt_grp *grp;
 	struct module_cluster_head_t * pclst = spt_module_cluster;
 
-//	PERF_STAT_START(find_vec_from_module1);
 	window_byte = cur_byte = pdata + (pos >> 3);
 	cur_pos_len = window_len = pos >> 3;
 
@@ -1639,14 +1639,246 @@ int find_vec_from_module_hash(struct cluster_head_t *vec_clst, char *pdata,
 	if (*window_byte != gramma_window_symbol)
 		spt_assert(0);
 
-	PERF_STAT_START(find_vec_from_module1);
-	if (window_len != 0)
-		grama_seg_hash = djb_hash(pdata, window_len);
-	else
-		grama_seg_hash = 0x1234;
-	pre_grama_seg_hash = grama_seg_hash;
+	grama_seg_hash = pre_grama_seg_hash;
+
 	spt_trace("pre_seg_hash is %x\r\n", pre_grama_seg_hash);
-	PERF_STAT_END(find_vec_from_module1);
+	while (i < 1) {
+		PERF_STAT_START(find_stable_tree);
+		window_byte++;
+		i++;
+		spt_trace("window byte is %p\r\n", window_byte);
+		grama_seg_hash = djb_hash_seg(window_byte - 1 , grama_seg_hash, 1);
+		memset(&qinfo, 0, sizeof(struct module_query_info_t));
+		qinfo.op = SPT_OP_FIND;
+		qinfo.pstart_vec = pclst->pstart;
+		qinfo.startid = pclst->vec_head;
+		qinfo.endbit = pclst->endbit;
+		qinfo.data = window_byte;
+		
+		//PERF_STAT_START(find_stable_tree);
+		ret = query_data_from_module_tree(pclst,window_byte, &qinfo);
+		PERF_STAT_END(find_stable_tree);
+		if (ret >= 0) {
+			PERF_STAT_START(module_tree_get_data);
+
+			pdext_h = (struct spt_module_dh_ext *)db_module_id_2_ptr(pclst, qinfo.db_id);
+
+			if (qinfo.cmp_result < 0) {
+				/* < 0 continue to look down */
+				pmvec = (struct spt_module_vec *)vec_module_id_2_ptr(pclst,
+						qinfo.vec_id);
+				vec.val = pmvec->val;
+				/* difference appear in leaf node*/
+				if (vec.type != SPT_VEC_DATA) {
+					pmvec = (struct spt_module_vec *)vec_module_id_2_ptr(pclst, vec.rd);
+					ret = find_module_lowest_data(pclst, pmvec);
+					if (ret == SPT_MODULE_NULL)
+						spt_assert(0);
+					pdext_h = (struct spt_module_dh_ext *)db_module_id_2_ptr(pclst, ret);
+					module_tree_find_hash_branch++;
+				} else
+					module_tree_find_hash_node++;
+
+			} else if (qinfo.cmp_result > 0){
+				/* > 0 continue to look from hang vec*/
+				if (pdext_h->hang_vec >= SPT_VEC_MODULE_INVALID)
+					spt_assert(0);
+				phang_vec = (struct spt_module_vec *)vec_module_id_2_ptr(pclst,
+						pdext_h->hang_vec);
+				vec.val = phang_vec->val;
+				if (vec.type == SPT_VEC_DATA) {
+					if (vec.rd == SPT_MODULE_NULL)
+						spt_assert(0);
+					pdext_h = (struct spt_module_dh_ext *)db_module_id_2_ptr(pclst,
+							vec.rd);
+					module_tree_find_hash_node++;
+
+				} else {
+					pmvec = (struct spt_module_vec *)vec_module_id_2_ptr(pclst, vec.rd);
+					ret = find_module_lowest_data(pclst, pmvec);
+					if (ret == SPT_MODULE_NULL)
+						spt_assert(0);
+					pdext_h = (struct spt_module_dh_ext *)db_module_id_2_ptr(pclst, ret);
+					module_tree_find_hash_branch++;
+				}
+
+			} else {
+					module_tree_find_hash_node++;
+			}
+			PERF_STAT_END(module_tree_get_data);
+		
+		} else {
+			spt_debug("find_data err!¥r¥n");
+			spt_assert(0);
+		}
+		spt_trace("pdext_h is %p \r\n", pdext_h);
+		module_data = pdext_h->data;
+		spt_trace("module data  %p\r\n", module_data);
+#if 0
+		for (j = 0; j < HASH_WINDOW_LEN; j++)
+			spt_trace("%2x ", module_data[j]);
+
+		spt_trace("window_byte is %p\r\n",window_byte);
+		for (j = 0; j < HASH_WINDOW_LEN; j++)
+			spt_trace("%2x ", window_byte[j]);
+		spt_trace("\r\n");
+#endif
+
+		PERF_STAT_START(scan_grp_vec);
+		window_hash = grama_seg_hash;
+		seg_hash = djb_hash_seg(module_data, grama_seg_hash, 8);
+		spt_trace("seg hash is %x\r\n", seg_hash);
+		spt_trace("window hash is %x\r\n", window_hash);
+		
+		/*find seg_hash grp*/
+		gid = seg_hash % GRP_SPILL_START;
+		spt_trace("grpid is %x\r\n", gid);
+		
+		grp = get_grp_from_grpid(vec_clst, gid);
+		pvec = (char *)grp + sizeof(struct spt_vec)*2;
+		//PERF_STAT_START(scan_grp_vec);
+		for (j = 0; j < VEC_PER_GRP - 2; j++, pvec++) {
+			loop_vec_cnt++;
+			if ((pvec->scan_status == SPT_VEC_HVALUE) &&(pvec->status != SPT_VEC_INVALID)) {
+				vec_pos = spt_get_pos_offset(*pvec);
+				if ((vec_pos < 8) || (vec_pos > 24) ) {
+					find_vec_pos_err++;
+					continue;
+				}
+				if (vec_pos >= 16) {
+					vec_pos = vec_pos % 8;
+					if (vec_pos) {
+						tmp_byte = window_byte + 1;
+						tmp_hash = djb_hash_seg(window_byte, window_hash, 1);
+						tmp_hash = tmp_hash + ((*tmp_byte) >> (8 - vec_pos));
+					} else {
+						find_vec_pos_err++;
+						continue;
+					}
+				} else {
+					vec_pos = vec_pos %8;
+					if (vec_pos) {
+						tmp_hash = window_hash + ((*window_byte) >> (8 - vec_pos)); 
+					} else {
+						find_vec_pos_err++;
+						continue;
+					}
+				}
+				
+				if (spt_get_pos_hash(*pvec) == (tmp_hash & SPT_HASH_MASK)) {
+					
+					if (*ret_vec == NULL) {
+						*ret_vec = pvec;
+						spt_trace("find vec %p\r\n", pvec);
+						vecid =  (gid << VEC_PER_GRP_BITS) + 2 + j;
+					} else {
+						if (spt_get_pos_offset(*pvec) < spt_get_pos_offset(**ret_vec)) {
+							*ret_vec = pvec;
+							vecid =  (gid << VEC_PER_GRP_BITS) + 2 + j;
+						}
+					}
+				}
+			}
+		}
+		if (vecid != -1) {
+			PERF_STAT_END(scan_grp_vec);
+			module_tree_find_hash_node_ret++;
+			return vecid;
+		}
+		#if 1
+		gid = pre_grama_seg_hash % GRP_SPILL_START;
+		window_hash = grama_seg_hash;
+		do {
+			grp = get_grp_from_grpid(vec_clst, gid);
+			spt_trace("window hash is %x\r\n", window_hash);
+			pvec = (char *)grp + sizeof(struct spt_vec)*2;
+			for (j = 0; j < VEC_PER_GRP - 2; j++, pvec++) {
+				loop_vec_cnt++;
+				if ((pvec->scan_status == SPT_VEC_HVALUE) &&(pvec->status != SPT_VEC_INVALID)) {
+					vec_pos = spt_get_pos_offset(*pvec);
+					
+					if ((vec_pos < 8) || (vec_pos > 24)) {
+						find_vec_pos_err++;
+						continue;
+					}
+					if (vec_pos >= 16) {
+						vec_pos = vec_pos % 8;
+						if (vec_pos) {
+							tmp_byte = window_byte + 1;
+							tmp_hash = djb_hash_seg(window_byte, window_hash, 1);
+							tmp_hash = tmp_hash + ((*tmp_byte) >> (8 - vec_pos));
+						} else {
+							find_vec_pos_err++;
+							continue;
+						}
+					} else {
+						vec_pos = vec_pos %8;
+						if (vec_pos) {
+							tmp_hash = window_hash + ((*window_byte) >> (8 - vec_pos)); 
+						} else {
+							find_vec_pos_err++;
+							continue;
+						}
+					}
+
+					if (spt_get_pos_hash(*pvec) == (tmp_hash & SPT_HASH_MASK)) {
+						
+						if (*ret_vec == NULL) {
+							*ret_vec = pvec;
+							spt_trace("find vec %p\r\n", pvec);
+							vecid =  (gid << VEC_PER_GRP_BITS) + 2 + j;
+						} else {
+							if (spt_get_pos_offset(*pvec) < spt_get_pos_offset(**ret_vec)) {
+								*ret_vec = pvec;
+								vecid =  (gid << VEC_PER_GRP_BITS) + 2 + j;
+							}
+						}
+					}
+				}
+			}
+			
+			if (grp->next_grp != 0) {
+				while (grp->next_grp == 0xFFFFF) {
+					smp_mb();
+				}
+				gid = grp->next_grp;
+			} else
+				break;
+
+		} while (1);
+#endif
+		PERF_STAT_END(scan_grp_vec);
+	}
+	return vecid;
+}
+
+int find_vec_from_module_hash(struct cluster_head_t *vec_clst, char *pdata,
+		struct spt_vec **ret_vec, int pos, unsigned int pre_grama_seg_hash)
+{
+	struct module_query_info_t qinfo;
+	struct spt_module_dh_ext *pdext_h;
+	struct spt_module_vec *phang_vec, *pmvec, vec;
+	struct spt_vec *pvec;
+	char *cur_byte, *window_byte, *tmp_byte, *module_data;
+	int window_num, window_len, cur_pos_len;
+	unsigned int grama_seg_hash, window_hash, seg_hash, tmp_hash;
+	int vecid = -1;
+	int i = 0, j, gid;
+	int ret, vec_pos, bit_offset, preseg_cnt;
+	struct spt_grp *grp;
+	struct module_cluster_head_t * pclst = spt_module_cluster;
+
+	window_byte = cur_byte = pdata + (pos >> 3);
+	cur_pos_len = window_len = pos >> 3;
+
+	spt_trace("cur byte is %p\r\n", cur_byte);
+
+	if (*window_byte != gramma_window_symbol)
+		spt_assert(0);
+
+	grama_seg_hash = pre_grama_seg_hash;
+
+	spt_trace("pre_seg_hash is %x\r\n", pre_grama_seg_hash);
 	while (i < 1) {
 		PERF_STAT_START(find_stable_tree);
 		window_byte++;
@@ -1855,6 +2087,104 @@ int find_vec_from_module_hash(struct cluster_head_t *vec_clst, char *pdata,
 	}
 	return vecid;
 }
+int find_vec_from_module_hash_pre_seg(struct cluster_head_t *vec_clst, char *pdata,
+		struct spt_vec **ret_vec, int pos, unsigned int pre_grama_seg_hash)
+{
+	struct module_query_info_t qinfo;
+	struct spt_module_dh_ext *pdext_h;
+	struct spt_module_vec *phang_vec, *pmvec, vec;
+	struct spt_vec *pvec;
+	char *cur_byte, *window_byte, *tmp_byte, *module_data;
+	int window_num, window_len, cur_pos_len;
+	unsigned int grama_seg_hash, window_hash, seg_hash, tmp_hash;
+	int vecid = -1;
+	int i = 0, j, gid;
+	int ret, vec_pos, bit_offset, preseg_cnt;
+	struct spt_grp *grp;
+	struct module_cluster_head_t * pclst = spt_module_cluster;
+
+	window_byte = cur_byte = pdata + (pos >> 3);
+	cur_pos_len = window_len = pos >> 3;
+
+	spt_trace("cur byte is %p\r\n", cur_byte);
+
+	if (*window_byte != gramma_window_symbol)
+		spt_assert(0);
+
+	grama_seg_hash = pre_grama_seg_hash;
+
+	spt_trace("pre_seg_hash is %x\r\n", pre_grama_seg_hash);
+	while (i < 1) {
+		window_byte++;
+		i++;
+		spt_trace("window byte is %p\r\n", window_byte);
+		grama_seg_hash = djb_hash_seg(window_byte - 1 , grama_seg_hash, 1);
+
+		PERF_STAT_START(scan_grp_vec);
+		gid = pre_grama_seg_hash % GRP_SPILL_START;
+		window_hash = grama_seg_hash;
+		do {
+			grp = get_grp_from_grpid(vec_clst, gid);
+			spt_trace("window hash is %x\r\n", window_hash);
+			pvec = (char *)grp + sizeof(struct spt_vec)*2;
+			for (j = 0; j < VEC_PER_GRP - 2; j++, pvec++) {
+				loop_vec_cnt++;
+				if ((pvec->scan_status == SPT_VEC_HVALUE) &&(pvec->status != SPT_VEC_INVALID)) {
+					vec_pos = spt_get_pos_offset(*pvec);
+					
+					if ((vec_pos < 8) || (vec_pos > 24)) {
+						find_vec_pos_err++;
+						continue;
+					}
+					if (vec_pos >= 16) {
+						vec_pos = vec_pos % 8;
+						if (vec_pos) {
+							tmp_byte = window_byte + 1;
+							tmp_hash = djb_hash_seg(window_byte, window_hash, 1);
+							tmp_hash = tmp_hash + ((*tmp_byte) >> (8 - vec_pos));
+						} else {
+							find_vec_pos_err++;
+							continue;
+						}
+					} else {
+						vec_pos = vec_pos %8;
+						if (vec_pos) {
+							tmp_hash = window_hash + ((*window_byte) >> (8 - vec_pos)); 
+						} else {
+							find_vec_pos_err++;
+							continue;
+						}
+					}
+
+					if (spt_get_pos_hash(*pvec) == (tmp_hash & SPT_HASH_MASK)) {
+						
+						if (*ret_vec == NULL) {
+							*ret_vec = pvec;
+							spt_trace("find vec %p\r\n", pvec);
+							vecid =  (gid << VEC_PER_GRP_BITS) + 2 + j;
+						} else {
+							if (spt_get_pos_offset(*pvec) < spt_get_pos_offset(**ret_vec)) {
+								*ret_vec = pvec;
+								vecid =  (gid << VEC_PER_GRP_BITS) + 2 + j;
+							}
+						}
+					}
+				}
+			}
+			if (grp->next_grp != 0) {
+				while (grp->next_grp == 0xFFFFF) {
+					smp_mb();
+				}
+				gid = grp->next_grp;
+			} else
+				break;
+
+		} while (1);
+		PERF_STAT_END(scan_grp_vec);
+	}
+	return vecid;
+}
+
 
 void test_get_vec_by_module_tree(char *pdata, int pos) 
 {
@@ -1883,18 +2213,24 @@ void test_find_vec_by_module_tree(char *pdata)
 	struct spt_dh *pdh;
 	int ret = 0, vecid;
 	struct spt_vec *vec;
-	unsigned int window_hash, seg_hash;
+	unsigned int window_hash, seg_hash, pre_seg_hash;
+	int seg_pos = 24*8;
 	/*
 	 *first look up in the top cluster.
 	 *which next level cluster do the data belong.
 	 */
+	if ((seg_pos /8) != 0)
+		pre_seg_hash = djb_hash(pdata, seg_pos/8);
+	else
+		pre_seg_hash = 0x1234;
+
 	pnext_clst = find_next_cluster(pgclst, pdata);
 	if (pnext_clst == NULL) {
 		spt_set_errno(SPT_MASKED);
 		return 0;
 	}
 	vecid = find_vec_from_module_hash(pnext_clst, pdata,
-		&vec, 192*8);
+		&vec, seg_pos, pre_seg_hash);
 }
 
 unsigned int find_start_vec_ok;
@@ -1904,6 +2240,9 @@ unsigned int find_start_vec_err2;
 unsigned int start_vec_right;
 unsigned int start_vec_right1;
 unsigned int start_vec_wrong;
+
+__thread unsigned int local_pre_seg_hash;
+__thread struct cluster_head_t *local_bottom_clst;
 char *test_find_data_start_vec(char *pdata)
 {
 	struct cluster_head_t *pnext_clst;
@@ -1911,26 +2250,39 @@ char *test_find_data_start_vec(char *pdata)
 	struct spt_dh *pdh;
 	int ret = 0, vecid, first_chbit;
 	struct spt_vec *vec = NULL;
-	unsigned int window_hash, seg_hash;
+	unsigned int window_hash, seg_hash, pre_seg_hash;
 	int startpos, cur_data;
 	char *pcur_data;
+	int seg_pos = 24*8;
 	/*
 	 *first look up in the top cluster.
 	 *which next level cluster do the data belong.
 	 */
-	pnext_clst = find_next_cluster(pgclst, pdata);
-	if (pnext_clst == NULL) {
-		spt_set_errno(SPT_MASKED);
-		return NULL;
-	}
+		
+	if ((seg_pos /8) != 0)
+		pre_seg_hash = djb_hash(pdata, seg_pos/8);
+	else
+		pre_seg_hash = 0x1234;
+
+	if (pre_seg_hash != local_pre_seg_hash) {
+		pnext_clst = find_next_cluster(pgclst, pdata);
+		if (pnext_clst == NULL) {
+			spt_set_errno(SPT_MASKED);
+			return NULL;
+		}
+		local_bottom_clst = pnext_clst;
+		local_pre_seg_hash = pre_seg_hash;
+	} else
+		pnext_clst = local_bottom_clst;
+	
 	PERF_STAT_START(find_vec_from_module);
 	vecid = find_vec_from_module_hash(pnext_clst, pdata,
-		&vec, 192*8);
+		&vec, seg_pos, pre_seg_hash);
 	PERF_STAT_END(find_vec_from_module);
 
 	if (vec) {
 		int real_pos;
-		startpos =  192*8 + spt_get_pos_offset(*vec); 
+		startpos =  seg_pos + spt_get_pos_offset(*vec); 
 		real_pos = get_real_pos_record(pnext_clst, vec);	
 		if (startpos != real_pos) {
 			//printf("pnext_clst is %p, vec %p, vecid %d, startpos%d, realpos %d\r\n", pnext_clst, vec, vecid,
@@ -1938,7 +2290,7 @@ char *test_find_data_start_vec(char *pdata)
 			find_start_vec_err1++;
 			goto find_start_vec_fail;
 		}
-
+		
 		cur_data = get_data_id (pnext_clst, vec, startpos);
 
 		if (cur_data >= 0 && cur_data < SPT_INVALID) {
@@ -1956,7 +2308,7 @@ char *test_find_data_start_vec(char *pdata)
 				start_vec_wrong++;
 			} else {
 				start_vec_right++;
-				qinfo.startpos = 192*8;
+				qinfo.startpos = seg_pos;
 				qinfo.op = SPT_OP_FIND;
 				qinfo.pstart_vec = vec;
 				qinfo.startid = vecid;
@@ -1975,6 +2327,7 @@ char *test_find_data_start_vec(char *pdata)
 					start_vec_right1++;
 					pnext_clst->debug = 0;
 					pdh = (struct spt_dh *)db_id_2_ptr(pnext_clst, qinfo.db_id);
+					pnext_clst->debug = 0;
 					return get_data_from_dh(pdh->pdata);
 				}
 				pnext_clst->debug = 0;
@@ -2014,26 +2367,39 @@ char *test_delete_data_start_vec(char *pdata)
 	struct spt_dh *pdh;
 	int ret = 0, vecid, first_chbit;
 	struct spt_vec *vec = NULL;
-	unsigned int window_hash, seg_hash;
+	unsigned int window_hash, seg_hash, pre_seg_hash;
 	int startpos, cur_data;
 	char *pcur_data;
+	int seg_pos = 24*8;
 	/*
 	 *first look up in the top cluster.
 	 *which next level cluster do the data belong.
 	 */
+	if ((seg_pos /8) != 0)
+		pre_seg_hash = djb_hash(pdata, seg_pos/8);
+	else
+		pre_seg_hash = 0x1234;
+
 	pnext_clst = find_next_cluster(pgclst, pdata);
 	if (pnext_clst == NULL) {
 		spt_set_errno(SPT_MASKED);
 		return NULL;
 	}
+#if 1
 	PERF_STAT_START(find_vec_from_module);
-	vecid = find_vec_from_module_hash(pnext_clst, pdata,
-		&vec, 192*8);
+	vecid = find_vec_from_module_hash_small(pnext_clst, pdata,
+		&vec, seg_pos, pre_seg_hash);
 	PERF_STAT_END(find_vec_from_module);
+#else
+	PERF_STAT_START(find_vec_from_module);
+	vecid = find_vec_from_module_hash_pre_seg(pnext_clst, pdata,
+		&vec, seg_pos, pre_seg_hash);
+	PERF_STAT_END(find_vec_from_module);
+#endif
 
 	if (vec) {
 		int real_pos;
-		startpos =  192*8 + spt_get_pos_offset(*vec); 
+		startpos =  seg_pos + spt_get_pos_offset(*vec); 
 		real_pos = get_real_pos_record(pnext_clst, vec);	
 		if (startpos != real_pos) {
 			//printf("pnext_clst is %p, vec %p, vecid %d, startpos%d, realpos %d\r\n", pnext_clst, vec, vecid,
@@ -2059,7 +2425,7 @@ char *test_delete_data_start_vec(char *pdata)
 				start_vec_wrong++;
 			} else {
 				start_vec_right++;
-				qinfo.startpos = 192*8;
+				qinfo.startpos = seg_pos;
 				qinfo.op = SPT_OP_DELETE;
 				qinfo.pstart_vec = vec;
 				qinfo.startid = vecid;
@@ -2070,12 +2436,17 @@ char *test_delete_data_start_vec(char *pdata)
 				/*
 				 *insert data into the final cluster
 				 */
+				pnext_clst->debug = 1;
+				PERF_STAT_START(final_find_data);
 				ret = find_data(pnext_clst, &qinfo);
+				PERF_STAT_END(final_find_data);
 				if (ret >= 0) {
 					start_vec_right1++;
 					pdh = (struct spt_dh *)db_id_2_ptr(pnext_clst, qinfo.db_id);
+					pnext_clst->debug = 0;
 					return get_data_from_dh(pdh->pdata);
 				}
+				pnext_clst->debug = 0;
 				spt_set_errno(ret);
 			}
 
@@ -2096,7 +2467,10 @@ find_start_vec_fail:
 	/*
 	 *insert data into the final cluster
 	 */
+	//pnext_clst->debug = 1;
 	ret = find_data(pnext_clst, &qinfo);
+	//pnext_clst->debug = 0;
+
 	if (ret >= 0) {
 		pdh = (struct spt_dh *)db_id_2_ptr(pnext_clst, qinfo.db_id);
 		return get_data_from_dh(pdh->pdata);

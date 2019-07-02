@@ -575,5 +575,6 @@ int get_vec_by_module_tree(struct cluster_head_t *pclst,
 		unsigned int *window_hash,
 		unsigned int *seg_hash);
 void calc_grama_hash(char *data, unsigned int *window_hash, unsigned int *seg_hash, int pos);
+extern __thread struct cluster_head_t *local_bottom_clst;
 #endif
 

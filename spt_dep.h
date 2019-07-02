@@ -105,6 +105,6 @@ extern unsigned int sd_thrd_errno[128];
 
 extern __thread u32 g_thrd_id;
 extern __thread int g_thrd_errno;
-
+extern __thread unsigned int local_pre_seg_hash;
 #endif
 

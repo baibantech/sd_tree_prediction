@@ -292,6 +292,8 @@ extern int vec_chg_pos_ptov;
 extern int vec_chg_pos_vtop;
 extern int hash_stat_switch;
 struct data_set_file *set_file_list = NULL;
+extern int test_find_data_by_vec;
+extern int delete_data_from_root;;
 int main(int argc,char *argv[])
 {
 	int ret = -1;
@@ -380,6 +382,7 @@ int main(int argc,char *argv[])
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));
 
+
 	sleep(15);
 	vec_hash_cnt = 0;
 	module_tree_hash_one_byte = 0;
@@ -390,11 +393,19 @@ int main(int argc,char *argv[])
 	module_tree_hash_preseg_err = 0;
 	vec_chg_pos_ptov = 0;
 	vec_chg_pos_vtop = 0;
+	spt_cluster_scan_mem_init(pgclst);
 	err = pthread_create(&ntid, NULL, test_insert_thread, 3);
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));
-	sleep(30);
 
+	sleep(30);
+	test_find_data_by_vec = 1;
+	err = pthread_create(&ntid, NULL, test_find_thread, 4);
+	if (err != 0)
+		printf("can't create thread: %s\n", strerror(err));
+	
+	sleep(30);
+	test_find_data_by_vec = 0;
 	err = pthread_create(&ntid, NULL, test_find_thread, 4);
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));
@@ -406,13 +417,12 @@ int main(int argc,char *argv[])
 	err = pthread_create(&ntid, NULL, test_delete_thread, 4);
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));
-
 	sleep(30);
+	delete_data_from_root = 0;
 	err = pthread_create(&ntid, NULL, test_vec_delete_thread, 4);
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));
 #endif
-
 	while(1)
 	{
 		sleep(1);
@@ -444,8 +454,8 @@ extern char *find_data_by_hash(struct cluster_head_t *pclst, char *pdata);
 extern char *query_data(struct cluster_head_t *pclst, char *pdata);
 void *test_find_data(char *pdata)
 {
-	//return find_data_by_hash(pgclst, pdata);
-	return query_data(pgclst, pdata);
+	return find_data_by_hash(pgclst, pdata);
+	//return query_data(pgclst, pdata);
 }
 void* test_find_thread(void *arg)
 {
@@ -458,6 +468,8 @@ void* test_find_thread(void *arg)
 	{
 		printf("warning: could not set CPU AFFINITY\r\n");
 	}
+	local_pre_seg_hash = 0;
+	local_bottom_clst = NULL;
 
 	test_find_proc(i);
 	if(i != 0)
