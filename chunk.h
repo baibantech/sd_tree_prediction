@@ -176,6 +176,8 @@
 #define get_data_from_dh(x) ((char*)(void*)(long)((x)<<2))
 #define set_data_to_dh(x) (((unsigned long long)(long)(void*)(x))>>2)
 
+#define DATA_SEG_NUM (3)
+
 typedef char *(*spt_cb_get_key)(char *);
 typedef void (*spt_cb_free)(char *);
 typedef void (*spt_cb_end_key)(char *);

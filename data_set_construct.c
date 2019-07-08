@@ -19,7 +19,7 @@
 #include "xxhash.h"
 #include "rbtree_adp.h"
 
-#define DEFAULT_INS_LEN  32
+#define DEFAULT_INS_LEN  (DATA_SEG_NUM * 16)
 #define DEFAULT_INS_NUM  4000000
 #define DEFAULT_RANDOM_WAY 1
 #define DEFAULT_FILE_LEN 400*1024*1024
@@ -208,7 +208,7 @@ int construct_data_set(struct data_set_file *list)
 				return -1;
 			}
 		}
-		make_test_random_data();	
+		//make_test_random_data();	
 		stream = fopen(cur->set_name,"wb");
 		if(stream)
 		{
@@ -233,7 +233,8 @@ int construct_data_set(struct data_set_file *list)
 				}
 #endif
 
-				get_next_random_string(instance_mem, instance_size, flag);
+				//get_next_random_string(instance_mem, instance_size, flag);
+				make_test_data_set(instance_mem, instance_size, flag);
 				flag = 0;
 				fwrite(instance_mem,instance_size,1,stream);
 			}
@@ -878,14 +879,12 @@ void test_memcmp()
 #define  inner_data_seg_len 32
 #define  first_seg_data_num 4
 #define  second_seg_data_num 100
-#else
 #define  random_data_seg_num 4
 #define  random_data_seg_len 8
 #define  inner_data_seg_num 1
 #define  inner_data_seg_len 8
 #define  first_seg_data_num 4
 #define  second_seg_data_num 100
-#endif
 
 char *random_data_array[random_data_seg_num];
 
@@ -1005,6 +1004,5 @@ int get_next_random_string(char *str, int len, int flag)
 	}
 	return SPT_ERR;	
 }
-
-
+#endif
 
