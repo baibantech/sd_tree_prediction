@@ -311,7 +311,9 @@ struct spt_divided_info {
 	int divided_times;
 	int down_is_bottom;
 	char **up_vb_arr;
+	int  *up_vb_bitlen;
 	char **down_vb_arr;
+	int  *down_vb_bitlen;
 };
 
 
@@ -376,6 +378,7 @@ struct insert_info_t {
 	u64 fs;
 	u64 cmp_pos;
 	u64 endbit;         /* not include */
+	u64 databitlen;         /* not include */
 	u32 dataid;
 	int ref_cnt;
 	int key_id;
@@ -460,12 +463,6 @@ void default_end_get_key(char *p);
 void debug_data_print(char *pdata);
 extern int g_data_size;
 
-char *insert_data(struct cluster_head_t *pclst, char *pdata);
-char *delete_data(struct cluster_head_t *pclst, char *pdata);
-char *insert_data_prediction(struct cluster_head_t *pclst, char *pdata);
-char *delete_data_prediction(struct cluster_head_t *pclst, char *pdata);
-char *insert_data_entry(struct cluster_head_t *pclst, char *pdata);
-char *delete_data_entry(struct cluster_head_t *pclst, char *pdata);
 void set_data_size(int size);
 
 struct cluster_head_t *spt_cluster_init(u64 startbit,
@@ -510,8 +507,8 @@ void default_end_get_key(char *p);
 void debug_data_print(char *pdata);
 extern int g_data_size;
 
-char *insert_data(struct cluster_head_t *pclst, char *pdata);
-char *delete_data(struct cluster_head_t *pclst, char *pdata);
+char *insert_data(struct cluster_head_t *pclst, char *pdata, int data_bit_len);
+char *delete_data(struct cluster_head_t *pclst, char *pdata, int data_bit_len);
 char *insert_data_prediction(struct cluster_head_t *pclst, char *pdata);
 char *delete_data_prediction(struct cluster_head_t *pclst, char *pdata);
 char *insert_data_entry(struct cluster_head_t *pclst, char *pdata);
@@ -534,7 +531,6 @@ int spt_thread_start(int thread);
 void spt_thread_exit(int thread);
 int spt_divided_scan(struct cluster_head_t *pclst);
 
-int debug_statistic(struct cluster_head_t *pclst);
 void debug_cluster_travl(struct cluster_head_t *pclst);
 void debug_lower_cluster_info_show(void);
 int get_grp_by_data(struct cluster_head_t *pclst, char *data, int pos);
@@ -567,7 +563,9 @@ struct spt_vec *replace_precise_vec(struct cluster_head_t *pclst,
 		struct spt_vec *precise_vec,
 		int precise_vecid,
 		int *vec_id);
-struct cluster_head_t *find_next_cluster(struct cluster_head_t *pclst, char *pdata);
+struct cluster_head_t *find_next_cluster(struct cluster_head_t *pclst,
+		char *pdata,
+		int data_bit_len);
 
 int get_vec_by_module_tree(struct cluster_head_t *pclst,
 		char *pdata,

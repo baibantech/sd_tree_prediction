@@ -52,19 +52,29 @@
 u64 find_fs(char *a, u64 start, u64 len);
 int diff_identify(char *a, char *b, u64 start, u64 len,
 		struct vec_cmpret_t *result);
+
 void spt_thread_wait(int n, int thread);
+
 int find_data(struct cluster_head_t *pclst,
 		struct query_info_t *pqinfo);
+
 int do_insert_data(struct cluster_head_t *pclst,
-		char *pdata, spt_cb_get_key pf, spt_cb_end_key pf2);
+		char *pdata, int data_bit_len,
+		spt_cb_get_key pf, spt_cb_end_key pf2);
+
 int do_insert_data_multiple(struct cluster_head_t *pclst,
-		char *pdata, int cnt, spt_cb_get_key pf,
+		char *pdata, int data_bit_len,
+		int cnt, spt_cb_get_key pf,
 		spt_cb_end_key pf2);
+
 int do_delete_data_no_free_multiple(struct cluster_head_t *pclst,
-		char *pdata, int cnt, spt_cb_get_key pf,
+		char *pdata, int data_bit_len,
+		int cnt, spt_cb_get_key pf,
 		spt_cb_end_key pf2);
+
 int do_delete_data(struct cluster_head_t *pclst,
-		char *pdata, spt_cb_get_key pf,
+		char *pdata, int data_bit_len,
+		spt_cb_get_key pf,
 		spt_cb_end_key pf2);
 
 #endif

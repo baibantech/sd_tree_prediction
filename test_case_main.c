@@ -367,7 +367,7 @@ int main(int argc,char *argv[])
 	}
 
 #if 1
-	err = pthread_create(&ntid, NULL, test_divid_thread, 7);
+	err = pthread_create(&ntid, NULL, test_divid_thread, 1);
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));
 #endif
@@ -398,6 +398,7 @@ int main(int argc,char *argv[])
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));
 
+#if 0
 	sleep(30);
 	test_find_data_by_vec = 1;
 	err = pthread_create(&ntid, NULL, test_find_thread, 4);
@@ -409,7 +410,7 @@ int main(int argc,char *argv[])
 	err = pthread_create(&ntid, NULL, test_find_thread, 4);
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));
-
+#endif
 #if 0
 	err = pthread_create(&ntid, NULL, test_insert_thread, 3);
 	if (err != 0)
@@ -433,28 +434,35 @@ int main(int argc,char *argv[])
 extern int total_data_num;
 void *test_insert_data(char *pdata)
 {
+	int bit_len;
+	bit_len = get_string_bit_len(pdata, 0);	
 	total_data_num++;
-	return insert_data(pgclst, pdata);
+	return insert_data(pgclst, pdata, bit_len);
 }
 void *test_delete_data(char *pdata)
 {
-	return delete_data(pgclst, pdata);
+	int bit_len;
+	bit_len = get_string_bit_len(pdata, 0);	
+	return delete_data(pgclst, pdata, bit_len);
 }
 
-extern struct cluster_head_t *find_next_cluster(struct cluster_head_t *pclst, char *pdata);
-void test_find_cluster(char *data)
+void test_find_cluster(char *pdata)
 {
 	struct cluster_head_t *pclst;
-	pclst = find_next_cluster(pgclst, data);
+	int bit_len;
+	bit_len = get_string_bit_len(pdata, 0);	
+	pclst = find_next_cluster(pgclst, pdata, bit_len);
 	printf("cur cluster id %d\r\n", pclst->cluster_id);
 	sleep(1);
 }
-extern char *query_data_by_hash(struct cluster_head_t *pclst, char *pdata);
-extern char *find_data_by_hash(struct cluster_head_t *pclst, char *pdata);
-extern char *query_data(struct cluster_head_t *pclst, char *pdata);
+extern char *find_data_by_hash(struct cluster_head_t *pclst, char *pdata, int data_bit_len);
+extern char *query_data(struct cluster_head_t *pclst, char *pdata, int data_bit_len);
 void *test_find_data(char *pdata)
 {
-	return find_data_by_hash(pgclst, pdata);
+	int bit_len;
+	bit_len = get_string_bit_len(pdata, 0);	
+	
+	return find_data_by_hash(pgclst, pdata, bit_len);
 	//return query_data(pgclst, pdata);
 }
 void* test_find_thread(void *arg)

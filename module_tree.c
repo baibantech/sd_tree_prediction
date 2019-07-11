@@ -2186,7 +2186,7 @@ int find_vec_from_module_hash_pre_seg(struct cluster_head_t *vec_clst, char *pda
 }
 
 
-void test_get_vec_by_module_tree(char *pdata, int pos) 
+void test_get_vec_by_module_tree(char *pdata, int pos, int data_bit_len) 
 {
 	struct cluster_head_t *pnext_clst;
 	struct query_info_t qinfo = {0};
@@ -2198,7 +2198,7 @@ void test_get_vec_by_module_tree(char *pdata, int pos)
 	 *first look up in the top cluster.
 	 *which next level cluster do the data belong.
 	 */
-	pnext_clst = find_next_cluster(pgclst, pdata);
+	pnext_clst = find_next_cluster(pgclst, pdata, data_bit_len);
 	if (pnext_clst == NULL) {
 		spt_set_errno(SPT_MASKED);
 		return 0;
@@ -2206,7 +2206,7 @@ void test_get_vec_by_module_tree(char *pdata, int pos)
 			
 	get_vec_by_module_tree(pnext_clst, pdata, pos, NULL, &vec, &window_hash, &seg_hash);
 }
-void test_find_vec_by_module_tree(char *pdata) 
+void test_find_vec_by_module_tree(char *pdata, int data_bit_len) 
 {
 	struct cluster_head_t *pnext_clst;
 	struct query_info_t qinfo = {0};
@@ -2224,7 +2224,7 @@ void test_find_vec_by_module_tree(char *pdata)
 	else
 		pre_seg_hash = 0x1234;
 
-	pnext_clst = find_next_cluster(pgclst, pdata);
+	pnext_clst = find_next_cluster(pgclst, pdata, data_bit_len);
 	if (pnext_clst == NULL) {
 		spt_set_errno(SPT_MASKED);
 		return 0;
@@ -2243,7 +2243,7 @@ unsigned int start_vec_wrong;
 
 __thread unsigned int local_pre_seg_hash;
 __thread struct cluster_head_t *local_bottom_clst;
-char *test_find_data_start_vec(char *pdata)
+char *test_find_data_start_vec(char *pdata, int data_bit_len)
 {
 	struct cluster_head_t *pnext_clst;
 	struct query_info_t qinfo = {0};
@@ -2265,7 +2265,7 @@ char *test_find_data_start_vec(char *pdata)
 		pre_seg_hash = 0x1234;
 
 	if (pre_seg_hash != local_pre_seg_hash) {
-		pnext_clst = find_next_cluster(pgclst, pdata);
+		pnext_clst = find_next_cluster(pgclst, pdata, data_bit_len);
 		if (pnext_clst == NULL) {
 			spt_set_errno(SPT_MASKED);
 			return NULL;
@@ -2360,7 +2360,7 @@ find_start_vec_fail:
 	return NULL;	
 }
 
-char *test_delete_data_start_vec(char *pdata)
+char *test_delete_data_start_vec(char *pdata, int data_bit_len)
 {
 	struct cluster_head_t *pnext_clst;
 	struct query_info_t qinfo = {0};
@@ -2380,7 +2380,7 @@ char *test_delete_data_start_vec(char *pdata)
 	else
 		pre_seg_hash = 0x1234;
 
-	pnext_clst = find_next_cluster(pgclst, pdata);
+	pnext_clst = find_next_cluster(pgclst, pdata, data_bit_len);
 	if (pnext_clst == NULL) {
 		spt_set_errno(SPT_MASKED);
 		return NULL;

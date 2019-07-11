@@ -28,12 +28,38 @@ int get_random_string(char *str, int len)
 				break;
 		}
 	}
-	//printf("%s\r\n",str);
 }
 int get_string_len()
 {
 	srand(random_seed++);
 	return rand();
+}
+
+int get_string_bit_len(char *str, unsigned int startbit)
+{
+	unsigned int startlen = startbit/8;
+	unsigned int begin_off = startbit % 8;
+	char *start_byte = NULL;
+	int bit_len = 0;
+	start_byte = str + startlen;
+	
+	bit_len = 8 - begin_off;
+	
+	if (*start_byte == '#') {
+		return bit_len;
+	}
+	if (startbit > 8) {
+		if (*(start_byte - 1) == '#')
+			return 0;
+	}
+
+	start_byte++;
+	while (*start_byte != '#') {
+		bit_len += 8;
+		start_byte++;
+	}
+	bit_len += 8;
+	return bit_len;
 }
 
 void make_test_data_set(char *mem, int ins_len, int flag)
@@ -48,15 +74,18 @@ void make_test_data_set(char *mem, int ins_len, int flag)
 		spt_assert(0);
 
 	mem[0] = '/';
-	get_random_string(mem++, len1 - 1);
+	mem++;
+	get_random_string(mem, len1 - 1);
 	mem = mem + len1- 1;
 
 	mem[0] = '/';
-	get_random_string(mem++, len2 - 1);
-	mem = mem + len1- 1;
+	mem++;
+	get_random_string(mem, len2 - 1);
+	mem = mem + len2- 1;
 
 	mem[0] = '/';
-	get_random_string(mem++, len1 - 2);
-	mem = mem + len1- 2;
+	mem++;
+	get_random_string(mem, len3 - 2);
+	mem = mem + len3- 2;
 	mem[0] = '#';
 }

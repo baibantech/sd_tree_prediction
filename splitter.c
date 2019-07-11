@@ -369,7 +369,7 @@ int do_insert_first_set(struct cluster_head_t *pclst,
 		return SPT_DO_AGAIN;
 	if (tmp_vec.status == SPT_VEC_INVALID)
 		spt_assert(0);
-	data_hash = djb_hash(pinsert->pnew_data, DATA_SIZE);
+	data_hash = djb_hash(pinsert->pnew_data, pinsert->databitlen/8);
 	dataid = db_alloc(pclst, &pdh, &ref, data_hash);
 	if (!pdh) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
@@ -463,7 +463,7 @@ int do_insert_up_via_r(struct cluster_head_t *pclst,
 
 	add_real_pos_record(pclst, pvec_a, pinsert->cmp_pos);
 
-	data_hash = djb_hash(pnew_data , DATA_SIZE);
+	data_hash = djb_hash(pnew_data , pinsert->databitlen/8);
 	dataid = db_alloc(pclst, &pdh, &ref, data_hash);
 	if (!pdh) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
@@ -706,7 +706,7 @@ int do_insert_down_via_r(struct cluster_head_t *pclst,
 	add_hash_type_record(pclst, pvec_b, 2);
 
 	
-	data_hash = djb_hash(pnew_data , DATA_SIZE);
+	data_hash = djb_hash(pnew_data , pinsert->databitlen/8);
 	dataid = db_alloc(pclst, &pdh, &ref, data_hash);
 	if (!pdh) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
@@ -846,7 +846,7 @@ int do_insert_last_down(struct cluster_head_t *pclst,
 	pvec_a->type = SPT_VEC_DATA;
 	add_hash_type_record(pclst, pvec_a, 2);
     
-	data_hash = djb_hash(pnew_data , DATA_SIZE);
+	data_hash = djb_hash(pnew_data , pinsert->databitlen/8);
 	dataid = db_alloc(pclst, &pdh, &ref, data_hash);
 	if (!pdh) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
@@ -926,7 +926,7 @@ int do_insert_up_via_d(struct cluster_head_t *pclst,
 	pvec_a->type = SPT_VEC_DATA;
 	add_hash_type_record(pclst, pvec_a, 2);
     
-	data_hash = djb_hash(pnew_data , DATA_SIZE);
+	data_hash = djb_hash(pnew_data , pinsert->databitlen/8);
 	dataid = db_alloc(pclst, &pdh, &ref, data_hash);
 	if (!pdh) {
 		spt_print("\r\n%d\t%s", __LINE__, __func__);
@@ -1541,6 +1541,7 @@ void spt_divided_info_free(struct spt_divided_info *pdvd_info)
 				pclst->freedata(vb_array[loop]);
 		}
 		spt_vfree(pdvd_info->up_vb_arr);
+		spt_vfree(pdvd_info->up_vb_bitlen);
 	}
 	if (pdvd_info->down_vb_arr) {
 		vb_array = pdvd_info->down_vb_arr;
@@ -1550,6 +1551,7 @@ void spt_divided_info_free(struct spt_divided_info *pdvd_info)
 				pclst->freedata(vb_array[loop]);
 		}
 		spt_vfree(pdvd_info->down_vb_arr);
+		spt_vfree(pdvd_info->down_vb_bitlen);
 	}
 	spt_vfree(pdvd_info);
 }
@@ -1561,6 +1563,7 @@ struct spt_divided_info *spt_divided_mem_init(int dvd_times,
 	pdvd_info = (struct spt_divided_info *)
 		spt_vmalloc(sizeof(struct spt_divided_info));
 	memset(pdvd_info, 0, sizeof(*pdvd_info));
+
 	pdvd_info->up_vb_arr = (char **)spt_vmalloc(sizeof(char *)*dvd_times);
 	if (pdvd_info->up_vb_arr == NULL) {
 		spt_divided_info_free(pdvd_info);
@@ -1573,6 +1576,21 @@ struct spt_divided_info *spt_divided_mem_init(int dvd_times,
 		return NULL;
 	}
 	memset(pdvd_info->down_vb_arr, 0, sizeof(char *)*dvd_times);
+	
+	pdvd_info->up_vb_bitlen = (int *)spt_vmalloc(sizeof(int)*dvd_times);
+	if (pdvd_info->up_vb_bitlen == NULL) {
+		spt_divided_info_free(pdvd_info);
+		return NULL;
+	}
+	memset(pdvd_info->up_vb_bitlen, 0, sizeof(int)*dvd_times);
+	pdvd_info->down_vb_bitlen = (int*)spt_vmalloc(sizeof(int)*dvd_times);
+	if (pdvd_info->down_vb_bitlen == NULL) {
+		spt_divided_info_free(pdvd_info);
+		return NULL;
+	}
+	memset(pdvd_info->down_vb_bitlen, 0, sizeof(int)*dvd_times);
+
+
 	pdvd_info->divided_times = dvd_times;
 	pdvd_info->down_is_bottom = pdclst->is_bottom;
 
@@ -1598,12 +1616,15 @@ int spt_divided_info_init(struct spt_divided_info *pdvd_info,
 {
 	int loop, n;
 	char **u_vb_array, **d_vb_array;
+	int *u_vb_bitlen, *d_vb_bitlen;
 	char *pdata, *psrc, *pNth_data;
 
 	pdvd_info->puclst = puclst;
 
 	u_vb_array = pdvd_info->up_vb_arr;
 	d_vb_array = pdvd_info->down_vb_arr;
+	u_vb_bitlen = pdvd_info->up_vb_bitlen;
+	d_vb_bitlen = pdvd_info->down_vb_bitlen;
 
 	n = 0;
 	for (loop = 0; loop < pdvd_info->divided_times; loop++) {
@@ -1615,11 +1636,13 @@ int spt_divided_info_init(struct spt_divided_info *pdvd_info,
 		if (pdata == NULL)
 			return SPT_ERR;
 		u_vb_array[loop] = pdata;
+		u_vb_bitlen[loop] = get_string_bit_len(psrc, 0);
 
 		pdata = pdvd_info->pdst_clst->construct_data(psrc);
 		if (pdata == NULL)
 			return SPT_ERR;
 		d_vb_array[loop] = pdata;
+		d_vb_bitlen[loop] = get_string_bit_len(psrc, 0);
 		pdvd_info->pdst_clst->get_key_in_tree_end(psrc);
 	}
 	return SPT_OK;
@@ -1714,6 +1737,7 @@ int divide_sub_cluster(struct cluster_head_t *pclst, struct spt_dh_ext *pup)
 		 * if new insert/delete/find match this board, it is masked
 		 */
 		do_insert_data(pclst, pdinfo->up_vb_arr[loop],
+						pdinfo->up_vb_bitlen[loop],
 						pclst->get_key_in_tree,
 						pclst->get_key_in_tree_end);
 		spt_thread_exit(g_thrd_id);
@@ -1727,7 +1751,7 @@ int divide_sub_cluster(struct cluster_head_t *pclst, struct spt_dh_ext *pup)
 		qinfo.op = SPT_OP_INSERT;
 		qinfo.pstart_vec = plower_clst->pstart;
 		qinfo.startid = plower_clst->vec_head;
-		qinfo.endbit = plower_clst->endbit;
+		qinfo.endbit = pdinfo->down_vb_bitlen[loop];
 		qinfo.data = pdinfo->down_vb_arr[loop];
 		qinfo.multiple = 1;
 		qinfo.get_key = plower_clst->get_key;
@@ -1760,6 +1784,7 @@ int divide_sub_cluster(struct cluster_head_t *pclst, struct spt_dh_ext *pup)
 				ret = do_delete_data_no_free_multiple(
 					plower_clst,
 					get_data_from_dh(pdh->pdata),
+					get_string_bit_len(get_data_from_dh(pdh->pdata), 0),
 					ref_cnt,
 					plower_clst->get_key_in_tree,
 					plower_clst->get_key_in_tree_end);
@@ -1792,6 +1817,7 @@ int divide_sub_cluster(struct cluster_head_t *pclst, struct spt_dh_ext *pup)
 
 			ret = do_insert_data_multiple(pdst_clst,
 				get_data_from_dh(pdh->pdata),
+				get_string_bit_len(get_data_from_dh(pdh->pdata), 0),
 				ref_cnt,
 				pdst_clst->get_key_in_tree,
 				pdst_clst->get_key_in_tree_end);
@@ -1816,6 +1842,7 @@ int divide_sub_cluster(struct cluster_head_t *pclst, struct spt_dh_ext *pup)
 			while (1) {
 				ret = do_delete_data(pclst,
 					pdinfo->up_vb_arr[loop-1],
+					pdinfo->up_vb_bitlen[loop-1],
 					pclst->get_key_in_tree,
 					pclst->get_key_in_tree_end);
 				if (ret == SPT_OK)
@@ -1938,6 +1965,7 @@ struct cluster_head_t *adjust_mem_sub_cluster(struct cluster_head_t *pclst, stru
 		 * if new insert/delete/find match this board, it is masked
 		 */
 		do_insert_data(pclst, pdinfo->up_vb_arr[loop],
+						pdinfo->up_vb_bitlen[loop],
 						pclst->get_key_in_tree,
 						pclst->get_key_in_tree_end);
 		spt_thread_exit(g_thrd_id);
@@ -1951,7 +1979,7 @@ struct cluster_head_t *adjust_mem_sub_cluster(struct cluster_head_t *pclst, stru
 		qinfo.op = SPT_OP_INSERT;
 		qinfo.pstart_vec = plower_clst->pstart;
 		qinfo.startid = plower_clst->vec_head;
-		qinfo.endbit = plower_clst->endbit;
+		qinfo.endbit = pdinfo->down_vb_bitlen[loop];
 		qinfo.data = pdinfo->down_vb_arr[loop];
 		qinfo.multiple = 1;
 		qinfo.get_key = plower_clst->get_key;
@@ -1979,6 +2007,7 @@ struct cluster_head_t *adjust_mem_sub_cluster(struct cluster_head_t *pclst, stru
 				ret = do_delete_data_no_free_multiple(
 					plower_clst,
 					get_data_from_dh(pdh->pdata),
+					get_string_bit_len(get_data_from_dh(pdh->pdata), 0),
 					ref_cnt,
 					plower_clst->get_key_in_tree,
 					plower_clst->get_key_in_tree_end);
@@ -2005,6 +2034,7 @@ struct cluster_head_t *adjust_mem_sub_cluster(struct cluster_head_t *pclst, stru
 
 			ret = do_insert_data_multiple(pdst_clst,
 				get_data_from_dh(pdh->pdata),
+				get_string_bit_len(get_data_from_dh(pdh->pdata), 0),
 				ref_cnt,
 				pdst_clst->get_key_in_tree,
 				pdst_clst->get_key_in_tree_end);
@@ -2030,6 +2060,7 @@ struct cluster_head_t *adjust_mem_sub_cluster(struct cluster_head_t *pclst, stru
 			while (1) {
 				ret = do_delete_data(pclst,
 					pdinfo->up_vb_arr[loop-1],
+					pdinfo->up_vb_bitlen[loop-1],
 					pclst->get_key_in_tree,
 					pclst->get_key_in_tree_end);
 				if (ret == SPT_OK)
@@ -2053,6 +2084,7 @@ struct cluster_head_t *adjust_mem_sub_cluster(struct cluster_head_t *pclst, stru
 			while (1) {
 				ret = do_delete_data(pclst,
 					pdinfo->up_vb_arr[loop],
+					pdinfo->up_vb_bitlen[loop],
 					pclst->get_key_in_tree,
 					pclst->get_key_in_tree_end);
 				if (ret == SPT_OK)
@@ -2454,6 +2486,7 @@ int final_vec_process(struct cluster_head_t *pclst, struct query_info_t *pqinfo 
 	struct insert_info_t st_insert_info = { 0};
 	int cur_data = pdinfo->cur_data_id;
 	int ret = SPT_NOT_FOUND;
+	st_insert_info.databitlen = pqinfo->endbit;
 	
 	switch (pqinfo->op) {
 		case SPT_OP_FIND:
@@ -3283,54 +3316,6 @@ down_continue:
     return SPT_ERR;
 }
 #endif
-int find_data_from_data_vec(struct cluster_head_t *pclst, struct spt_vec *pcur_vec, char *pdata, int base_window)
-{
-	int cur_data, first_chbit, startbit, cmp, len;
-	struct spt_dh *pdh;
-	char *prdata, pcur_data;
-	spt_cb_end_key finish_key_cb;
-	int cur_pos_bit = base_window>>3;
-	struct spt_vec cur_vec = *pcur_vec;
-	
-	if (cur_vec.scan_status == SPT_VEC_PVALUE) {
-		startbit = cur_vec.pos + 1;
-		if (cur_pos_bit >= startbit)
-			return SPT_ERR;
-		cur_pos_bit = startbit;
-	} else {
-		startbit = ((cur_pos_bit>>5)<< 5) + spt_get_pos_offset(cur_vec);
-	}
-	
-	prdata = pclst->get_key(pdata);
-	finish_key_cb = pclst->get_key_end;
-	
-	len = pclst->endbit - startbit;
-	cur_data = cur_vec.rd;
-			
-	if (cur_data >= 0 && cur_data < SPT_INVALID) {
-		pdh = (struct spt_dh *)db_id_2_ptr(pclst,
-				cur_data);
-		pcur_data = pclst->get_key_in_tree(get_data_from_dh(pdh->pdata));				
-#if 0	
-		first_chbit = get_first_change_bit(prdata,
-				pcur_data,
-				pqinfo->originbit,
-				startbit);
-#endif
-		first_chbit = -1;
-		if (first_chbit == -1) {
-
-			//cmp = diff_identify(prdata, pcur_data, startbit, len ,&cmpres);
-			cmp = 0;
-			if (cmp == 0) {
-				finish_key_cb(prdata);
-				return get_data_from_dh(pdh->pdata);	
-			}
-		}
-	}
-	return NULL;
-}
-
 
 /**
 * find_data - data find/delete/insert in a sd tree cluster
@@ -3472,8 +3457,7 @@ prediction_start:
 prediction_right:
 		
 		if (cur_vec.type == SPT_VEC_DATA) { 
-			len = endbit - startbit;
-			spt_trace("go right data-fs_pos:%d,curbit:%d,datalen:%d\r\n", fs_pos, startbit, len);	
+			spt_trace("go right data-fs_pos:%d,curbit:%d,datalen:%d\r\n", fs_pos, startbit);	
 			
 			if (cur_data != SPT_INVALID) {
 				pclst->get_key_in_tree_end(pcur_data);
@@ -3502,10 +3486,20 @@ prediction_right:
 				spt_trace("check chbit-startbit:%d,endbit:%d,changebit:%d\r\n",pqinfo->startpos, startbit, first_chbit);	
 				
 				if (first_chbit == -1) {
+					int data_bit_len = get_string_bit_len(pcur_data, startbit);
+					len = startbit + data_bit_len;
+					if (len <= endbit)
+						len = data_bit_len;
+					else
+						len = endbit - startbit;
 
 					cmp = diff_identify(prdata, pcur_data, startbit, len ,&cmpres);
 					if (cmp == 0) {
 						spt_trace("find same record\r\n");	
+						if (endbit != startbit + data_bit_len) {
+							printf("data1 %p, data2 %p, startbit %d, endbit %d\r\n", prdata, pcur_data, startbit, endbit);
+							spt_assert(0);
+						}
 						goto same_record;
 					} else {
 						pinfo.cur_vec = cur_vec;
@@ -4433,6 +4427,7 @@ same_record:
  */
 int do_insert_data(struct cluster_head_t *pclst,
 				char *pdata,
+				int data_bit_len,
 				spt_cb_get_key pf,
 				spt_cb_end_key pf2)
 {
@@ -4444,7 +4439,7 @@ int do_insert_data(struct cluster_head_t *pclst,
 	qinfo.op = SPT_OP_INSERT;
 	qinfo.pstart_vec = pvec_start;
 	qinfo.startid = pclst->vec_head;
-	qinfo.endbit = pclst->endbit;
+	qinfo.endbit = data_bit_len;
 	qinfo.data = pdata;
 	qinfo.multiple = 1;
 	qinfo.get_key = pf;
@@ -4457,6 +4452,7 @@ int do_insert_data(struct cluster_head_t *pclst,
  */
 int do_insert_data_multiple(struct cluster_head_t *pclst,
 				char *pdata,
+				int data_bit_len,
 				int cnt,
 				spt_cb_get_key pf,
 				spt_cb_end_key pf2)
@@ -4469,7 +4465,7 @@ int do_insert_data_multiple(struct cluster_head_t *pclst,
 	qinfo.op = SPT_OP_INSERT;
 	qinfo.pstart_vec = pvec_start;
 	qinfo.startid = pclst->vec_head;
-	qinfo.endbit = pclst->endbit;
+	qinfo.endbit = data_bit_len;
 	qinfo.data = pdata;
 	qinfo.multiple = cnt;
 	qinfo.get_key = pf;
@@ -4483,6 +4479,7 @@ int do_insert_data_multiple(struct cluster_head_t *pclst,
  */
 int do_delete_data(struct cluster_head_t *pclst,
 				char *pdata,
+				int data_bit_len,
 				spt_cb_get_key pf,
 				spt_cb_end_key pf2)
 {
@@ -4494,7 +4491,7 @@ int do_delete_data(struct cluster_head_t *pclst,
 	qinfo.op = SPT_OP_DELETE;
 	qinfo.pstart_vec = pvec_start;
 	qinfo.startid = pclst->vec_head;
-	qinfo.endbit = pclst->endbit;
+	qinfo.endbit = data_bit_len;
 	qinfo.data = pdata;
 	qinfo.multiple = 1;
 	qinfo.free_flag = 1;
@@ -4509,6 +4506,7 @@ int do_delete_data(struct cluster_head_t *pclst,
  */
 int do_delete_data_no_free_multiple(struct cluster_head_t *pclst,
 						char *pdata,
+						int data_bit_len,
 						int cnt,
 						spt_cb_get_key pf,
 						spt_cb_end_key pf2)
@@ -4521,7 +4519,7 @@ int do_delete_data_no_free_multiple(struct cluster_head_t *pclst,
 	qinfo.op = SPT_OP_DELETE;
 	qinfo.pstart_vec = pvec_start;
 	qinfo.startid = pclst->vec_head;
-	qinfo.endbit = DATA_BIT_MAX;
+	qinfo.endbit = data_bit_len;
 	qinfo.data = pdata;
 	qinfo.multiple = cnt;
 	qinfo.free_flag = 0;
@@ -4540,7 +4538,7 @@ int do_delete_data_no_free_multiple(struct cluster_head_t *pclst,
  * return b->cluster.
  */
 struct cluster_head_t *find_next_cluster(struct cluster_head_t *pclst,
-		char *pdata)
+		char *pdata, int data_bit_len)
 {
 	struct query_info_t qinfo;
 	int ret;
@@ -4553,7 +4551,7 @@ refind_next:
 	qinfo.op = SPT_OP_FIND;
 	qinfo.pstart_vec = pclst->pstart;
 	qinfo.startid = pclst->vec_head;
-	qinfo.endbit = pclst->endbit;
+	qinfo.endbit = data_bit_len;
 	qinfo.data = pdata;
 //	qinfo.get_key = pf;
 
@@ -4611,7 +4609,7 @@ refind_next:
 		return NULL;
 	}
 }
-char *query_data_debug (char *pdata)
+char *query_data_debug (char *pdata, int data_bit_len)
 {
 	struct cluster_head_t *pnext_clst;
 	struct query_info_t qinfo = {0};
@@ -4622,7 +4620,7 @@ char *query_data_debug (char *pdata)
 	 *first look up in the top cluster.
 	 *which next level cluster do the data belong.
 	 */
-	pnext_clst = find_next_cluster(pgclst, pdata);
+	pnext_clst = find_next_cluster(pgclst, pdata, data_bit_len);
 	if (pnext_clst == NULL) {
 		spt_set_errno(SPT_MASKED);
 		return 0;
@@ -4662,18 +4660,21 @@ char *query_data_debug (char *pdata)
  * if there is duplicate in the tree, the pointer point to the copy
  * sd-tree free the original pdata
  */
-char *insert_data(struct cluster_head_t *pclst, char *pdata)
+char *insert_data(struct cluster_head_t *pclst, char *pdata, int data_bit_len)
 {
 	struct cluster_head_t *pnext_clst;
 	struct query_info_t qinfo = {0};
 	struct spt_dh *pdh;
 	int ret = 0;
+	int bit_len;
 
 	/*
 	 *first look up in the top cluster.
 	 *which next level cluster do the data belong.
 	 */
-	pnext_clst = find_next_cluster(pclst, pdata);
+	bit_len = get_string_bit_len(pdata, 0);
+
+	pnext_clst = find_next_cluster(pclst, pdata, data_bit_len);
 	if (pnext_clst == NULL) {
 		spt_set_errno(SPT_MASKED);
 		return 0;
@@ -4686,7 +4687,7 @@ char *insert_data(struct cluster_head_t *pclst, char *pdata)
 	qinfo.op = SPT_OP_INSERT;
 	qinfo.pstart_vec = pnext_clst->pstart;
 	qinfo.startid = pnext_clst->vec_head;
-	qinfo.endbit = pnext_clst->endbit;
+	qinfo.endbit = data_bit_len;
 	qinfo.data = pdata;
 	qinfo.multiple = 1;
 
@@ -4712,7 +4713,7 @@ char *insert_data(struct cluster_head_t *pclst, char *pdata)
  * if there is no data match in the tree ,return value < 0
  */
 int delete_data_cnt ;
-char *delete_data(struct cluster_head_t *pclst, char *pdata)
+char *delete_data(struct cluster_head_t *pclst, char *pdata, int data_bit_len)
 {
 	struct cluster_head_t *pnext_clst;
 	struct query_info_t qinfo = {0};
@@ -4722,7 +4723,7 @@ char *delete_data(struct cluster_head_t *pclst, char *pdata)
 	 *first look up in the top cluster.
 	 *which next level cluster do the data belong.
 	 */
-	pnext_clst = find_next_cluster(pclst, pdata);
+	pnext_clst = find_next_cluster(pclst, pdata, data_bit_len);
 	if (pnext_clst == NULL) {
 		spt_set_errno(SPT_MASKED);
 		return NULL;
@@ -4731,7 +4732,7 @@ char *delete_data(struct cluster_head_t *pclst, char *pdata)
 	qinfo.op = SPT_OP_DELETE;
 	qinfo.pstart_vec = pnext_clst->pstart;
 	qinfo.startid = pnext_clst->vec_head;
-	qinfo.endbit = pnext_clst->endbit;
+	qinfo.endbit = data_bit_len;
 	qinfo.data = pdata;
 	qinfo.multiple = 1;
 	qinfo.ref_cnt = 0;
@@ -4751,7 +4752,7 @@ char *delete_data(struct cluster_head_t *pclst, char *pdata)
 	spt_set_errno(ret);
 	return NULL;
 }
-char *query_data(struct cluster_head_t *pclst, char *pdata)
+char *query_data(struct cluster_head_t *pclst, char *pdata, int data_bit_len)
 {
 	struct cluster_head_t *pnext_clst;
 	struct query_info_t qinfo = {0};
@@ -4762,7 +4763,7 @@ char *query_data(struct cluster_head_t *pclst, char *pdata)
 	 *first look up in the top cluster.
 	 *which next level cluster do the data belong.
 	 */
-	pnext_clst = find_next_cluster(pclst, pdata);
+	pnext_clst = find_next_cluster(pclst, pdata, data_bit_len);
 	if (pnext_clst == NULL) {
 		spt_set_errno(SPT_MASKED);
 		return NULL;
@@ -4770,7 +4771,7 @@ char *query_data(struct cluster_head_t *pclst, char *pdata)
 	qinfo.op = SPT_OP_FIND;
 	qinfo.pstart_vec = pnext_clst->pstart;
 	qinfo.startid = pnext_clst->vec_head;
-	qinfo.endbit = pnext_clst->endbit;
+	qinfo.endbit = data_bit_len;
 	qinfo.data = pdata;
 	pnext_clst->debug = 1;
 	/*
@@ -4793,60 +4794,9 @@ char *query_data(struct cluster_head_t *pclst, char *pdata)
 }
 int find_start_vec_ok;
 int find_leaf_data_ok;
-
-int find_start_vec(struct cluster_head_t *pclst, struct spt_vec **vec, int *start_pos, char *data, int window, char **ret_data)
-{
-	int gid,fs;
-	struct spt_grp *grp, *next_grp;
-	struct spt_vec cur_vec, *pvec, tmp_vec;
-	int ret_vec_id = -1;
-	int base_vec_id;
-	unsigned int window_hash, seg_hash, offset, cur_offset;
-	
-	calc_hash(data, &window_hash, &seg_hash, window);
-
-	window_hash = (window_hash & SPT_HASH_MASK) << 12;	
-	gid = seg_hash %GRP_SPILL_START;
-	offset = (((seg_hash/GRP_SPILL_START)&0x0F)%14);
-
-	*start_pos = window *8;
-	*vec = NULL;
-	tmp_vec.val = 0;
-re_find:
-	grp = get_grp_from_grpid(pclst, gid);
-	
-	for (fs = 0 ; fs < VEC_PER_GRP - 2; fs++) {
-		cur_offset = ((offset + fs)%14) +2; 
-		pvec = (char *) grp + (cur_offset << 3); 
-		base_vec_id = (gid << 4) + cur_offset ;
-		cur_vec.val = pvec->val & 0x00000000003FFFE7ULL; 	
-		
-		if(likely((cur_vec.val & 0x00000000003FF000ULL) != window_hash)) 
-			continue;
-		if ((cur_vec.val & 0x0000000000000021ULL) == 0x0000000000000020ULL) { 
-			if (cur_vec.val > tmp_vec.val) {
-				tmp_vec.val = cur_vec.val;
-				*vec = pvec;
-				ret_vec_id = base_vec_id;
-				if (cur_vec.type == SPT_VEC_DATA) {
-					*ret_data = find_data_from_data_vec(pclst, pvec, data, window); 
-					if (*ret_data != NULL)
-						return -2;
-					return -1;
-				}
-			}
-		}
-	}
-	next_grp = grp->next_grp;
-	if ((next_grp == 0) || (next_grp == 0xFFFFF)) {
-		return ret_vec_id;
-	}
-	gid = next_grp;
-	goto re_find;
-}
 int find_data_leaf_err;
 
-char *find_data_by_hash(struct cluster_head_t *pclst, char *pdata)
+char *find_data_by_hash(struct cluster_head_t *pclst, char *pdata, int data_bit_len)
 {
 	struct cluster_head_t *pnext_clst;
 	struct query_info_t qinfo = {0};
@@ -4869,7 +4819,7 @@ char *find_data_by_hash(struct cluster_head_t *pclst, char *pdata)
 	if (seg_hash == local_pre_seg_hash) {
 		pnext_clst = local_bottom_clst;
 	} else {
-		pnext_clst = find_next_cluster(pclst, pdata);
+		pnext_clst = find_next_cluster(pclst, pdata, data_bit_len);
 		if (pnext_clst == NULL) {
 			spt_set_errno(SPT_MASKED);
 			spt_assert(0);
@@ -4966,8 +4916,11 @@ struct cluster_head_t *spt_cluster_init(u64 startbit,
 	pdh_ext->data = (char *)(pdh_ext+1);
 	pdh_ext->plower_clst = plower_clst;
 	memset(pdh_ext->data, 0xff, DATA_SIZE);
+	pdata = pdh_ext->data + DATA_SIZE - 1;
+	*pdata = '#';
 
 	do_insert_data(pclst, (char *)pdh_ext,
+			DATA_BIT_MAX,
 			pclst->get_key_in_tree,
 			pclst->get_key_in_tree_end);
 	list_add(&plower_clst->c_list, &pclst->c_list);
@@ -4993,8 +4946,11 @@ struct cluster_head_t *spt_cluster_init(u64 startbit,
 	pdh_ext->plower_clst = plower_clst;
 	pdata = pdh_ext->data + DATA_SIZE - 2;
 	*pdata = 32;
+	pdata++;
+	*pdata = '#';
 
 	do_insert_data(pclst, (char *)pdh_ext,
+			DATA_BIT_MAX,
 			pclst->get_key_in_tree,
 			pclst->get_key_in_tree_end);
 	list_add(&plower_clst->c_list, &pclst->c_list);
@@ -5002,7 +4958,7 @@ struct cluster_head_t *spt_cluster_init(u64 startbit,
 	/*
 	 * The sample space is divided into several parts on average
 	 */
-	for (i = 1; i < 256; i++) {
+	for (i = 1; i < 1; i++) {
 		plower_clst = cluster_init(1, startbit,
 				endbit, thread_num, pf, pf2,
 							pf_free, pf_con);
@@ -5026,9 +4982,12 @@ struct cluster_head_t *spt_cluster_init(u64 startbit,
 		}
 		memset(pdh_ext->data, 0, DATA_SIZE);
 		*pdh_ext->data = i;
-//		get_random_bytes(pdh_ext->data,DATA_SIZE);
+		pdata = pdh_ext->data + DATA_SIZE - 1;
+		*pdata = '#';
+		
 		pdh_ext->plower_clst = plower_clst;
 		do_insert_data(pclst, (char *)pdh_ext,
+				DATA_BIT_MAX,
 				pclst->get_key_in_tree,
 				pclst->get_key_in_tree_end);
 		list_add(&plower_clst->c_list, &pclst->c_list);
