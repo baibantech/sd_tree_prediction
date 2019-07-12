@@ -442,8 +442,12 @@ void *test_insert_data(char *pdata)
 void *test_delete_data(char *pdata)
 {
 	int bit_len;
+	char *data;
 	bit_len = get_string_bit_len(pdata, 0);	
-	return delete_data(pgclst, pdata, bit_len);
+	PERF_STAT_START(whole_delete);	
+	data = delete_data(pgclst, pdata, bit_len);
+	PERF_STAT_END(whole_delete);
+	return data;
 }
 
 void test_find_cluster(char *pdata)

@@ -651,10 +651,8 @@ void test_pre_delete_proc(void *args)
 			spt_thread_start(g_thrd_id);
 
 try_again:
-			PERF_STAT_START(whole_delete);
 			if(NULL == (ret_data = test_delete_data(data)))
             {
-				PERF_STAT_END(whole_delete);
 				spt_trace("data delete error %p\r\n", data);
 				ret = spt_get_errno();
 				if (ret == SPT_NOT_FOUND) {
@@ -684,7 +682,6 @@ try_again:
 				}
             } 
             else {
-				PERF_STAT_END(whole_delete);
 				atomic64_add(1,(atomic64_t*)&g_delete_ok);
 				spt_thread_exit(g_thrd_id);
 			}
