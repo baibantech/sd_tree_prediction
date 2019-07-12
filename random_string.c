@@ -9,6 +9,11 @@
 #include<stdlib.h>
 #include "chunk.h"
 int random_seed = 0;
+char *random_seg1[16];
+char *random_seg2[16];
+int random_seg_len1;
+int random_seg_len2;
+int random_seg_len3;
 
 int get_random_string(char *str, int len)
 {
@@ -28,6 +33,7 @@ int get_random_string(char *str, int len)
 				break;
 		}
 	}
+	return 0;
 }
 int get_string_len()
 {
@@ -61,31 +67,50 @@ int get_string_bit_len(char *str, unsigned int startbit)
 	bit_len += 8;
 	return bit_len;
 }
-
+int random_string_cnt;
 void make_test_data_set(char *mem, int ins_len, int flag)
 {
 	int len1, len2,len3;
+	if (random_string_cnt %100)
+		flag = 1;
+	else
+		flag = 0;
+	random_string_cnt++;
 
-	len1 = 8 + get_string_len()%8;
-	len2 = 8 + get_string_len()%8;
-	len3 = 8 + get_string_len()%8;
-	
-	if (len1 + len2 + len3 > ins_len)
-		spt_assert(0);
+	if (flag == 0) {
+		random_seg_len1 = len1 = 8 + get_string_len()%8;
+		random_seg_len2 = len2 = 8 + get_string_len()%8;
+		random_seg_len3 = len3 = 8 + get_string_len()%8;
+		
+		if (len1 + len2 + len3 > ins_len)
+			spt_assert(0);
 
-	mem[0] = '/';
-	mem++;
-	get_random_string(mem, len1 - 1);
-	mem = mem + len1- 1;
+		get_random_string(mem, len1);
+		mem[0] = '/';
+		memcpy(random_seg1,mem, len1);
+		mem = mem + len1;
 
-	mem[0] = '/';
-	mem++;
-	get_random_string(mem, len2 - 1);
-	mem = mem + len2- 1;
 
-	mem[0] = '/';
-	mem++;
-	get_random_string(mem, len3 - 2);
-	mem = mem + len3- 2;
-	mem[0] = '#';
+		get_random_string(mem, len2);
+		mem[0] = '/';
+		memcpy(random_seg2, mem, len2);
+		mem = mem + len2;
+
+		get_random_string(mem, len3);
+		mem[0] = '/';
+		mem = mem + len3- 1;
+		mem[0] = '#';
+
+	} else {
+		memcpy(mem, random_seg1, random_seg_len1);
+		mem = mem + random_seg_len1;
+
+		memcpy(mem, random_seg2, random_seg_len2);
+		mem = mem + random_seg_len2;
+		
+		get_random_string(mem, random_seg_len3);
+		mem[0] = '/';
+		mem = mem + random_seg_len3- 1;
+		mem[0] = '#';
+	}
 }
