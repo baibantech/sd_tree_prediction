@@ -351,7 +351,6 @@ struct query_info_t {
 	int multiple;               /* insert/delete data's count*/
 	/* return value,the last compared vector, when find return */
 	u32 vec_id;
-	int originbit;
 	/* if NULL, use the default callback function*/
 	spt_cb_get_key get_key;
 	/* if NULL, use the default callback function*/

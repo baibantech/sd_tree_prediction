@@ -2681,7 +2681,7 @@ int find_data(struct cluster_head_t *pclst, struct query_info_t *pqinfo)
 	struct spt_vec *pcur, *pnext, *ppre;
 	struct spt_vec tmp_vec, cur_vec, next_vec;
 	char *pcur_data;
-	u64 originbit, startbit, endbit, len, fs_pos, signpost;
+	u64 startbit, endbit, len, fs_pos, signpost;
 	int va_old, va_new;
 	u8 direction;
 	int ret;
@@ -3028,7 +3028,7 @@ prediction_right:
 						check_pos = first_chbit;
 						check_data_id = cur_data;
 						check_data = pcur_data;
-						printf("startbit %d, len %d, endbit %d, chgbit %d\r\n", startbit, len, endbit, first_chbit);	
+						//printf("startbit %d, len %d, endbit %d, chgbit %d\r\n", startbit, len, endbit, first_chbit);	
 						spt_trace("checkbit:%d,checkdata_id:%d,checkdata:%p\r\n",check_pos ,check_data_id, check_data);	
 						
 						goto prediction_check;
@@ -3123,7 +3123,7 @@ prediction_down:
 						pqinfo->startpos,
 						startbit);
 
-				spt_trace("check chbit-startbit:%d,endbit:%d,changebit:%d\r\n",pqinfo->originbit,startbit,first_chbit);	
+				spt_trace("check chbit-startbit:%d,endbit:%d,changebit:%d\r\n",pqinfo->startpos, startbit, first_chbit);	
 				
 				if (first_chbit != -1) {	
 					check_pos = first_chbit;
@@ -3269,7 +3269,7 @@ prediction_down_continue:
 						startbit);
 			
 			spt_trace("next down vec dismatch\r\n");
-			spt_trace("check chbit-startbit:%d,endbit:%d,changebit:%d\r\n",pqinfo->originbit,startbit,first_chbit);	
+			spt_trace("check chbit-startbit:%d,endbit:%d,changebit:%d\r\n",pqinfo->startpos, startbit, first_chbit);	
 			
 			if (first_chbit != -1) {
 				check_pos = first_chbit;
@@ -3498,7 +3498,7 @@ go_right:
 					check_type = SPT_RD_DOWN;
 					spt_trace("prediction check ok, check type RD_DOWN\r\n");
 				}
-				check_pos = endbit + 1;
+				check_pos = pclst->endbit + 1;
 			}
 			
 			if (startbit + len >= endbit) {
