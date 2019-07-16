@@ -40,6 +40,26 @@ int get_string_len()
 	srand(random_seed++);
 	return rand();
 }
+int get_string_seg_pos(char *data, int seg_id) 
+{
+	int len = 0;
+	int seg = 0;
+	if (seg_id > DATA_SEG_NUM)
+		spt_assert(0);
+	while (*data != '#') {
+		if (*data == '/')
+			seg++;
+		if (seg == seg_id)
+			break;
+		len++;
+		data++;
+	}
+	
+	if (*data == '#')
+		spt_assert(0);
+	return len *8;
+}
+
 
 int get_string_bit_len(char *str, unsigned int startbit)
 {

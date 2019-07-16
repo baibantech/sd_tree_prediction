@@ -398,16 +398,16 @@ int main(int argc,char *argv[])
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));
 
-#if 0
+#if 1
 	sleep(30);
 	test_find_data_by_vec = 1;
-	err = pthread_create(&ntid, NULL, test_find_thread, 4);
+	err = pthread_create(&ntid, NULL, test_find_thread, 1);
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));
 	
 	sleep(30);
 	test_find_data_by_vec = 0;
-	err = pthread_create(&ntid, NULL, test_find_thread, 4);
+	err = pthread_create(&ntid, NULL, test_find_thread, 2);
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));
 #endif
@@ -461,11 +461,8 @@ void test_find_cluster(char *pdata)
 }
 extern char *find_data_by_hash(struct cluster_head_t *pclst, char *pdata, int data_bit_len);
 extern char *query_data(struct cluster_head_t *pclst, char *pdata, int data_bit_len);
-void *test_find_data(char *pdata)
+void *test_find_data(char *pdata, int bit_len)
 {
-	int bit_len;
-	bit_len = get_string_bit_len(pdata, 0);	
-	
 	return find_data_by_hash(pgclst, pdata, bit_len);
 	//return query_data(pgclst, pdata);
 }

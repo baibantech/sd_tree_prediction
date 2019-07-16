@@ -28,8 +28,8 @@ unsigned long long spt_merge_num = 0;
 long long  data_set_config_instance_len = DEFAULT_INS_LEN;
 long long  data_set_config_instance_num = DEFAULT_INS_NUM;
 
-long long  data_set_config_random = DEFAULT_RANDOM_WAY;
-//long long  data_set_config_random = 0;
+//long long  data_set_config_random = DEFAULT_RANDOM_WAY;
+long long  data_set_config_random = 0;
 long long  data_set_config_file_len = DEFAULT_FILE_LEN;
 
 long long  data_set_config_cache_unit_len = ((40*1024*1024)/(DEFAULT_INS_LEN))*(DEFAULT_INS_LEN);
@@ -459,7 +459,7 @@ u64 g_delete_ok = 0;
 extern 	int test_stop;
 extern void* test_insert_data(char *pdata);
 extern void* test_delete_data(char *pdata);
-extern void* test_find_data(char *pdata);
+extern void* test_find_data(char *pdata, int bit_len);
 
 void test_find_next_cluster(void *args)
 {
@@ -485,7 +485,7 @@ void test_find_next_cluster(void *args)
 	return;
 }
 int find_data_err;
-extern char *test_find_data_start_vec(char *pdata);
+extern char *test_find_data_start_vec(char *pdata, int bit_len);
 extern char *test_delete_data_start_vec(char *pdata);
 int test_find_data_by_vec;
 void test_find_proc(void *args)
@@ -504,7 +504,7 @@ void test_find_proc(void *args)
 	u64 hash64;
     int idx;
 	int cnt = g_thrd_id;
-	
+	int data_bit_len;	
 	do {
 		next = get_next_data_set_cache(cur);		
 		if(NULL == next)
@@ -514,15 +514,16 @@ void test_find_proc(void *args)
 		spt_thread_start(g_thrd_id);
 		while(data = get_next_data(next))
 		{
+			data_bit_len = get_string_bit_len(data, 0);
 			spt_thread_start(g_thrd_id);
 try_again:
 			if (test_find_data_by_vec) {
 				PERF_STAT_START(whole_query_by_hash);
-				ret_data =  test_find_data_start_vec(data);
+				ret_data =  test_find_data_start_vec(data, data_bit_len);
 				PERF_STAT_END(whole_query_by_hash);
 			} else {
 				PERF_STAT_START(whole_query_data);
-				ret_data =  test_find_data(data);
+				ret_data =  test_find_data(data, data_bit_len);
 				PERF_STAT_END(whole_query_data);
 			}
 #if 0
