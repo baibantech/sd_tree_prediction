@@ -85,23 +85,6 @@ void calc_grama_hash(char *data, unsigned int *window_hash, unsigned int *seg_ha
 
 }
 
-int find_vec_from_grama_hash(struct cluster_head_t *pclst, char *pdata,
-		struct spt_vec **vec, int pos)
-{
-
-
-
-
-}
-#if 0
-void calc_gramma_hash_by_base(char *data, unsigned int base_hash, int base_pos, unsigned int *window_hash, unsigned int *seg_hash, int pos)
-{
-
-
-
-}
-#endif
-
 void calc_hash_by_base(char *data, unsigned int base_hash, int base_pos, unsigned int *window_hash, unsigned int *seg_hash, int pos)
 {
 	int base_window_id, window_id;
@@ -124,54 +107,6 @@ void calc_hash_by_base(char *data, unsigned int base_hash, int base_pos, unsigne
 		*seg_hash = djb_hash_seg(data + window_id*HASH_WINDOW_LEN, *window_hash, HASH_WINDOW_LEN);
 	}
 }
-#if 0
-int get_real_pos_start(struct spt_vec *pvec)
-{
-	struct spt_vec tmp_vec;
-	tmp_vec.val = pvec->val;
-	if (pvec->scan_status == SPT_VEC_PVALUE) {
-		tmp_vec.pos = tmp_vec.pos + 1;
-		pos_record[g_thrd_id]->pos_array[0] = tmp_vec.pos;
-		pos_record[g_thrd_id]->cur_index = 1;
-		return tmp_vec.pos;
-	}
-	spt_assert(0);
-	return -1;
-}
-
-int get_real_pos_next(struct spt_vec *pvec)
-{
-	int real_pos;
-	int cur_index;
-	struct spt_vec vec;
-	vec.val = pvec->val;	
-	if (pvec->scan_status == SPT_VEC_PVALUE) {
-		cur_index = pos_record[g_thrd_id]->cur_index;
-		spt_assert(cur_index >= 1);
-		
-		vec.pos = vec.pos + 1;
-		pos_record[g_thrd_id]->pos_array[cur_index] = vec.pos;
-		if(vec.pos <= pos_record[g_thrd_id]->pos_array[cur_index - 1]){
-			printf("cur pos :%d, pre pos :%d\r\n", vec.pos, pos_record[g_thrd_id]->pos_array[cur_index-1]);
-			printf("cur_index:%d\r\n", cur_index);
-			spt_assert(0);
-		}
-		
-		pos_record[g_thrd_id]->cur_index++;
-		
-		return vec.pos;
-	} else if(pvec->scan_status == SPT_VEC_HVALUE) {
-		vec.val = pvec->val;
-		cur_index = pos_record[g_thrd_id]->cur_index;
-		spt_assert(cur_index > 0);
-		real_pos = pos_record[g_thrd_id]->pos_array[cur_index - 1];
-		real_pos =  (real_pos /32 )*32 + spt_get_pos_offset(vec);
-		return real_pos;
-	}
-	spt_assert(0);
-	return -1;
-}
-#endif
 int roll_pos_back(struct spt_vec cur_vec)
 {
 	if (cur_vec.scan_status == SPT_VEC_PVALUE )

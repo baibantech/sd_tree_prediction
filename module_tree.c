@@ -2245,7 +2245,7 @@ unsigned int find_start_vec_err2;
 unsigned int start_vec_right;
 unsigned int start_vec_right1;
 unsigned int start_vec_wrong;
-
+int start_vec_err1_print;
 __thread unsigned int local_pre_seg_hash;
 __thread struct cluster_head_t *local_bottom_clst;
 char *test_find_data_start_vec(char *pdata, int data_bit_len)
@@ -2287,11 +2287,14 @@ char *test_find_data_start_vec(char *pdata, int data_bit_len)
 
 	if (vec) {
 		int real_pos;
-		startpos =  seg_pos + spt_get_pos_offset(*vec); 
+		startpos = (seg_pos /HASH_WINDOW_BIT_NUM)*(HASH_WINDOW_BIT_NUM) + spt_get_pos_offset(*vec); 
 		real_pos = get_real_pos_record(pnext_clst, vec);	
 		if (startpos != real_pos) {
-			//printf("pnext_clst is %p, vec %p, vecid %d, startpos%d, realpos %d\r\n", pnext_clst, vec, vecid,
-			//		startpos, real_pos);
+			if (start_vec_err1_print < 10) {
+			printf("data %p, pnext_clst is %p, seg_pos %d, vecid %d, startpos%d, realpos %d\r\n", pdata, pnext_clst, seg_pos, vecid,
+				startpos, real_pos);
+				start_vec_err1_print++;
+			}
 			find_start_vec_err1++;
 			goto find_start_vec_fail;
 		}
