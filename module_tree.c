@@ -2288,6 +2288,8 @@ char *test_find_data_start_vec(char *pdata, int data_bit_len)
 	if (vec) {
 		int real_pos;
 		startpos = (seg_pos /HASH_WINDOW_BIT_NUM)*(HASH_WINDOW_BIT_NUM) + spt_get_pos_offset(*vec); 
+		if ((seg_pos % HASH_WINDOW_BIT_NUM) > spt_get_pos_offset(*vec))
+			startpos = startpos + HASH_WINDOW_BIT_NUM;
 		real_pos = get_real_pos_record(pnext_clst, vec);	
 		if (startpos != real_pos) {
 			if (start_vec_err1_print < 10) {
@@ -2299,7 +2301,7 @@ char *test_find_data_start_vec(char *pdata, int data_bit_len)
 			goto find_start_vec_fail;
 		}
 		
-		cur_data = get_data_id (pnext_clst, vec, startpos);
+		cur_data = get_data_id (pnext_clst, vec, real_pos);
 
 		if (cur_data >= 0 && cur_data < SPT_INVALID) {
 			find_start_vec_ok++;
@@ -2316,7 +2318,7 @@ char *test_find_data_start_vec(char *pdata, int data_bit_len)
 				start_vec_wrong++;
 			} else {
 				start_vec_right++;
-				qinfo.startpos = seg_pos;
+				qinfo.startpos = startpos;
 				qinfo.op = SPT_OP_FIND;
 				qinfo.pstart_vec = vec;
 				qinfo.startid = vecid;
