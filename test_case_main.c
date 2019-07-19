@@ -398,7 +398,7 @@ int main(int argc,char *argv[])
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));
 
-#if 1
+#if 0
 	sleep(30);
 	test_find_data_by_vec = 1;
 	err = pthread_create(&ntid, NULL, test_find_thread, 1);
@@ -419,11 +419,11 @@ int main(int argc,char *argv[])
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));
 	sleep(30);
+#endif
 	delete_data_from_root = 0;
-	err = pthread_create(&ntid, NULL, test_vec_delete_thread, 4);
+	err = pthread_create(&ntid, NULL, test_vec_delete_thread, 2);
 	if (err != 0)
 		printf("can't create thread: %s\n", strerror(err));
-#endif
 	while(1)
 	{
 		sleep(1);

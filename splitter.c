@@ -2674,7 +2674,7 @@ int find_data_loop_hang_vec_cnt;
 int find_data_loop_hanged_vec_cnt;
 int find_data_loop_delete_vec_cnt;
 int delete_data_from_root;
-int debug_hang_vec_stat = 10;
+int debug_hang_vec_stat = 0;
 int find_data(struct cluster_head_t *pclst, struct query_info_t *pqinfo)
 {
 	int cur_data, vecid, cmp, op, cur_vecid, pre_vecid, next_vecid, cnt;

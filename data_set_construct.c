@@ -486,7 +486,7 @@ void test_find_next_cluster(void *args)
 }
 int find_data_err;
 extern char *test_find_data_start_vec(char *pdata, int bit_len);
-extern char *test_delete_data_start_vec(char *pdata);
+extern char *test_delete_data_start_vec(char *pdata, int bit_len);
 int test_find_data_by_vec;
 void test_find_proc(void *args)
 {
@@ -709,6 +709,8 @@ void test_vec_delete_proc(void *args)
 	unsigned long long total_time = 0;
 	int cnt = 10000;
 	u32 hash;
+	int data_bit_len;
+
 	do {
 		next = get_next_data_set_cache(cur);		
 		if(NULL == next)
@@ -719,10 +721,11 @@ void test_vec_delete_proc(void *args)
 		{
 			delete_cnt++;	
 			spt_thread_start(g_thrd_id);
+			data_bit_len = get_string_bit_len(data, 0);
 
 try_again:
 			PERF_STAT_START(test_delete_data);
-			if(NULL == (ret_data = test_delete_data_start_vec(data)))
+			if(NULL == (ret_data = test_delete_data_start_vec(data, data_bit_len)))
             {
 				PERF_STAT_END(test_delete_data);
 				spt_trace("data delete error %p\r\n", data);

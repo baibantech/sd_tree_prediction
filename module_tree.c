@@ -1630,6 +1630,11 @@ int find_vec_from_module_hash_small(struct cluster_head_t *vec_clst, char *pdata
 	int ret, vec_pos, bit_offset, preseg_cnt;
 	struct spt_grp *grp;
 	struct module_cluster_head_t * pclst = spt_module_cluster;
+	int seg_pos_off = pos % HASH_WINDOW_BIT_NUM;
+	int dst_vec_pos1, dst_vec_pos2;
+	
+	dst_vec_pos1 = (seg_pos_off + 8) %HASH_WINDOW_BIT_NUM;
+	dst_vec_pos2 = (seg_pos_off + 16) %HASH_WINDOW_BIT_NUM;
 
 	window_byte = cur_byte = pdata + (pos >> 3);
 	cur_pos_len = window_len = pos >> 3;
@@ -1741,11 +1746,8 @@ int find_vec_from_module_hash_small(struct cluster_head_t *vec_clst, char *pdata
 			loop_vec_cnt++;
 			if ((pvec->scan_status == SPT_VEC_HVALUE) &&(pvec->status != SPT_VEC_INVALID)) {
 				vec_pos = spt_get_pos_offset(*pvec);
-				if ((vec_pos < 8) || (vec_pos > 24) ) {
-					find_vec_pos_err++;
-					continue;
-				}
-				if (vec_pos >= 16) {
+
+				if ((vec_pos >= dst_vec_pos2) && (vec_pos < dst_vec_pos2 + 8)) {
 					vec_pos = vec_pos % 8;
 					if (vec_pos) {
 						tmp_byte = window_byte + 1;
@@ -1755,7 +1757,7 @@ int find_vec_from_module_hash_small(struct cluster_head_t *vec_clst, char *pdata
 						find_vec_pos_err++;
 						continue;
 					}
-				} else {
+				} else if ((vec_pos >= dst_vec_pos1) && (vec_pos < dst_vec_pos1 + 8)){
 					vec_pos = vec_pos %8;
 					if (vec_pos) {
 						tmp_hash = window_hash + ((*window_byte) >> (8 - vec_pos)); 
@@ -1763,7 +1765,10 @@ int find_vec_from_module_hash_small(struct cluster_head_t *vec_clst, char *pdata
 						find_vec_pos_err++;
 						continue;
 					}
-				}
+				} else {
+					find_vec_pos_err++;
+					continue;
+				}	
 				
 				if (spt_get_pos_hash(*pvec) == (tmp_hash & SPT_HASH_MASK)) {
 					
@@ -1797,11 +1802,7 @@ int find_vec_from_module_hash_small(struct cluster_head_t *vec_clst, char *pdata
 				if ((pvec->scan_status == SPT_VEC_HVALUE) &&(pvec->status != SPT_VEC_INVALID)) {
 					vec_pos = spt_get_pos_offset(*pvec);
 					
-					if ((vec_pos < 8) || (vec_pos > 24)) {
-						find_vec_pos_err++;
-						continue;
-					}
-					if (vec_pos >= 16) {
+					if ((vec_pos >= dst_vec_pos2)&& (vec_pos < dst_vec_pos2 + 8)) {
 						vec_pos = vec_pos % 8;
 						if (vec_pos) {
 							tmp_byte = window_byte + 1;
@@ -1811,7 +1812,7 @@ int find_vec_from_module_hash_small(struct cluster_head_t *vec_clst, char *pdata
 							find_vec_pos_err++;
 							continue;
 						}
-					} else {
+					} else if ((vec_pos >= dst_vec_pos1) && (vec_pos < dst_vec_pos1 + 8)){
 						vec_pos = vec_pos %8;
 						if (vec_pos) {
 							tmp_hash = window_hash + ((*window_byte) >> (8 - vec_pos)); 
@@ -1819,8 +1820,11 @@ int find_vec_from_module_hash_small(struct cluster_head_t *vec_clst, char *pdata
 							find_vec_pos_err++;
 							continue;
 						}
+					} else {
+						find_vec_pos_err++;
+						continue;
 					}
-
+					
 					if (spt_get_pos_hash(*pvec) == (tmp_hash & SPT_HASH_MASK)) {
 						
 						if (*ret_vec == NULL) {
@@ -2107,6 +2111,11 @@ int find_vec_from_module_hash_pre_seg(struct cluster_head_t *vec_clst, char *pda
 	int ret, vec_pos, bit_offset, preseg_cnt;
 	struct spt_grp *grp;
 	struct module_cluster_head_t * pclst = spt_module_cluster;
+	int seg_pos_off = pos % HASH_WINDOW_BIT_NUM;
+	int dst_vec_pos1, dst_vec_pos2;
+	
+	dst_vec_pos1 = (seg_pos_off + 8) %HASH_WINDOW_BIT_NUM;
+	dst_vec_pos2 = (seg_pos_off + 16) %HASH_WINDOW_BIT_NUM;
 
 	window_byte = cur_byte = pdata + (pos >> 3);
 	cur_pos_len = window_len = pos >> 3;
@@ -2137,11 +2146,7 @@ int find_vec_from_module_hash_pre_seg(struct cluster_head_t *vec_clst, char *pda
 				if ((pvec->scan_status == SPT_VEC_HVALUE) &&(pvec->status != SPT_VEC_INVALID)) {
 					vec_pos = spt_get_pos_offset(*pvec);
 					
-					if ((vec_pos < 8) || (vec_pos > 24)) {
-						find_vec_pos_err++;
-						continue;
-					}
-					if (vec_pos >= 16) {
+					if ((vec_pos >= dst_vec_pos2)&& (vec_pos < dst_vec_pos2 + 8)) {
 						vec_pos = vec_pos % 8;
 						if (vec_pos) {
 							tmp_byte = window_byte + 1;
@@ -2151,7 +2156,7 @@ int find_vec_from_module_hash_pre_seg(struct cluster_head_t *vec_clst, char *pda
 							find_vec_pos_err++;
 							continue;
 						}
-					} else {
+					} else if ((vec_pos >= dst_vec_pos1) && (vec_pos < dst_vec_pos1 + 8)){
 						vec_pos = vec_pos %8;
 						if (vec_pos) {
 							tmp_hash = window_hash + ((*window_byte) >> (8 - vec_pos)); 
@@ -2159,8 +2164,11 @@ int find_vec_from_module_hash_pre_seg(struct cluster_head_t *vec_clst, char *pda
 							find_vec_pos_err++;
 							continue;
 						}
+					} else {
+						find_vec_pos_err++;
+						continue;
 					}
-
+					
 					if (spt_get_pos_hash(*pvec) == (tmp_hash & SPT_HASH_MASK)) {
 						
 						if (*ret_vec == NULL) {
@@ -2380,7 +2388,7 @@ char *test_delete_data_start_vec(char *pdata, int data_bit_len)
 	unsigned int window_hash, seg_hash, pre_seg_hash;
 	int startpos, cur_data;
 	char *pcur_data;
-	int seg_pos = 24*8;
+	int seg_pos = get_string_seg_pos(pdata, 3);
 	/*
 	 *first look up in the top cluster.
 	 *which next level cluster do the data belong.
@@ -2409,7 +2417,10 @@ char *test_delete_data_start_vec(char *pdata, int data_bit_len)
 
 	if (vec) {
 		int real_pos;
-		startpos =  seg_pos + spt_get_pos_offset(*vec); 
+		startpos = (seg_pos /HASH_WINDOW_BIT_NUM)*(HASH_WINDOW_BIT_NUM) + spt_get_pos_offset(*vec); 
+		if ((seg_pos % HASH_WINDOW_BIT_NUM) > spt_get_pos_offset(*vec))
+			startpos = startpos + HASH_WINDOW_BIT_NUM;
+		
 		real_pos = get_real_pos_record(pnext_clst, vec);	
 		if (startpos != real_pos) {
 			//printf("pnext_clst is %p, vec %p, vecid %d, startpos%d, realpos %d\r\n", pnext_clst, vec, vecid,
@@ -2435,11 +2446,11 @@ char *test_delete_data_start_vec(char *pdata, int data_bit_len)
 				start_vec_wrong++;
 			} else {
 				start_vec_right++;
-				qinfo.startpos = seg_pos;
+				qinfo.startpos = startpos;
 				qinfo.op = SPT_OP_DELETE;
 				qinfo.pstart_vec = vec;
 				qinfo.startid = vecid;
-				qinfo.endbit = pnext_clst->endbit;
+				qinfo.endbit = data_bit_len;
 				qinfo.data = pdata;
 				qinfo.multiple = 1;
 
